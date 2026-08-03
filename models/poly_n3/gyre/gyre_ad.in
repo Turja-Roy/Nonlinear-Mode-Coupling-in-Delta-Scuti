@@ -1,0 +1,94 @@
+! n = 3 polytrope, the independent harness for the kappa machinery.
+!
+! poly_to_fgong scales to exactly 1 M_sun and 1 R_sun in cgs, so the model is
+! physical and background.py needs no special path. There is no thermal
+! structure, so L_star = 0 and t_thermal is undefined: test 12 does not apply.
+!
+! Gamma_1 is constant, so dGamma1_dlnrho_s = 0 identically and the A55 bracket
+! reduces to Gamma_1(Gamma_1 + 1). That is the point -- it removes the one
+! input that comes from MESA rather than GYRE.
+
+&constants
+/
+
+&model
+  model_type = 'EVOL'
+  file = 'poly_n3.fgong'
+  file_format = 'FGONG'
+/
+
+&mode
+  l = 0
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'l0'
+/
+
+&mode
+  l = 1
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'l1'
+/
+
+&mode
+  l = 2
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'l2'
+/
+
+&mode
+  l = 3
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'l3'
+/
+
+&osc
+  outer_bound = 'UNNO'
+  variables_set = 'DZIEM'
+/
+
+&rot
+/
+
+&num
+  diff_scheme = 'COLLOC_GL4'
+/
+
+! Dimensionless frequencies, in units of sqrt(GM/R^3). An n = 3 polytrope has
+! its l = 2 f-mode near 1.9 and N_max near 2.5, so one wide scan in each
+! variable covers 20 orders on both sides.
+&scan
+  grid_type = 'INVERSE'
+  freq_min = 0.05
+  freq_max = 1.5
+  n_freq = 1200
+  freq_units = 'NONE'
+/
+
+&scan
+  grid_type = 'LINEAR'
+  freq_min = 1.5
+  freq_max = 40.0
+  n_freq = 1200
+  freq_units = 'NONE'
+/
+
+&grid
+  w_osc = 10
+  w_exp = 2
+  w_ctr = 10
+/
+
+&ad_output
+  summary_file = 'summary_ad.h5'
+  summary_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,E_norm,Delta_p,Delta_g,M_star,R_star,L_star'
+  detail_template = 'detail/detail.l%l.n%n.h5'
+  detail_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,x,xi_r,xi_h,eul_Phi,deul_Phi,eul_P,lag_P,eul_rho,lag_rho,rho,P,Gamma_1,As,U,c_1,V_2,M_r,M_star,R_star,L_star,E_norm'
+  freq_units = 'NONE'
+/
+
+&nad_output
+/

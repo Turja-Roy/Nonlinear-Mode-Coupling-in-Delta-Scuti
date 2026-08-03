@@ -1,0 +1,96 @@
+! n = 0 polytrope: constant density, so dlnrho/dlnr = 0 exactly.
+!
+! That makes group A57 vanish identically and kills the first term of A62 --
+! an independent check on the A57 code path and on background.dlnrho_dlnr,
+! which neither the MESA model nor the n = 3 polytrope can provide.
+!
+! The f-mode is analytic and exact here. Constant density admits the Kelvin
+! solution xi_r ~ r^(l-1), xi_h = xi_r/l, div.xi = 0, with
+! omega^2 = 2l(l-1)/(2l+1) in units of GM/R^3 -- 0.8 for l = 2, 1.2857 for
+! l = 3. It is incompressible, so Gamma_1 never enters and the result holds
+! for any Gamma_1. That pins frequency, both eigenfunctions and div.xi at once.
+!
+! div.xi = 0 also kills A55, A56, A58 and, with dlnrho/dlnr = 0, A57 and A62.
+! An (f,f,f) triplet here is therefore A59 + A60 + A61 in isolation.
+!
+! p-modes only: an n = 0 polytrope has Gamma_1 < 1 + 1/n for every finite
+! Gamma_1, so N^2 < 0 throughout and there are no g-modes to find. Asking for
+! them is what made the first attempt die in the frequency scan.
+
+&constants
+/
+
+&model
+  model_type = 'EVOL'
+  file = 'poly_n0.fgong'
+  file_format = 'FGONG'
+/
+
+&mode
+  l = 0
+  n_pg_min = 1
+  n_pg_max = 12
+  tag = 'l0'
+/
+
+! n_pg = 0 at l = 1 is the trivial translation mode at omega = 0, not an
+! f-mode. Asking for it is what killed the l = 1 scan.
+&mode
+  l = 1
+  n_pg_min = 1
+  n_pg_max = 12
+  tag = 'l1'
+/
+
+&mode
+  l = 2
+  n_pg_min = 0
+  n_pg_max = 12
+  tag = 'l2'
+/
+
+&mode
+  l = 3
+  n_pg_min = 0
+  n_pg_max = 12
+  tag = 'l3'
+/
+
+! VACUUM, not UNNO: an n = 0 polytrope has a hard surface, not an atmosphere,
+! and UNNO's radial wavenumber goes complex there. GYRE's own polytrope tests
+! leave &osc at its defaults for the same reason.
+&osc
+  variables_set = 'DZIEM'
+/
+
+&rot
+/
+
+&num
+  diff_scheme = 'COLLOC_GL4'
+/
+
+&scan
+  grid_type = 'LINEAR'
+  freq_min = 0.5
+  freq_max = 30.0
+  n_freq = 1500
+  freq_units = 'NONE'
+/
+
+&grid
+  w_osc = 10
+  w_exp = 2
+  w_ctr = 10
+/
+
+&ad_output
+  summary_file = 'summary_ad.h5'
+  summary_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,E_norm,Delta_p,Delta_g,M_star,R_star,L_star'
+  detail_template = 'detail/detail.l%l.n%n.h5'
+  detail_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,x,xi_r,xi_h,eul_Phi,deul_Phi,eul_P,lag_P,eul_rho,lag_rho,rho,P,Gamma_1,As,U,c_1,V_2,M_r,M_star,R_star,L_star,E_norm'
+  freq_units = 'NONE'
+/
+
+&nad_output
+/
