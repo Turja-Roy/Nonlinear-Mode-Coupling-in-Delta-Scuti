@@ -1,0 +1,21 @@
+.venv/
+.pytest_cache/
+
+.Old_Codes/
+
+Reading/
+Plans/
+
+# python
+__pycache__/
+*.pyc
+
+# MESA
+models/*/mesa/LOGS/*
+!models/*/mesa/LOGS/history.data
+!models/*/mesa/LOGS/profile331.data
+!models/*/mesa/LOGS/profile331.data.GYRE
+
+# GYRE
+models/*/gyre/detail/
+models/*/gyre/detail_probe100/
