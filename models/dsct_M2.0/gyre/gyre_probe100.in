@@ -1,0 +1,103 @@
+! Stage 3b PROBE: same model, |n| <= 100 instead of 20, l <= 3 unchanged.
+!
+! Not the full l < 25 net. Sun et al. (2023) find two-eigenfunction overlap
+! integrals go unreliable at |n| >~ 20 through cancellation, and kappa is a
+! cubic integrand. At |n| <= 20 the pointwise diagnostic max|group|/|sum groups|
+! reads ~1.3, so double precision is fine there and better quadrature was the
+! whole story. This run is to see whether that still holds four times deeper,
+! before committing to a run that is two orders of magnitude larger.
+!
+! g-modes reach down to ~0.22 c/d at l = 1, n = -100, so the low end of the
+! inverse scan moves with them.
+
+&constants
+/
+
+&model
+  model_type = 'EVOL'
+  file = '../mesa/LOGS/profile331.data.GYRE'
+  file_format = 'MESA'
+/
+
+! m is not set: the star is nonrotating, so omega is m-degenerate and the
+! m dependence of kappa_abc is handled analytically in the angular integrals.
+&mode
+  l = 0
+  n_pg_min = -100
+  n_pg_max = 100
+  tag = 'l0'
+/
+
+&mode
+  l = 1
+  n_pg_min = -100
+  n_pg_max = 100
+  tag = 'l1'
+/
+
+&mode
+  l = 2
+  n_pg_min = -100
+  n_pg_max = 100
+  tag = 'l2'
+/
+
+&mode
+  l = 3
+  n_pg_min = -100
+  n_pg_max = 100
+  tag = 'l3'
+/
+
+&osc
+  outer_bound = 'UNNO'
+  variables_set = 'DZIEM'
+/
+
+&rot
+/
+
+&num
+  diff_scheme = 'COLLOC_GL4'
+/
+
+! Two scans because g- and p-modes are evenly spaced in different variables.
+! Ranges come from this model: asymptotic g-mode frequencies run 1.2-57 c/d
+! over l = 1-3, n = 1-20, and p-modes 11-88 c/d, against an acoustic cutoff
+! of 88.7 c/d.
+&scan
+  grid_type = 'INVERSE'
+  freq_min = 0.15
+  freq_max = 25.0
+  n_freq = 5000
+  freq_units = 'CYC_PER_DAY'
+/
+
+&scan
+  grid_type = 'LINEAR'
+  freq_min = 25.0
+  freq_max = 95.0
+  n_freq = 1000
+  freq_units = 'CYC_PER_DAY'
+/
+
+&grid
+  w_osc = 10
+  w_exp = 2
+  w_ctr = 20
+/
+
+! U_D would give dlnrho/dlnr directly but exists only for polytropes, so As,
+! V_2 and Gamma_1 are carried instead: dlnrho/dlnr = -V_2*x^2/Gamma_1 - As.
+! lag_rho is in units of rho, so div.xi = -lag_rho exactly, for every l. The
+! horizontal Euler route needs xi_h, which GYRE sets to 0 for l = 0.
+&ad_output
+  summary_file = 'summary_probe100.h5'
+  summary_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,E_norm,Delta_p,Delta_g,M_star,R_star,L_star'
+  detail_template = 'detail_probe100/detail.l%l.n%n.h5'
+  detail_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,x,xi_r,xi_h,eul_Phi,deul_Phi,eul_P,lag_P,eul_rho,lag_rho,rho,P,Gamma_1,As,U,c_1,V_2,M_r,M_star,R_star,L_star,E_norm'
+  freq_units = 'CYC_PER_DAY'
+/
+
+&nad_output
+/
