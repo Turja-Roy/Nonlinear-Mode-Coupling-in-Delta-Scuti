@@ -1,0 +1,249 @@
+! Stage 3b, pass 1 -- the wide daughter net, l <= 15.
+!
+! Two mode families:
+!   'core'  l <= 6, |n_pg| <= 20: parents, direct daughters. The angular
+!           selection rules cap the direct daughter at l_c <= l_a + l_b, and a
+!           self-coupled parametric daughter needs l_c even with l_c <= 2 l_d,
+!           so nothing above l = 6 can be a direct daughter of low-l parents.
+!   'gnet'  the parametric daughters: high-order g-modes near omega_c / 2.
+!
+! The band is omega_d = 1.7-5.2 c/d, and g-modes follow
+! omega[c/d] = 16.56 * sqrt(l(l+1)) / |n_pg| -- fitted on summary_probe100.h5, good
+! to 0.2% at |n| = 100 across l = 1, 2, 3. That maps the band to a narrow
+! |n| window per l, which is what keeps this run to ~1000 modes instead of the
+! ~5000 a flat |n| <= 100 sweep would give. l <= 6 starts at |n| = 21 because
+! 'core' already covers everything shallower.
+!
+! 792 parametric modes here + ~290 core. Pass 2 (l = 16-25) is a separate
+! inlist, gyre_ad_wide_hi.in: 1376 more modes, ~2 GB. Run pass 1 first, check
+! disk, and only run pass 2 if pass 1 yields no 4-mode mixed candidates.
+!
+! detail_item_list drops eul_P, lag_P, eul_rho and U: nothing downstream reads
+! them (test_modes.py skips its eul_P cross-check when absent) and they are
+! ~30% of the file.
+&constants
+/
+
+&model
+  model_type = 'EVOL'
+  file = '../mesa/LOGS/profile331.data.GYRE'
+  file_format = 'MESA'
+/
+
+&mode
+  l = 0
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 1
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 2
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 3
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 4
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 5
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 6
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 2
+  n_pg_min = -23
+  n_pg_max = -21
+  tag = 'gnet'
+/
+
+&mode
+  l = 3
+  n_pg_min = -33
+  n_pg_max = -21
+  tag = 'gnet'
+/
+
+&mode
+  l = 4
+  n_pg_min = -43
+  n_pg_max = -21
+  tag = 'gnet'
+/
+
+&mode
+  l = 5
+  n_pg_min = -53
+  n_pg_max = -21
+  tag = 'gnet'
+/
+
+&mode
+  l = 6
+  n_pg_min = -63
+  n_pg_max = -21
+  tag = 'gnet'
+/
+
+&mode
+  l = 7
+  n_pg_min = -72
+  n_pg_max = -24
+  tag = 'gnet'
+/
+
+&mode
+  l = 8
+  n_pg_min = -82
+  n_pg_max = -28
+  tag = 'gnet'
+/
+
+&mode
+  l = 9
+  n_pg_min = -92
+  n_pg_max = -31
+  tag = 'gnet'
+/
+
+&mode
+  l = 10
+  n_pg_min = -102
+  n_pg_max = -34
+  tag = 'gnet'
+/
+
+&mode
+  l = 11
+  n_pg_min = -111
+  n_pg_max = -37
+  tag = 'gnet'
+/
+
+&mode
+  l = 12
+  n_pg_min = -121
+  n_pg_max = -40
+  tag = 'gnet'
+/
+
+&mode
+  l = 13
+  n_pg_min = -131
+  n_pg_max = -43
+  tag = 'gnet'
+/
+
+&mode
+  l = 14
+  n_pg_min = -141
+  n_pg_max = -47
+  tag = 'gnet'
+/
+
+&mode
+  l = 15
+  n_pg_min = -150
+  n_pg_max = -50
+  tag = 'gnet'
+/
+
+&osc
+  outer_bound = 'UNNO'
+  variables_set = 'DZIEM'
+/
+
+&rot
+/
+
+&num
+  diff_scheme = 'COLLOC_GL4'
+/
+
+&scan
+  grid_type = 'INVERSE'
+  freq_min = 0.8
+  freq_max = 25.0
+  n_freq = 1000
+  freq_units = 'CYC_PER_DAY'
+  tag_list = 'core'
+/
+
+&scan
+  grid_type = 'LINEAR'
+  freq_min = 25.0
+  freq_max = 95.0
+  n_freq = 1000
+  freq_units = 'CYC_PER_DAY'
+  tag_list = 'core'
+/
+
+! Wider than the 1.7-5.2 c/d band the n_pg limits encode, so the n_pg windows
+! bind and a few percent of error in K cannot silently drop modes.
+! At l = 25 the g-mode period spacing is 204 s; n_freq = 3000 over this window
+! gives dP = 1.7e-4 d against 2.4e-3 d, ~14 trial points per mode.
+&scan
+  grid_type = 'INVERSE'
+  freq_min = 1.5
+  freq_max = 6.0
+  n_freq = 3000
+  freq_units = 'CYC_PER_DAY'
+  tag_list = 'gnet'
+/
+
+&grid
+  w_osc = 10
+  w_exp = 2
+  w_ctr = 10
+  tag_list = 'core'
+/
+
+! n_pg reaches 250 here, 2.5x deeper than the probe. The MESA mesh resolves
+! |n| = 100 with almost no resampling (7137 -> 7435 points); w_osc = 15 buys
+! headroom for the shorter wavelengths at the cost of ~1.5x the file size.
+&grid
+  w_osc = 15
+  w_exp = 2
+  w_ctr = 10
+  tag_list = 'gnet'
+/
+
+&ad_output
+  summary_file = 'summary_ad_wide.h5'
+  detail_template = 'detail_wide/detail.l%l.n%n.h5'
+  summary_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,E_norm,Delta_p,Delta_g,M_star,R_star,L_star'
+  detail_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,x,xi_r,xi_h,eul_Phi,deul_Phi,lag_rho,rho,P,Gamma_1,As,c_1,V_2,M_r,M_star,R_star,L_star,E_norm'
+  freq_units = 'CYC_PER_DAY'
+/
+
+&nad_output
+/

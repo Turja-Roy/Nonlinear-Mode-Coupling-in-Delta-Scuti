@@ -1,0 +1,133 @@
+! Damping rates for the pass-2 net (l = 16-25). Matches gyre_ad_wide_hi.in.
+
+&constants
+/
+
+&model
+  model_type = 'EVOL'
+  file = '../mesa/LOGS/profile331.data.GYRE'
+  file_format = 'MESA'
+/
+
+&mode
+  l = 16
+  n_pg_min = -160
+  n_pg_max = -53
+  tag = 'gnet'
+/
+
+&mode
+  l = 17
+  n_pg_min = -170
+  n_pg_max = -56
+  tag = 'gnet'
+/
+
+&mode
+  l = 18
+  n_pg_min = -180
+  n_pg_max = -59
+  tag = 'gnet'
+/
+
+&mode
+  l = 19
+  n_pg_min = -189
+  n_pg_max = -63
+  tag = 'gnet'
+/
+
+&mode
+  l = 20
+  n_pg_min = -199
+  n_pg_max = -66
+  tag = 'gnet'
+/
+
+&mode
+  l = 21
+  n_pg_min = -209
+  n_pg_max = -69
+  tag = 'gnet'
+/
+
+&mode
+  l = 22
+  n_pg_min = -219
+  n_pg_max = -72
+  tag = 'gnet'
+/
+
+&mode
+  l = 23
+  n_pg_min = -228
+  n_pg_max = -75
+  tag = 'gnet'
+/
+
+&mode
+  l = 24
+  n_pg_min = -238
+  n_pg_max = -79
+  tag = 'gnet'
+/
+
+&mode
+  l = 25
+  n_pg_min = -248
+  n_pg_max = -82
+  tag = 'gnet'
+/
+
+&osc
+  outer_bound = 'UNNO'
+  variables_set = 'DZIEM'
+  nonadiabatic = .TRUE.
+/
+
+&rot
+/
+
+&num
+  diff_scheme = 'MAGNUS_GL2'
+  nad_search = 'AD'
+/
+
+! Wider than the 1.7-5.2 c/d band the n_pg limits encode, so the n_pg windows
+! bind and a few percent of error in K cannot silently drop modes.
+! At l = 25 the g-mode period spacing is 204 s; n_freq = 3000 over this window
+! gives dP = 1.7e-4 d against 2.4e-3 d, ~14 trial points per mode.
+&scan
+  grid_type = 'INVERSE'
+  freq_min = 1.5
+  freq_max = 6.0
+  n_freq = 3000
+  freq_units = 'CYC_PER_DAY'
+  tag_list = 'gnet'
+/
+
+&grid
+  w_osc = 10
+  w_exp = 2
+  w_ctr = 10
+  tag_list = 'core'
+/
+
+! n_pg reaches 250 here, 2.5x deeper than the probe. The MESA mesh resolves
+! |n| = 100 with almost no resampling (7137 -> 7435 points); w_osc = 15 buys
+! headroom for the shorter wavelengths at the cost of ~1.5x the file size.
+&grid
+  w_osc = 15
+  w_exp = 2
+  w_ctr = 10
+  tag_list = 'gnet'
+/
+
+&ad_output
+/
+
+&nad_output
+  summary_file = 'summary_nad_wide_hi.h5'
+  summary_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,E_norm,M_star,R_star,L_star'
+  freq_units = 'CYC_PER_DAY'
+/
