@@ -11,7 +11,15 @@ from .kappa import (
 )
 from .network import Coupling, Network, NetworkMode, from_triplets, self_coupled, three_mode
 from .observables import mu, nonadiabatic_fraction, parametric_growth_rate, threshold_energy
-from .modes import Eigenfunction, Mode, build_mode_list, load_eigenfunctions, load_gammas, load_model
+from .modes import (
+    DampingRates,
+    Eigenfunction,
+    Mode,
+    build_mode_list,
+    load_eigenfunctions,
+    load_gammas,
+    load_model,
+)
 from .triplets import DETUNING_CUT_DIMLESS, RadialTriplet, enumerate_triplets, from_frame, summarise, to_frame
 
 __all__ = [
@@ -38,6 +46,7 @@ __all__ = [
     "l_multisets",
     "load_background",
     "load_eigenfunctions",
+    "DampingRates",
     "load_gammas",
     "load_model",
     "m_combos",

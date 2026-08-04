@@ -101,14 +101,14 @@ def div_xi_from_euler(d: dict[str, np.ndarray], bg: Background, omega: float) ->
 def load_eigenfunctions(
     detail_dir: pathlib.Path,
     mesa_profile: pathlib.Path | None = None,
-    gammas: dict[tuple[int, int], float] | None = None,
+    gammas: DampingRates | None = None,
 ) -> dict[tuple[int, int], Eigenfunction]:
     """GYRE refines the spatial grid per mode, so each Eigenfunction carries its
     own Background. Modes that happen to share a grid share the object."""
     out: dict[tuple[int, int], Eigenfunction] = {}
     cache: dict[bytes, Background] = {}
     for path in sorted(pathlib.Path(detail_dir).glob("detail.*.h5")):
-        ef = _load_one(path, mesa_profile, gammas or {}, cache)
+        ef = _load_one(path, mesa_profile, gammas, cache)
         out[(ef.l, ef.n_pg)] = ef
     if not out:
         raise FileNotFoundError(f"no detail files in {detail_dir}")
@@ -118,7 +118,7 @@ def load_eigenfunctions(
 def _load_one(
     path: pathlib.Path,
     mesa_profile: pathlib.Path | None,
-    gammas: dict[tuple[int, int], float],
+    gammas: DampingRates | None,
     cache: dict[bytes, Background],
 ) -> Eigenfunction:
     d = load_h5(path)
@@ -155,7 +155,7 @@ def _load_one(
         n_pg=n_pg,
         omega=omega,
         omega_dimless=omega_dimless,
-        gamma=gammas.get((l, n_pg), np.nan),
+        gamma=gammas(l, omega) if gammas is not None else np.nan,
         xi_r=xi_r * A,
         xi_h=xi_h * A,
         div_xi=div_xi * A,
@@ -165,26 +165,69 @@ def _load_one(
     )
 
 
-def load_gammas(summary_nad: pathlib.Path, omega_dyn: float) -> dict[tuple[int, int], float]:
-    """gamma = -Im(omega), converted to rad/s. Positive is damping."""
-    d = load_h5(summary_nad)
-    return {
-        (int(l), int(n)): float(-np.imag(w) * omega_dyn)
-        for l, n, w in zip(d["l"], d["n_pg"], d["omega"])
-    }
+@dataclasses.dataclass(frozen=True)
+class DampingRates:
+    """gamma = -Im(omega), rad/s, positive for damping, looked up by frequency.
+
+    Not by (l, n_pg): GYRE's nonadiabatic classifier duplicates and skips n_pg
+    labels for high-order g-modes -- 7 duplicate labels in 1050 modes at
+    l <= 15 -- so the labels are not a join key. Re(omega_nad) tracks omega_ad
+    to ~1e-5 relative, three orders inside the mode spacing, so the frequency
+    is. A match further than `tol` of the local spacing means the nonadiabatic
+    run genuinely missed that mode, and gamma comes back NaN.
+    """
+
+    omega: dict[int, np.ndarray]  # per l, sorted, rad/s
+    gamma: dict[int, np.ndarray]
+    tol: float = 0.3
+
+    def __call__(self, l: int, omega: float) -> float:
+        w = self.omega.get(l)
+        if w is None or not len(w):
+            return float("nan")
+        j = int(np.searchsorted(w, omega))
+        j = min(max(j - 1 if j and (j == len(w) or omega - w[j - 1] < w[j] - omega) else j, 0),
+                len(w) - 1)
+        lo, hi = w[max(j - 1, 0)], w[min(j + 1, len(w) - 1)]
+        spacing = (hi - lo) / 2 if hi > lo else abs(omega)
+        return float(self.gamma[l][j]) if abs(w[j] - omega) <= self.tol * spacing else float("nan")
+
+
+def load_gammas(summary_nad: pathlib.Path | list[pathlib.Path], omega_dyn: float) -> DampingRates:
+    paths = [summary_nad] if isinstance(summary_nad, (str, pathlib.Path)) else summary_nad
+    per_l: dict[int, list[tuple[float, float]]] = {}
+    for path in paths:
+        d = load_h5(path)
+        for l, w in zip(d["l"], d["omega"]):
+            per_l.setdefault(int(l), []).append(
+                (float(np.real(w) * omega_dyn), float(-np.imag(w) * omega_dyn))
+            )
+    omega, gamma = {}, {}
+    for l, pairs in per_l.items():
+        a = np.array(sorted(pairs))
+        omega[l], gamma[l] = a[:, 0], a[:, 1]
+    return DampingRates(omega, gamma)
 
 
 def build_mode_list(
     efs: dict[tuple[int, int], Eigenfunction],
     l_max: int | None = None,
     n_range: tuple[int, int] | None = None,
+    require_gamma: bool = False,
 ) -> list[Mode]:
-    """Every (n, l, m, s); omega is m-degenerate, so eigenfunctions are shared."""
+    """Every (n, l, m, s); omega is m-degenerate, so eigenfunctions are shared.
+
+    `require_gamma` drops modes the nonadiabatic run missed. Off by default --
+    polytropes have no gamma at all -- but on for anything that feeds mu or
+    E_th, where a NaN gamma propagates silently through the whole table.
+    """
     modes: list[Mode] = []
     for (l, n_pg), ef in sorted(efs.items()):
         if l_max is not None and l > l_max:
             continue
         if n_range is not None and not (n_range[0] <= n_pg <= n_range[1]):
+            continue
+        if require_gamma and not np.isfinite(ef.gamma):
             continue
         for m in range(-l, l + 1):
             for s in (+1, -1):
@@ -197,11 +240,13 @@ def load_model(
     model_dir: str | pathlib.Path,
     detail_dir: str = "detail",
     inlist: str = "gyre_ad.in",
+    nad: str | tuple[str, ...] = "summary_nad.h5",
 ) -> tuple[Background, dict[tuple[int, int], Eigenfunction]]:
     """Background plus every eigenfunction for models/<name>/.
 
-    `detail_dir` and `inlist` select an alternative run in the same directory --
-    the |n| <= 100 probe, for instance.
+    `detail_dir`, `inlist` and `nad` select an alternative run in the same
+    directory -- the wide daughter net, for instance, whose two passes write
+    two nonadiabatic summaries over one shared detail directory.
     """
     root = pathlib.Path(model_dir)
     gyre, mesa = root / "gyre", root / "mesa"
@@ -212,8 +257,9 @@ def load_model(
 
     profile = _paired_mesa_profile(gyre / inlist, mesa)
     bg = load_background(any_detail, profile)
-    nad = gyre / "summary_nad.h5"
-    gammas = load_gammas(nad, bg.omega_dyn) if nad.exists() else {}
+    found = [gyre / name for name in ((nad,) if isinstance(nad, str) else nad)]
+    found = [p for p in found if p.exists()]
+    gammas = load_gammas(found, bg.omega_dyn) if found else None
     return bg, load_eigenfunctions(detail, profile, gammas)
 
 
