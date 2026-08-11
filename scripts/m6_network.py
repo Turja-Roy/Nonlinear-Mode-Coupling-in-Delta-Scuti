@@ -164,9 +164,9 @@ def main() -> int:
         t, y, capped = integrate(y0, t_end, w, gam, k1, k2, d1, d2, amp_cap=30.0)
     else:
         # Fixed-amplitude pump: P, Q pinned at q0. Real parents saturate at the
-        # observed amplitude by physics outside this network; this isolates the
-        # c <-> d parametric dynamics the milestone is about. The slowest scale
-        # is c's off-resonant relaxation 1/|Delta_direct + i gamma_c|.
+        # observed amplitude by physics outside this network, so pinning them
+        # isolates the c <-> d parametric dynamics. The slowest scale is c's
+        # off-resonant relaxation 1/|Delta_direct + i gamma_c|.
         t_end = 8.0 / min(np.hypot(d1, gam[2]), gam[3], gamma_par_driven)
         print(f"\npumped system (P, Q frozen), t_end {t_end / YR:.2f} yr")
         t, y, capped = integrate(y0, t_end, w, gam, k1, k2, d1, d2, pump=True)
