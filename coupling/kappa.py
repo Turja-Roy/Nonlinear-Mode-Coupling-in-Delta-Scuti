@@ -1,7 +1,4 @@
-"""Three-mode coupling coefficient, T3 Eqs. (A55)-(A62).
-
-The eight groups are kept separate: A56 must dominate for high-order g-modes,
-which is the cheapest check that a full evaluation is sane.
+"""Three-mode coupling coefficient, Eqs. (A55)-(A62).
 
 Only omega^2 appears, so kappa does not depend on the sign assignment of a
 RadialTriplet -- one value serves all three sign classes.
@@ -12,7 +9,7 @@ analytically in favour of div.xi and of background quantities.
 
 from __future__ import annotations
 
-import dataclasses
+from dataclasses import dataclass, replace
 
 import numpy as np
 from scipy.integrate import simpson
@@ -29,7 +26,7 @@ _BG_FIELDS = ("r", "rho", "P", "Gamma_1", "g", "dg_dr", "dlnrho_dlnr", "dGamma1_
 _EF_FIELDS = ("xi_r", "xi_h", "div_xi", "delta_Phi", "ddelta_Phi_dr")
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class Fields:
     """One mode's radial functions on the integration grid."""
 
@@ -42,7 +39,7 @@ class Fields:
     omega2: float
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class KappaResult:
     kappa: float
     groups: dict[str, float]
@@ -60,7 +57,8 @@ class KappaResult:
 
     @property
     def cancellation(self) -> float:
-        """max |kappa(<r)| / |kappa(R)|; test 8 wants this below ~1e2."""
+        """max |kappa(<r)| / |kappa(R)|. Above ~1e2 the integral is dominated by
+        cancellation and the result is not trustworthy."""
         return float(np.max(np.abs(self.cumulative))) / max(abs(self.kappa), 1e-300)
 
     def outer_fraction(self, x_split: float = 0.8) -> float:
@@ -92,7 +90,8 @@ def A56(bg, f, ang) -> np.ndarray:
 
 def A56_parts(bg, f, ang) -> tuple[np.ndarray, np.ndarray]:
     """A56 split into its Lambda^2 xi_h and its -4 xi_r pieces. For high-order
-    g-modes the first must dominate, because Lambda xi_h >> xi_r."""
+    g-modes the first must dominate, because Lambda xi_h >> xi_r. Diagnostic
+    only; kappa itself never calls this."""
     hor = np.zeros_like(bg.r)
     rad = np.zeros_like(bg.r)
     for i in range(3):
@@ -178,7 +177,7 @@ def kappa_abc(
     tol: float = QUAD_TOL,
 ) -> KappaResult:
     """Slot order is the argument order; permuting the arguments re-evaluates
-    everything from the eigenfunctions, which is what test 5 needs.
+    everything from the eigenfunctions rather than reusing a cached integral.
 
     With `refine` unset, the grid is refined until the spline and Simpson
     quadratures agree to `tol`. Only near-null kappa needs more than one pass:
@@ -192,7 +191,7 @@ def kappa_abc(
         out = _integrate(grid, fields, ang, a.bg.E_star, n)
         if out.quadrature_residual <= tol:
             return out
-    return dataclasses.replace(out, converged=refine is not None)
+    return replace(out, converged=refine is not None)
 
 
 BASIS = ("T", "F_a", "F_b", "F_c", "G_a", "G_b", "G_c")
@@ -233,16 +232,6 @@ def basis_densities(bg, f) -> dict[str, np.ndarray]:
     for i, name in enumerate(("G_a", "G_b", "G_c")):
         out[name] = w[i] * hhh
     return out
-
-
-def radial_basis(
-    a: Eigenfunction,
-    b: Eigenfunction,
-    c: Eigenfunction,
-    refine: int = 1,
-) -> dict[str, float]:
-    """The seven m-independent integrals, already divided by 2 E_star."""
-    return _basis_pair(a, b, c, refine)[0]
 
 
 def _basis_pair(a, b, c, refine: int) -> tuple[dict[str, float], dict[str, float]]:
@@ -299,22 +288,13 @@ def kappa_for_triplet(
     refine: int | None = None,
     tol: float = QUAD_TOL,
 ) -> KappaResult:
+    """kappa_abc keyed by a RadialTriplet instead of three eigenfunctions."""
     a, b, c = (efs[k] for k in t.keys)
     return kappa_abc(a, b, c, ms, refine=refine, tol=tol)
 
 
-def kappa_radial_parts(
-    t: RadialTriplet,
-    efs: dict[tuple[int, int], Eigenfunction],
-    refine: int | None = None,
-) -> dict[tuple[int, int, int], KappaResult]:
-    """Every m combination of one RadialTriplet, each through the full A55-A62 sum."""
-    return {ms: kappa_for_triplet(t, efs, ms, refine=refine) for ms in t.m_combinations()}
-
-
 def _quad(y: np.ndarray, r: np.ndarray) -> tuple[float, np.ndarray]:
-    """Exact integral of the cubic spline through y. Fourth order against the
-    trapezoid rule's second, which is what the near-null triplets need."""
+    """Exact integral of the cubic spline through y."""
     anti = CubicSpline(r, y).antiderivative()
     cum = anti(r) - anti(r[0])
     return float(cum[-1]), cum
@@ -407,7 +387,7 @@ def _subdivide(x: np.ndarray, refine: int) -> np.ndarray:
     return np.append(inner, x[-1])
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class _Grid:
     r: np.ndarray
     rho: np.ndarray
@@ -426,6 +406,7 @@ def grid_convergence(
     ms: tuple[int, int, int],
     refines: tuple[int, ...] = (1, 2, 4),
 ) -> dict[int, float]:
+    """kappa at each refinement, for checking that it settles."""
     return {n: kappa_abc(a, b, c, ms, refine=n).kappa for n in refines}
 
 
@@ -441,10 +422,8 @@ __all__ = [
     "kappa_all_m",
     "kappa_for_triplet",
     "kappa_from_basis",
-    "kappa_radial_parts",
     "QUAD_TOL",
     "REFINE_LADDER",
     "prepare",
-    "radial_basis",
     *GROUPS,
 ]

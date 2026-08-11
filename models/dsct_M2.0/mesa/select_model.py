@@ -23,8 +23,24 @@ DAY = 86400.0
 TARGET_LOGG = 3.900
 TARGET_TEFF = 7696.0
 
+# dsct_M2.0's measured values. Used when --mass is not given, so that running
+# this with no arguments in the 2.0 work directory checks exactly what it
+# always checked.
 EXPECT = {"R_Rsun": 2.627, "logg": 3.900, "dyn_freq_cpd": 2.866, "logL": 1.314}
 TOL = {"R_Rsun": 0.02, "logg": 0.005, "dyn_freq_cpd": 0.04, "logL": 0.03}
+
+
+def expect_from(mass_msun: float, logg: float) -> dict[str, float]:
+    """R and nu_dyn follow from (M, log g) alone -- no model needed.
+
+    log L is not predictable without T_eff, and T_eff is the quantity we
+    deliberately do not assert on (see Plans sec 1.1), so it is dropped from
+    the checks whenever --mass is given.
+    """
+    M = mass_msun * MSUN
+    R = math.sqrt(G * M / 10**logg)
+    return {"R_Rsun": R / RSUN, "logg": logg,
+            "dyn_freq_cpd": math.sqrt(G * M / R**3) * DAY / (2 * math.pi)}
 
 
 def read_profile_header(path: pathlib.Path) -> dict[str, float]:
@@ -63,7 +79,12 @@ def main() -> int:
     ap.add_argument("--teff", default=TARGET_TEFF, type=float)
     ap.add_argument("--by", default="logg", choices=("logg", "teff"))
     ap.add_argument("--show", default=8, type=int)
+    ap.add_argument("--mass", type=float, default=None,
+                    help="M/Msun; derives the R and nu_dyn checks from "
+                         "(M, --logg) instead of using dsct_M2.0's values")
     args = ap.parse_args()
+
+    expect = expect_from(args.mass, args.logg) if args.mass else EXPECT
 
     profiles = sorted(args.logs.glob("profile*.data"))
     if not profiles:
@@ -101,7 +122,7 @@ def main() -> int:
 
     print()
     ok = True
-    for key, expected in EXPECT.items():
+    for key, expected in expect.items():
         got = best[key]
         good = abs(got - expected) <= TOL[key]
         ok &= good

@@ -19,20 +19,20 @@ convention a quoted kappa is in before comparing.
 
 from __future__ import annotations
 
-import dataclasses
+from dataclasses import dataclass
 
 import numpy as np
 from scipy.integrate import solve_ivp
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class NetworkMode:
     name: str
     omega: float  # rad/s, signed
     gamma: float  # rad/s, > 0 damping
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class Coupling:
     """One triplet, as indices into the network's mode list."""
 

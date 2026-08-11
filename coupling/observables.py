@@ -11,7 +11,7 @@ A triplet supports two distinct readings, and they use different modes:
 
 from __future__ import annotations
 
-import dataclasses
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -87,7 +87,61 @@ def nonadiabatic_fraction(res: KappaResult, bg: Background, omega: float) -> flo
     return float(np.trapezoid(np.where(m, w, 0.0), res.r) / total)
 
 
-@dataclasses.dataclass(frozen=True)
+CHANNELS = ("parametric", "direct-sum", "direct-diff", "all-driven", "inactive", "all-damped")
+
+
+def channel(gamma_a: float, gamma_b: float, gamma_c: float) -> str:
+    """Which channel the triplet can run, from linear stability alone.
+
+    gamma < 0 is driven, as in `threshold_energy`. A channel needs two
+    self-excited pumps, or one that is the parent:
+
+    - parametric: parent driven, both daughters damped
+    - direct-sum: both daughters driven, they beat and drive the parent
+    - direct-diff: parent and one daughter driven, driving the other daughter
+      at the difference frequency
+    - all-driven: no damped sink, both readings open
+    - all-damped: no pump
+    - inactive: a lone driven daughter, whose decay products are not in this
+      triplet
+    """
+    drv = (gamma_a < 0.0, gamma_b < 0.0, gamma_c < 0.0)
+    n = sum(drv)
+    if n == 3:
+        return "all-driven"
+    if n == 2:
+        return "direct-diff" if drv[0] else "direct-sum"
+    if n == 0:
+        return "all-damped"
+    return "parametric" if drv[0] else "inactive"
+
+
+def classify_frame(df):
+    """`channel` over a ranked table; gamma is m-degenerate, so this is a
+    property of the radial triplet."""
+    import pandas as pd
+
+    a, b, c = (df[f"gamma_{s}"].to_numpy() < 0.0 for s in "abc")
+    n = a.astype(int) + b + c
+    out = np.where(n == 3, "all-driven", np.where(n == 0, "all-damped", "inactive"))
+    out = np.where((n == 2) & a, "direct-diff", out)
+    out = np.where((n == 2) & ~a, "direct-sum", out)
+    out = np.where((n == 1) & a, "parametric", out)
+    return pd.Series(out, index=df.index, name="channel")
+
+
+def target_index(df) -> np.ndarray:
+    """Slot (0, 1, 2) of the damped mode the direct channel drives; -1 where no
+    direct channel runs. The mu-argmax slot answers a different question --
+    which mode responds most strongly -- and the two disagree on ~13% of rows."""
+    b_damped = df["gamma_b"].to_numpy() > 0.0
+    cls = classify_frame(df).to_numpy()
+    return np.where(
+        cls == "direct-sum", 0, np.where(cls == "direct-diff", np.where(b_damped, 1, 2), -1)
+    )
+
+
+@dataclass(frozen=True)
 class TripletObservables:
     ms: tuple[int, int, int]
     kappa: float
@@ -159,13 +213,17 @@ def to_frame(
 
 
 __all__ = [
+    "CHANNELS",
     "NONADIABATIC_CYCLES",
     "TripletObservables",
+    "channel",
+    "classify_frame",
     "mu",
     "nonadiabatic_fraction",
     "nonadiabatic_shell",
     "observables",
     "parametric_growth_rate",
+    "target_index",
     "threshold_energy",
     "threshold_energy_ceiling",
     "to_frame",

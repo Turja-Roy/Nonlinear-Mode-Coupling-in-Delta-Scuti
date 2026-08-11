@@ -3,7 +3,9 @@
 import numpy as np
 import pytest
 
-from coupling.modes import build_mode_list
+from coupling.gyre_io import load_h5
+from coupling.modes import DampingRates, build_mode_list, load_model
+from coupling.tests.conftest import MODEL
 
 INTERIOR = (0.02, 0.95)
 
@@ -74,6 +76,67 @@ def test_gammas_attached(efs):
     driven = [ef for ef in efs.values() if ef.gamma < 0]
     assert len(driven) == 43
     assert sum(1 for ef in driven if ef.n_pg > 0) > len(driven) / 2
+
+
+def test_gamma_lookup_reaches_the_ends():
+    """The modes at either end of the list are matched on the same tolerance as
+    the interior ones. Taking the mean of the two adjacent gaps halves `spacing`
+    there, which is what dropped l = 6, n = +20 from the wide net."""
+    w = np.arange(10.0, 20.0)  # unit spacing
+    rates = DampingRates({2: w}, {2: np.arange(10.0)})
+    for j in (0, 4, len(w) - 1):
+        assert rates(2, w[j] + 0.2) == pytest.approx(j)  # inside tol = 0.3
+        assert np.isnan(rates(2, w[j] + 0.4))
+
+
+def test_gamma_lookup_ignores_a_widened_gap():
+    """A gap the nonadiabatic run doubled by missing a mode must not buy extra
+    tolerance -- the miss is exactly when the match is least trustworthy."""
+    w = np.array([10.0, 11.0, 13.0, 14.0])  # the mode at 12 was missed
+    rates = DampingRates({2: w}, {2: np.arange(4.0)})
+    assert np.isnan(rates(2, 11.4))  # 0.4 > tol * 1.0, not tol * 1.5
+    assert rates(2, 11.2) == pytest.approx(1.0)
+
+
+def test_wide_net_gamma_coverage():
+    """No false negatives on the real net. Every mode left without gamma has to
+    be one the nonadiabatic run did not return -- measured against the *adiabatic*
+    spacing, so the check does not just restate the matcher's own tolerance."""
+    gyre = MODEL / "gyre"
+    nad = ("summary_nad_wide.h5", "summary_nad_wide_hi.h5")
+    if not any(gyre.glob("detail_wide/detail.*.h5")) or not all(
+        (gyre / n).exists() for n in nad
+    ):
+        pytest.skip("wide net not built")
+
+    _, efs = load_model(
+        MODEL, detail_dir="detail_wide", inlist="gyre_ad_wide.in", nad=nad,
+    )
+    assert np.isfinite(efs[(6, 20)].gamma)  # 6.7e-3 nonadiabatic shift, not a miss
+
+    w_nad: dict[int, np.ndarray] = {}
+    for name in nad:
+        d = load_h5(gyre / name)
+        for l, w in zip(d["l"], np.real(d["omega"])):
+            w_nad.setdefault(int(l), []).append(float(w))
+    w_nad = {l: np.sort(np.array(v)) for l, v in w_nad.items()}
+
+    missing = 0
+    for l in sorted({l for l, _ in efs}):
+        row = sorted(((ef.omega_dimless, ef) for (ll, _), ef in efs.items() if ll == l),
+                     key=lambda t: t[0])
+        w = np.array([wi for wi, _ in row])
+        for i, (wi, ef) in enumerate(row):
+            if np.isfinite(ef.gamma):
+                continue
+            missing += 1
+            gaps = ([w[i] - w[i - 1]] if i else []) + ([w[i + 1] - w[i]] if i + 1 < len(w) else [])
+            near = float(np.min(np.abs(w_nad[l] - wi)))
+            assert near > 0.7 * min(gaps), (
+                f"l={l} n={ef.n_pg}: nearest nad mode {near / min(gaps):.2f} spacings "
+                "away -- a shift the matcher rejected, not a miss"
+            )
+    assert missing == 14  # 7 at the pass-1 band floor, 7 in the pass-2 g-net
 
 
 def test_mode_list(efs):

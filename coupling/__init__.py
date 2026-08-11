@@ -7,10 +7,18 @@ from .kappa import (
     kappa_abc,
     kappa_all_m,
     kappa_for_triplet,
-    radial_basis,
 )
 from .network import Coupling, Network, NetworkMode, from_triplets, self_coupled, three_mode
-from .observables import mu, nonadiabatic_fraction, parametric_growth_rate, threshold_energy
+from .observables import (
+    CHANNELS,
+    channel,
+    classify_frame,
+    mu,
+    nonadiabatic_fraction,
+    parametric_growth_rate,
+    target_index,
+    threshold_energy,
+)
 from .modes import (
     DampingRates,
     Eigenfunction,
@@ -24,6 +32,7 @@ from .triplets import DETUNING_CUT_DIMLESS, RadialTriplet, enumerate_triplets, f
 
 __all__ = [
     "Background",
+    "CHANNELS",
     "Coupling",
     "DETUNING_CUT_DIMLESS",
     "Eigenfunction",
@@ -36,6 +45,8 @@ __all__ = [
     "T",
     "angular_factors",
     "build_mode_list",
+    "channel",
+    "classify_frame",
     "enumerate_triplets",
     "from_frame",
     "from_triplets",
@@ -53,10 +64,10 @@ __all__ = [
     "mu",
     "nonadiabatic_fraction",
     "parametric_growth_rate",
-    "radial_basis",
     "satisfies_selection_rules",
     "self_coupled",
     "summarise",
+    "target_index",
     "three_mode",
     "threshold_energy",
     "to_frame",

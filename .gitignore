@@ -22,5 +22,5 @@ models/*/gyre/detail_probe100/
 models/*/gyre/detail_wide/
 
 # regenerable caches / oversized intermediates
-out/*.kappa_cache.tsv
-out/four_mode_dsct_M2.0.csv
+out/*.tsv
+out/*.csv

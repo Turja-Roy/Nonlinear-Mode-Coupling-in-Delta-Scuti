@@ -1,19 +1,19 @@
 """GYRE eigenfunctions, renormalised to 2 omega^2 int rho |xi|^2 d3x = E_star.
 
-Conventions, fixed here and nowhere else:
-
+Conventions:
 - Angular functions are unit-normalised, int |Y_lm|^2 dOmega = 1, matching the
   T form in angular.py. The renormalisation integral therefore carries no 4pi.
 - A mode is (n_pg, l, m, s) with s = +-1 and omega = s * omega_nl. Both signs
   are separate modes (T3 convention: index a runs over both, kappa written
   with no explicit conjugates).
 - gamma > 0 means damping, gamma < 0 driving. GYRE gives gamma = -Im(omega);
-  T1 uses the opposite sign.
+  radiative only, with convection frozen, so no mode carries a turbulent
+  contribution and nothing comes out damped inside the driven band.
 """
 
 from __future__ import annotations
 
-import dataclasses
+from dataclasses import dataclass
 import functools
 import pathlib
 import re
@@ -26,7 +26,7 @@ from .gyre_io import load_h5
 DETAIL_RE = re.compile(r"detail\.l(\d+)\.n([+-]\d+)\.h5$")
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class Eigenfunction:
     """One (l, n_pg) solution, cgs, at the positive frequency."""
 
@@ -55,7 +55,7 @@ class Eigenfunction:
         return _inertia(self.bg, self.l, self.xi_r, self.xi_h)
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class Mode:
     n_pg: int
     l: int
@@ -165,16 +165,28 @@ def _load_one(
     )
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class DampingRates:
     """gamma = -Im(omega), rad/s, positive for damping, looked up by frequency.
 
-    Not by (l, n_pg): GYRE's nonadiabatic classifier duplicates and skips n_pg
-    labels for high-order g-modes -- 7 duplicate labels in 1050 modes at
-    l <= 15 -- so the labels are not a join key. Re(omega_nad) tracks omega_ad
-    to ~1e-5 relative, three orders inside the mode spacing, so the frequency
-    is. A match further than `tol` of the local spacing means the nonadiabatic
-    run genuinely missed that mode, and gamma comes back NaN.
+    Radiative damping only. Turbulent damping is neglected.
+
+    GYRE's nonadiabatic classifier duplicates and skips n_pg
+    labels for high-order g-modes, and the effect cascades -- 7 duplicates in
+    1050 modes at l <= 15, but they shift every deeper label, so 524 of the
+    1057 adiabatic modes end up one label off their nonadiabatic partner,
+    starting at l = 4 and worsening with l. Frequency is the sound key: where
+    the labels disagree the frequencies still agree to 8e-6 relative.
+
+    Re(omega_nad) tracks omega_ad to ~1e-5 relative through the g-mode net and
+    the 8-34 c/d p-band, but the shift grows with |gamma|/omega and reaches
+    ~5e-3 above 40 c/d -- a fifth of the local spacing at the top of the
+    p-band, hence `tol` well above the shift there rather than three orders
+    inside the spacing. A NaN therefore means one of two things: the
+    nonadiabatic run missed that mode, or its shift exceeded `tol` of the local
+    spacing. Above 40 c/d the second is the larger effect.
+
+    `spacing` here is the smallest adjacent gap
     """
 
     omega: dict[int, np.ndarray]  # per l, sorted, rad/s
@@ -188,8 +200,12 @@ class DampingRates:
         j = int(np.searchsorted(w, omega))
         j = min(max(j - 1 if j and (j == len(w) or omega - w[j - 1] < w[j] - omega) else j, 0),
                 len(w) - 1)
-        lo, hi = w[max(j - 1, 0)], w[min(j + 1, len(w) - 1)]
-        spacing = (hi - lo) / 2 if hi > lo else abs(omega)
+        gaps = []
+        if j > 0:
+            gaps.append(w[j] - w[j - 1])
+        if j + 1 < len(w):
+            gaps.append(w[j + 1] - w[j])
+        spacing = min(gaps) if gaps else abs(omega)
         return float(self.gamma[l][j]) if abs(w[j] - omega) <= self.tol * spacing else float("nan")
 
 

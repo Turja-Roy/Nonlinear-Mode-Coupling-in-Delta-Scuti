@@ -15,7 +15,7 @@ choices per unordered triple.
 
 from __future__ import annotations
 
-import dataclasses
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -27,7 +27,7 @@ DETUNING_CUT_DIMLESS = 0.15  # in units of sqrt(GM/R^3)
 Key = tuple[int, int]  # (l, n_pg)
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class RadialTriplet:
     """One (l, n_pg) triple with a fixed sign assignment, m not yet chosen."""
 

@@ -8,7 +8,7 @@ puts both frequency signs in the mode list instead.
 
 from __future__ import annotations
 
-import dataclasses
+from dataclasses import dataclass
 import functools
 import itertools
 import math
@@ -41,7 +41,7 @@ def T(l_a: int, l_b: int, l_c: int, m_a: int, m_b: int, m_c: int) -> float:
     )
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class AngularFactors:
     T: float
     F_a: float

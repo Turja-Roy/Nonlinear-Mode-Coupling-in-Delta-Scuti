@@ -1,18 +1,25 @@
+import pathlib
+
 import numpy as np
 import pytest
 
 from coupling.kappa import kappa_abc
 from coupling.observables import (
+    channel,
+    classify_frame,
     mu,
     nonadiabatic_fraction,
     nonadiabatic_shell,
     parametric_growth_rate,
+    target_index,
     threshold_energy,
     threshold_energy_ceiling,
 )
 
 P_TRIPLET = [(2, 5), (2, 15), (2, 6)]
 G_TRIPLET = [(1, -18), (1, -19), (2, -20)]
+
+RANKED = pathlib.Path(__file__).resolve().parents[2] / "out/observables_dsct_M2.0.csv"
 
 
 def test_mu_reduces_to_the_detuning_limit():
@@ -51,6 +58,48 @@ def test_ceiling_bounds_every_gamma_pair():
 
 def test_threshold_is_zero_for_a_driven_daughter():
     assert threshold_energy(30.0, 3e-4, 2e-4, -1e-9, 2e-9, 0.0, 1.0) == 0.0
+
+
+def test_channel_covers_every_gamma_sign_pattern():
+    d, p = -1e-9, 1e-9  # driven, damped
+    assert channel(d, p, p) == "parametric"
+    assert channel(p, d, d) == "direct-sum"
+    assert channel(d, d, p) == channel(d, p, d) == "direct-diff"
+    assert channel(d, d, d) == "all-driven"
+    assert channel(p, p, p) == "all-damped"
+    assert channel(p, d, p) == channel(p, p, d) == "inactive"
+
+
+@pytest.fixture(scope="module")
+def ranked():
+    if not RANKED.exists():
+        pytest.skip(f"{RANKED.name} not built")
+    import pandas as pd
+
+    return pd.read_csv(RANKED)
+
+
+def test_parametric_class_matches_the_driven_parent_filter(ranked):
+    """The filter fig_eth uses, and the 6713 rows of the pipeline note."""
+    cls = classify_frame(ranked)
+    expect = (ranked.gamma_a < 0) & (ranked.gamma_b > 0) & (ranked.gamma_c > 0)
+    assert ((cls == "parametric") == expect).all()
+    assert int(expect.sum()) == 6713
+
+
+def test_channel_is_constant_over_m(ranked):
+    """gamma is m-degenerate, so the class belongs to the radial triplet."""
+    keys = ["l_a", "n_a", "l_b", "n_b", "l_c", "n_c"]
+    n = ranked.assign(channel=classify_frame(ranked)).groupby(keys).channel.nunique()
+    assert (n == 1).all()
+
+
+def test_direct_target_is_the_damped_mode(ranked):
+    idx = target_index(ranked)
+    gam = ranked[["gamma_a", "gamma_b", "gamma_c"]].to_numpy()
+    direct = idx >= 0
+    assert (gam[direct, idx[direct]] > 0).all()
+    assert ((classify_frame(ranked).to_numpy() == "direct-sum") == (idx == 0)).all()
 
 
 def test_thermal_time_decreases_outwards(bg):

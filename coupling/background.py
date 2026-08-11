@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import dataclasses
+from dataclasses import dataclass
 import pathlib
 
 import numpy as np
@@ -13,7 +13,7 @@ G = 6.67430e-8
 L_SUN = 3.828e33
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclass(frozen=True)
 class Background:
     x: np.ndarray
     r: np.ndarray
@@ -63,12 +63,11 @@ def load_background(
     detail: pathlib.Path | dict[str, np.ndarray],
     mesa_profile: pathlib.Path | None = None,
 ) -> Background:
-    """`mesa_profile` supplies what GYRE does not carry. A polytrope has no
-    thermal structure and constant Gamma_1, so it passes None: dGamma1_dlnrho_s
-    is then exactly zero and T, c_P, L_r are NaN.
+    """detail is GYRE output file that supplies:
+    x (r/R), R_star, M_star, rho, P, Gamma_1, c_1 (g = GMx/(c_1R^2)), V_2, As (dlnrho/dlnr), M_r, L_star
 
-    Every detail file carries the full structure on that mode's own grid, so
-    passing an already-loaded dict avoids re-reading and avoids interpolation.
+    mesa_profile is a MESA output file that supplies:
+    dGamma1_dlnRho_s, temperature, cp, luminosity
     """
     d = load_h5(detail) if isinstance(detail, (str, pathlib.Path)) else detail
     x, R, M = d["x"], float(d["R_star"]), float(d["M_star"])
@@ -77,6 +76,7 @@ def load_background(
 
     # c_1 = (r/R)^3 (M/M_r), so g = G M x / (c_1 R^2) stays finite at x = 0.
     g = G * M * x / (d["c_1"] * R**2)
+    # For r > 0, dg/dr = 4 pi G rho - 2 g / r. For r = 0, dg/dr = (4/3) pi G rho.
     dg_dr = np.where(
         r > 0,
         4 * np.pi * G * rho - 2 * g / np.where(r > 0, r, 1.0),
