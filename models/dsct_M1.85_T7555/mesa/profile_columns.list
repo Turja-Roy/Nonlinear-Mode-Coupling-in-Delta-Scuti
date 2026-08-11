@@ -1,0 +1,43 @@
+! MESA's default list is only 9 columns.
+! run_star_extras columns are appended automatically; do not list them here.
+
+   zone
+   mass
+   q
+   dq
+   radius
+   radius_cm
+   logR
+
+   logT
+   temperature
+   logRho
+   density
+   logP
+   pressure
+   entropy
+   mu
+   csound
+
+   gamma1
+   gamma3
+   grada
+   chiRho
+   chiT
+   cp
+   cv
+
+   luminosity
+   opacity
+   pressure_scale_height_cm
+   brunt_N2
+   lamb_S
+
+   mixing_type
+   conv_vel
+
+   x_mass_fraction_H
+   y_mass_fraction_He
+   z_mass_fraction_metals
+   h1
+   he4

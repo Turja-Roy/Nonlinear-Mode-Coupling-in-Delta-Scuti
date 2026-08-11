@@ -1,0 +1,114 @@
+! 2 Msun delta Scuti model, mid instability strip.
+! Target log g = 3.900 -> R = 2.63 Rsun, sqrt(GM/R^3) = 2.87 c/d.
+
+&star_job
+
+   create_pre_main_sequence_model = .true.
+   pre_ms_relax_num_steps = 300
+
+   initial_zfracs = 6                        ! Asplund+2009, matches the a09 opacity tables
+   change_initial_net = .true.
+   new_net_name = 'pp_and_cno_extras.net'    ! CNO dominates a 2 Msun core
+
+   profile_columns_file = 'profile_columns.list'
+
+   save_model_when_terminate = .true.
+   save_model_filename = 'dsct_M1.85_T7555_final.mod'
+
+   pgstar_flag = .false.
+
+/ ! end of star_job namelist
+
+
+&eos
+
+/ ! end of eos namelist
+
+
+&kap
+
+   Zbase = 0.02d0
+   kap_file_prefix = 'a09'
+   kap_lowT_prefix = 'lowT_fa05_a09p'
+   kap_CO_prefix = 'a09_co'
+   use_Type2_opacities = .true.
+
+/ ! end of kap namelist
+
+
+&controls
+
+   initial_mass = 1.85d0
+   initial_y = 0.28d0
+   initial_z = 0.02d0
+
+   ! No rotation: the coupling coefficients are the nonrotating ones.
+
+   mixing_length_alpha = 1.8d0
+   MLT_option = 'Henyey'
+   use_Ledoux_criterion = .true.
+
+   overshoot_scheme(1) = 'exponential'
+   overshoot_zone_type(1) = 'burn_H'
+   overshoot_zone_loc(1) = 'core'
+   overshoot_bdy_loc(1) = 'top'
+   overshoot_f(1) = 0.015d0
+   overshoot_f0(1) = 0.005d0
+
+   ! add_atmosphere_to_pulse_data needs an atmosphere structure, which only
+   ! atm_option = 'T_tau' can build.
+   atm_option = 'T_tau'
+   atm_T_tau_relation = 'Eddington'
+   atm_T_tau_opacity = 'varying'
+   use_T_tau_gradr_factor = .true.
+
+   ! High-order g-modes have their shortest radial wavelength just outside the
+   ! convective core, and GYRE cannot recover what MESA under-resolves there.
+   mesh_delta_coeff = 0.3d0
+   max_allowed_nz = 40000
+   max_dq = 1d-3
+   mesh_Pgas_div_P_exponent = 0.0d0
+
+   calculate_Brunt_N2 = .true.
+   num_cells_for_smooth_brunt_B = 0          ! the mu-gradient spike outside the core is signal
+
+   time_delta_coeff = 0.7d0
+   varcontrol_target = 1d-4
+   max_years_for_timestep = 5d6
+
+   energy_eqn_option = 'dedt'
+   use_gold_tolerances = .true.
+
+   ! Stop on log g, handled in run_star_extras: a bare Teff_lower_limit would
+   ! fire on the pre-MS, and log g fixes R and the frequency scale anyway.
+   x_ctrl(1) = 4.010d0                     ! target log g (MW23 grid)
+   max_model_number = 20000
+   Teff_lower_limit = -1d99
+
+   log_directory = 'LOGS'
+   photo_directory = 'photos'
+
+   history_interval = 1
+   terminal_interval = 50
+   write_header_frequency = 10
+
+   profile_interval = 100                    ! run_star_extras drops this to 1 near the target
+   max_num_profile_models = 400
+   write_profiles_flag = .true.
+
+   ! profileN.data.GYRE is written beside profileN.data, so the extra columns
+   ! and the GYRE input describe the same model.
+   write_pulse_data_with_profile = .true.
+   pulse_data_format = 'GYRE'
+   add_atmosphere_to_pulse_data = .true.
+   add_center_point_to_pulse_data = .true.
+   keep_surface_point_for_pulse_data = .true.
+   add_double_points_to_pulse_data = .true.
+   interpolate_rho_for_pulse_data = .true.
+
+/ ! end of controls namelist
+
+
+&pgstar
+
+/ ! end of pgstar namelist
