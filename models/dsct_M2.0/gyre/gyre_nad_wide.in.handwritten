@@ -1,0 +1,233 @@
+! Damping rates for the pass-1 wide net. Mode and scan windows are identical to
+! gyre_ad_wide.in -- they have to be, gamma is matched onto the adiabatic
+! eigenfunctions by (l, n_pg). Summary only, no detail files.
+!
+! This is the slow half: ~1000 complex root finds at l up to 15. gamma is
+! currently unknown above |n| = 20, which is what blocks the 4-mode search from
+! classifying candidates at all.
+&constants
+/
+
+&model
+  model_type = 'EVOL'
+  file = '../mesa/LOGS/profile331.data.GYRE'
+  file_format = 'MESA'
+/
+
+&mode
+  l = 0
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 1
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 2
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 3
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 4
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 5
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 6
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'core'
+/
+
+&mode
+  l = 2
+  n_pg_min = -23
+  n_pg_max = -21
+  tag = 'gnet'
+/
+
+&mode
+  l = 3
+  n_pg_min = -33
+  n_pg_max = -21
+  tag = 'gnet'
+/
+
+&mode
+  l = 4
+  n_pg_min = -43
+  n_pg_max = -21
+  tag = 'gnet'
+/
+
+&mode
+  l = 5
+  n_pg_min = -53
+  n_pg_max = -21
+  tag = 'gnet'
+/
+
+&mode
+  l = 6
+  n_pg_min = -63
+  n_pg_max = -21
+  tag = 'gnet'
+/
+
+&mode
+  l = 7
+  n_pg_min = -72
+  n_pg_max = -24
+  tag = 'gnet'
+/
+
+&mode
+  l = 8
+  n_pg_min = -82
+  n_pg_max = -28
+  tag = 'gnet'
+/
+
+&mode
+  l = 9
+  n_pg_min = -92
+  n_pg_max = -31
+  tag = 'gnet'
+/
+
+&mode
+  l = 10
+  n_pg_min = -102
+  n_pg_max = -34
+  tag = 'gnet'
+/
+
+&mode
+  l = 11
+  n_pg_min = -111
+  n_pg_max = -37
+  tag = 'gnet'
+/
+
+&mode
+  l = 12
+  n_pg_min = -121
+  n_pg_max = -40
+  tag = 'gnet'
+/
+
+&mode
+  l = 13
+  n_pg_min = -131
+  n_pg_max = -43
+  tag = 'gnet'
+/
+
+&mode
+  l = 14
+  n_pg_min = -141
+  n_pg_max = -47
+  tag = 'gnet'
+/
+
+&mode
+  l = 15
+  n_pg_min = -150
+  n_pg_max = -50
+  tag = 'gnet'
+/
+
+&osc
+  outer_bound = 'UNNO'
+  variables_set = 'DZIEM'
+  nonadiabatic = .TRUE.
+/
+
+&rot
+/
+
+&num
+  diff_scheme = 'MAGNUS_GL2'
+  nad_search = 'AD'
+/
+
+&scan
+  grid_type = 'INVERSE'
+  freq_min = 0.8
+  freq_max = 25.0
+  n_freq = 1000
+  freq_units = 'CYC_PER_DAY'
+  tag_list = 'core'
+/
+
+&scan
+  grid_type = 'LINEAR'
+  freq_min = 25.0
+  freq_max = 95.0
+  n_freq = 1000
+  freq_units = 'CYC_PER_DAY'
+  tag_list = 'core'
+/
+
+! Wider than the 1.7-5.2 c/d band the n_pg limits encode, so the n_pg windows
+! bind and a few percent of error in K cannot silently drop modes.
+! At l = 25 the g-mode period spacing is 204 s; n_freq = 3000 over this window
+! gives dP = 1.7e-4 d against 2.4e-3 d, ~14 trial points per mode.
+&scan
+  grid_type = 'INVERSE'
+  freq_min = 1.5
+  freq_max = 6.0
+  n_freq = 3000
+  freq_units = 'CYC_PER_DAY'
+  tag_list = 'gnet'
+/
+
+&grid
+  w_osc = 10
+  w_exp = 2
+  w_ctr = 10
+  tag_list = 'core'
+/
+
+! n_pg reaches 250 here, 2.5x deeper than the probe. The MESA mesh resolves
+! |n| = 100 with almost no resampling (7137 -> 7435 points); w_osc = 15 buys
+! headroom for the shorter wavelengths at the cost of ~1.5x the file size.
+&grid
+  w_osc = 15
+  w_exp = 2
+  w_ctr = 10
+  tag_list = 'gnet'
+/
+
+&ad_output
+/
+
+&nad_output
+  summary_file = 'summary_nad_wide.h5'
+  summary_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,E_norm,M_star,R_star,L_star'
+  freq_units = 'CYC_PER_DAY'
+/

@@ -1,0 +1,4 @@
+
+[notice] A new release of pip is available: 26.0.1 -> 26.2.1
+[notice] To update, run: pip install --upgrade pip
+/net/nas-1-16/users/home2/txr7972/soft/mesasdk/bin/../lib/gcc/x86_64-pc-linux-gnu/15.2.0/../../../../x86_64-pc-linux-gnu/bin/ld: warning: atm_support.o: requires executable stack (because the .note.GNU-stack section is executable)

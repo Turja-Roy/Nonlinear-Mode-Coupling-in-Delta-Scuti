@@ -1,0 +1,57 @@
+
+[notice] A new release of pip is available: 26.0.1 -> 26.2.1
+[notice] To update, run: pip install --upgrade pip
+/net/nas-1-16/users/home2/txr7972/soft/mesasdk/bin/../lib/gcc/x86_64-pc-linux-gnu/15.2.0/../../../../x86_64-pc-linux-gnu/bin/ld: warning: atm_support.o: requires executable stack (because the .note.GNU-stack section is executable)
+HDF5-DIAG: Error detected in HDF5 (1.14.6) thread 1:
+  #000: H5F.c line 653 in H5Fcreate(): unable to synchronously create file
+    major: File accessibility
+    minor: Unable to create file
+  #001: H5F.c line 608 in H5F__create_api_common(): unable to create file
+    major: File accessibility
+    minor: Unable to open file
+  #002: H5VLcallback.c line 3445 in H5VL_file_create(): file create failed
+    major: Virtual Object Layer
+    minor: Unable to create file
+  #003: H5VLcallback.c line 3411 in H5VL__file_create(): file create failed
+    major: Virtual Object Layer
+    minor: Unable to create file
+  #004: H5VLnative_file.c line 94 in H5VL__native_file_create(): unable to create file
+    major: File accessibility
+    minor: Unable to open file
+  #005: H5Fint.c line 1897 in H5F_open(): can't try opening file
+    major: File accessibility
+    minor: Unable to open file
+  #006: H5FD.c line 787 in H5FD_open(): can't open file
+    major: Virtual File Layer
+    minor: Unable to open file
+  #007: H5FDsec2.c line 323 in H5FD__sec2_open(): unable to open file: name = 'detail/detail.l0.n+1.h5', errno = 2, error message = 'No such file or directory', flags = 13, o_flags = 242
+    major: File accessibility
+    minor: Unable to open file
+HDF5-DIAG: Error detected in HDF5 (1.14.6) thread 1:
+  #000: H5F.c line 653 in H5Fcreate(): unable to synchronously create file
+    major: File accessibility
+    minor: Unable to create file
+  #001: H5F.c line 608 in H5F__create_api_common(): unable to create file
+    major: File accessibility
+    minor: Unable to open file
+  #002: H5VLcallback.c line 3445 in H5VL_file_create(): file create failed
+    major: Virtual Object Layer
+    minor: Unable to create file
+  #003: H5VLcallback.c line 3411 in H5VL__file_create(): file create failed
+    major: Virtual Object Layer
+    minor: Unable to create file
+  #004: H5VLnative_file.c line 94 in H5VL__native_file_create(): unable to create file
+    major: File accessibility
+    minor: Unable to open file
+  #005: H5Fint.c line 1897 in H5F_open(): can't try opening file
+    major: File accessibility
+    minor: Unable to open file
+  #006: H5FD.c line 787 in H5FD_open(): can't open file
+    major: Virtual File Layer
+    minor: Unable to open file
+  #007: H5FDsec2.c line 323 in H5FD__sec2_open(): unable to open file: name = 'detail/detail.l0.n+1.h5', errno = 2, error message = 'No such file or directory', flags = 13, o_flags = 242
+    major: File accessibility
+    minor: Unable to open file
+ERROR STOP 
+ ABORT at line 152 of /net/nas-1-16/users/home2/txr7972/soft/gyre-9.1.1/src/forum/src/lib/hdf5io_m.fypp
+ error in call to h5fcreate_f

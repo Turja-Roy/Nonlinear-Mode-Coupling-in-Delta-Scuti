@@ -1,0 +1,84 @@
+! Nonadiabatic run for damping rates only: gamma = -Im(omega).
+! Eigenfunctions come from the adiabatic run, so no detail files here.
+
+&constants
+/
+
+&model
+  model_type = 'EVOL'
+  file = '../mesa/LOGS/profile331.data.GYRE'
+  file_format = 'MESA'
+/
+
+&mode
+  l = 0
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'l0'
+/
+
+&mode
+  l = 1
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'l1'
+/
+
+&mode
+  l = 2
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'l2'
+/
+
+&mode
+  l = 3
+  n_pg_min = -20
+  n_pg_max = 20
+  tag = 'l3'
+/
+
+&osc
+  outer_bound = 'UNNO'
+  variables_set = 'DZIEM'
+  nonadiabatic = .TRUE.
+/
+
+&rot
+/
+
+&num
+  diff_scheme = 'MAGNUS_GL2'
+  nad_search = 'AD'
+/
+
+&scan
+  grid_type = 'INVERSE'
+  freq_min = 0.8
+  freq_max = 25.0
+  n_freq = 1000
+  freq_units = 'CYC_PER_DAY'
+/
+
+&scan
+  grid_type = 'LINEAR'
+  freq_min = 25.0
+  freq_max = 95.0
+  n_freq = 1000
+  freq_units = 'CYC_PER_DAY'
+/
+
+&grid
+  w_osc = 10
+  w_exp = 2
+  w_ctr = 10
+/
+
+&ad_output
+/
+
+&nad_output
+  summary_file = 'summary_nad.h5'
+  summary_item_list = 'id,l,m,n_pg,n_p,n_g,omega,freq,E_norm,M_star,R_star,L_star'
+  freq_units = 'CYC_PER_DAY'
+/
