@@ -28,6 +28,8 @@ class Background:
     T: np.ndarray  # K
     c_P: np.ndarray  # erg/g/K
     L_r: np.ndarray  # erg/s
+    v_conv: np.ndarray  # cm/s, MLT convective velocity
+    omega_conv: np.ndarray  # rad/s, v_conv / (alpha H_P)
     M: float
     R: float
     L: float
@@ -67,7 +69,7 @@ def load_background(
     x (r/R), R_star, M_star, rho, P, Gamma_1, c_1 (g = GMx/(c_1R^2)), V_2, As (dlnrho/dlnr), M_r, L_star
 
     mesa_profile is a MESA output file that supplies:
-    dGamma1_dlnRho_s, temperature, cp, luminosity
+    dGamma1_dlnRho_s, temperature, cp, luminosity, conv_vel, omega_conv
     """
     d = load_h5(detail) if isinstance(detail, (str, pathlib.Path)) else detail
     x, R, M = d["x"], float(d["R_star"]), float(d["M_star"])
@@ -86,11 +88,13 @@ def load_background(
     if mesa_profile is None:
         nan = np.full_like(x, np.nan)
         cols = {"dGamma1_dlnRho_s": np.zeros_like(x), "temperature": nan, "cp": nan,
-                "luminosity": nan}
+                "luminosity": nan, "conv_vel": nan, "omega_conv": nan}
         n_clamped = 0
     else:
         cols, n_clamped = _mesa_on_gyre_grid(
-            d["P"], mesa_profile, ("dGamma1_dlnRho_s", "temperature", "cp", "luminosity")
+            d["P"], mesa_profile,
+            ("dGamma1_dlnRho_s", "temperature", "cp", "luminosity", "conv_vel",
+             "omega_conv"),
         )
 
     return Background(
@@ -107,6 +111,8 @@ def load_background(
         T=cols["temperature"],
         c_P=cols["cp"],
         L_r=cols["luminosity"] * L_SUN,
+        v_conv=cols["conv_vel"],
+        omega_conv=cols["omega_conv"],
         M=M,
         R=R,
         L=float(d["L_star"]),

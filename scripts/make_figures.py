@@ -22,7 +22,7 @@ import pandas as pd
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from coupling.kappa import kappa_abc
-from coupling.modes import load_model
+from coupling.modes import gamma_turb, load_model
 from coupling.observables import classify_frame, target_index
 
 CD = 7.27220522e-5  # rad/s per cycle/day
@@ -141,10 +141,14 @@ def _gamma_sets():
     GYRE reports the dimensionless eigenvalue omega = sigma / sqrt(GM/R^3),
     so gamma[s^-1] = -Im(omega) * sqrt(GM/R^3), and freq (c/d) -> rad/s is
     the usual 2*pi/86400.  Unlike MW23 Fig. 4 we keep the linearly unstable
-    modes on the plot (they drop their radiative point) and we have no
-    turbulent-viscosity channel, so there is one point per mode, not two.
+    modes on the plot; they drop their radiative point but keep their
+    turbulent one, which is positive for every mode.
 
-    Returns (hi_l, lo_damped, lo_driven, band), each an (omega, |gamma|)
+    The turbulent set comes from the narrow-net eigenfunctions, so it is only
+    the l <= 3 modes with a detail dump -- the summary files carry no
+    displacement.
+
+    Returns (hi_l, lo_damped, lo_driven, band, turb), each an (omega, |gamma|)
     pair; `band` is the (lo, hi) omega span of the driven modes.
     """
     G = 6.67430e-8  # cgs
@@ -173,12 +177,15 @@ def _gamma_sets():
     w, g = w[lo][uniq], g[lo][uniq]
     dam, drv = g > 0, g < 0
     band = (w[drv].min(), w[drv].max())
-    return hi_l, (w[dam], g[dam]), (w[drv], -g[drv]), band
+
+    turb = np.array([[ef.omega, gamma_turb(ef)] for ef in efs.values()]).T
+    return hi_l, (w[dam], g[dam]), (w[drv], -g[drv]), band, (turb[0], turb[1])
 
 
 LBL_HI = r"damped, $4 \leq l \leq 25$ (daughter net)"
 LBL_DAM = r"damped, $l \leq 3$"
 LBL_DRV = r"driven ($\gamma < 0$), $l \leq 3$"
+LBL_TRB = r"turbulent, $l \leq 3$"
 
 
 def _gamma_axes(ax, band, top_axis=True):
@@ -191,15 +198,16 @@ def _gamma_axes(ax, band, top_axis=True):
 
 
 def fig_gamma():
-    hi_l, dam, drv, band = _gamma_sets()
+    hi_l, dam, drv, band, trb = _gamma_sets()
     fig, ax = plt.subplots(figsize=(6.4, 4.2))
     ax.scatter(*hi_l, s=4, color="0.75", lw=0, rasterized=True, label=LBL_HI)
     ax.scatter(*dam, s=14, color=BLUE, lw=0, label=LBL_DAM)
     ax.scatter(*drv, s=22, color=VERM, marker="D", lw=0, label=LBL_DRV)
+    ax.scatter(*trb, s=12, color=PURPLE, marker="^", lw=0, label=LBL_TRB)
     _gamma_axes(ax, band)
     ax.set(xlabel=r"mode frequency $\omega$  $[\mathrm{rad\,s^{-1}}]$",
            ylabel=r"damping rate $|\gamma|$  $[\mathrm{s^{-1}}]$",
-           title=r"Radiative damping and driving rates")
+           title=r"Radiative and turbulent damping rates")
     ax.legend(loc="lower right", framealpha=0.9, fontsize=8)
     save(fig, "fig_gamma")
 
@@ -207,10 +215,13 @@ def fig_gamma():
 def fig_gamma_panels():
     """Same data as fig_gamma, split by population.
 
-    The point of panel (b) is that it is *empty* inside the shaded driven
-    band: there is no damped l <= 3 mode there for the diamonds to hide.
+    The point of panel (b) is that the *radiative* points are empty inside the
+    shaded driven band: there is no radiatively damped l <= 3 mode there for
+    the diamonds to hide. The turbulent points do fill the band, since
+    turbulent viscosity damps every mode including the driven ones; they sit
+    well below the radiative points, which is MW23's gamma_tot ~ gamma_rad.
     """
-    hi_l, dam, drv, band = _gamma_sets()
+    hi_l, dam, drv, band, trb = _gamma_sets()
     n_in = lambda s: int(((s[0] >= band[0]) & (s[0] <= band[1])).sum())
 
     fig, axes = plt.subplots(2, 2, figsize=(9.6, 7.0), sharex=True, sharey=True)
@@ -218,16 +229,18 @@ def fig_gamma_panels():
         (axes[0, 0], "(a) daughter net, $4 \\leq l \\leq 25$ (all damped)",
          [(hi_l, dict(s=5, color="0.6", lw=0, rasterized=True), LBL_HI)],
          f"{n_in(hi_l)} in band", "lower right"),
-        (axes[0, 1], "(b) damped, $l \\leq 3$",
-         [(dam, dict(s=18, color=BLUE, lw=0), LBL_DAM)],
-         f"{n_in(dam)} in band", "upper left"),
+        (axes[0, 1], "(b) damped, $l \\leq 3$: radiative vs turbulent",
+         [(dam, dict(s=18, color=BLUE, lw=0), LBL_DAM),
+          (trb, dict(s=12, color=PURPLE, marker="^", lw=0), LBL_TRB)],
+         f"{n_in(dam)} radiative in band", "upper left"),
         (axes[1, 0], "(c) driven, $l \\leq 3$",
          [(drv, dict(s=26, color=VERM, marker="D", lw=0), LBL_DRV)],
          f"{n_in(drv)} in band", "upper left"),
         (axes[1, 1], "(d) all together",
          [(hi_l, dict(s=4, color="0.75", lw=0, rasterized=True), LBL_HI),
           (dam, dict(s=14, color=BLUE, lw=0), LBL_DAM),
-          (drv, dict(s=22, color=VERM, marker="D", lw=0), LBL_DRV)],
+          (drv, dict(s=22, color=VERM, marker="D", lw=0), LBL_DRV),
+          (trb, dict(s=10, color=PURPLE, marker="^", lw=0), LBL_TRB)],
          None, "upper left"),
     ]
     for ax, title, layers, note, legloc in panels:

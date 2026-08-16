@@ -24,9 +24,11 @@ from .modes import (
     Eigenfunction,
     Mode,
     build_mode_list,
+    gamma_turb,
     load_eigenfunctions,
     load_gammas,
     load_model,
+    nu_turb,
 )
 from .triplets import DETUNING_CUT_DIMLESS, RadialTriplet, enumerate_triplets, from_frame, summarise, to_frame
 
@@ -50,6 +52,7 @@ __all__ = [
     "enumerate_triplets",
     "from_frame",
     "from_triplets",
+    "gamma_turb",
     "grid_convergence",
     "kappa_abc",
     "kappa_all_m",
@@ -63,6 +66,7 @@ __all__ = [
     "m_combos",
     "mu",
     "nonadiabatic_fraction",
+    "nu_turb",
     "parametric_growth_rate",
     "satisfies_selection_rules",
     "self_coupled",
