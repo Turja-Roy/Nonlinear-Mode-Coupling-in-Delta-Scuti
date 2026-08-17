@@ -15,7 +15,7 @@ def cut(bg):
 
 
 def _canonical(t):
-    return (t.parent, tuple(sorted(t.daughters)))
+    return (t.sum_mode, tuple(sorted(t.pair)))
 
 
 def _restrict(efs):
@@ -30,14 +30,14 @@ def _brute_force(efs, cut):
     out = set()
     for triple in itertools.combinations_with_replacement(sorted(efs), 3):
         for i in range(3):
-            parent = triple[i]
-            daughters = tuple(sorted(triple[:i] + triple[i + 1 :]))
-            ls = (parent[0], daughters[0][0], daughters[1][0])
+            sum_mode = triple[i]
+            pair = tuple(sorted(triple[:i] + triple[i + 1 :]))
+            ls = (sum_mode[0], pair[0][0], pair[1][0])
             if not satisfies_selection_rules(*ls):
                 continue
-            delta = -efs[parent].omega + efs[daughters[0]].omega + efs[daughters[1]].omega
+            delta = -efs[sum_mode].omega + efs[pair[0]].omega + efs[pair[1]].omega
             if abs(delta) < cut:
-                out.add((parent, daughters))
+                out.add((sum_mode, pair))
     return out
 
 

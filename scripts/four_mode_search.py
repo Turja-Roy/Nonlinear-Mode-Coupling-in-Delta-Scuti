@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """MW25 four-mode mixed systems on the wide net.
 
-    a, b driven  ->  c damped, resonant with omega_a +- omega_b   (direct leg)
-    c            ->  d, d damped, resonant with omega_c / 2       (parametric leg)
+    a, b parents  ->  c daughter, resonant with omega_a +- omega_b  (direct leg)
+    c             ->  d, d granddaughters, resonant with omega_c/2  (parametric leg)
+
+Parent means self-excited (gamma < 0), as in MW23 sec 2. c is damped and born
+from a and b, so its own decay products d are granddaughters (MW23 sec 5).
 
 Ranking runs on kappa at m = (0, 0, 0): angular_factors goes through sympy's
 wigner_3j, and the full m set of an l ~ 15 triplet is a few hundred symbols,
@@ -118,21 +121,21 @@ def main() -> int:
         print("no candidates")
         return 1
 
-    def triplet(parent: int, dau: tuple[int, int]) -> RadialTriplet:
+    def triplet(sum_slot: int, pair: tuple[int, int]) -> RadialTriplet:
         return RadialTriplet(
-            parent=keys[parent],
-            daughters=(keys[dau[0]], keys[dau[1]]),
-            omega=(-float(w[parent]), float(w[dau[0]]), float(w[dau[1]])),
-            delta=float(w[dau[0]] + w[dau[1]] - w[parent]),
+            sum_mode=keys[sum_slot],
+            pair=(keys[pair[0]], keys[pair[1]]),
+            omega=(-float(w[sum_slot]), float(w[pair[0]]), float(w[pair[1]])),
+            delta=float(w[pair[0]] + w[pair[1]] - w[sum_slot]),
         )
 
     # The sign assignment does not enter kappa (only omega^2 does), so one
     # kappa per unordered (l, n) triple serves every candidate that uses it.
     legs: dict[tuple, RadialTriplet] = {}
     for ia, ib, ic, sgn in direct:
-        parent, dau = (ic, (ia, ib)) if sgn > 0 else ((ia, (ib, ic)) if w[ia] > w[ib]
-                                                     else (ib, (ia, ic)))
-        legs.setdefault(tuple(sorted((keys[ia], keys[ib], keys[ic]))), triplet(parent, dau))
+        sum_slot, pair = (ic, (ia, ib)) if sgn > 0 else ((ia, (ib, ic)) if w[ia] > w[ib]
+                                                         else (ib, (ia, ic)))
+        legs.setdefault(tuple(sorted((keys[ia], keys[ib], keys[ic]))), triplet(sum_slot, pair))
     for _, _, ic, idd, _ in quads:
         legs.setdefault(tuple(sorted((keys[ic], keys[idd], keys[idd]))), triplet(ic, (idd, idd)))
     print(f"{len(legs)} distinct radial triplets to integrate")
@@ -172,7 +175,7 @@ def main() -> int:
         kd, rd = kap[tuple(sorted((keys[ia], keys[ib], keys[ic])))]
         kp, rp = kap[tuple(sorted((keys[ic], keys[idd], keys[idd])))]
         wa, wb, wc, wd = w[ia], w[ib], w[ic], w[idd]
-        # Parent carries the negative sign: the sum branch makes c the parent,
+        # The sum slot carries the negative sign: the sum branch puts c there,
         # the difference branch the higher-frequency of a, b.
         delta_d = (wa + wb - wc) if sgn > 0 else (min(wa, wb) + wc - max(wa, wb))
         delta_p = 2 * wd - wc

@@ -9,8 +9,12 @@ factors of every m combination.
 Sign classes: with all stored omega positive, (+,+,+) can never resonate here
 (the lowest three frequencies already sum to 3.3 c/d against a 0.43 c/d cut),
 and any two-minus assignment is the negation of a one-minus one, so |Delta| is
-unchanged. One mode carries s = -1 — the parent — and there are three distinct
-choices per unordered triple.
+unchanged. One mode carries s = -1 — the sum mode, always the highest-frequency
+member — and there are three distinct choices per unordered triple.
+
+Slots a, b, c here are bookkeeping, not roles: a is simply the sum mode. Which
+modes are parents (gamma < 0, kappa-driven) and which are daughters is decided
+by linear stability alone — see `observables.channel`.
 """
 
 from __future__ import annotations
@@ -31,14 +35,14 @@ Key = tuple[int, int]  # (l, n_pg)
 class RadialTriplet:
     """One (l, n_pg) triple with a fixed sign assignment, m not yet chosen."""
 
-    parent: Key
-    daughters: tuple[Key, Key]
-    omega: tuple[float, float, float]  # signed, rad/s; parent first and negative
+    sum_mode: Key
+    pair: tuple[Key, Key]
+    omega: tuple[float, float, float]  # signed, rad/s; sum mode first and negative
     delta: float  # rad/s
 
     @property
     def keys(self) -> tuple[Key, Key, Key]:
-        return (self.parent, *self.daughters)
+        return (self.sum_mode, *self.pair)
 
     @property
     def ls(self) -> tuple[int, int, int]:
@@ -82,15 +86,15 @@ def enumerate_triplets(
     for l_multiset in l_multisets(l_max):
         if max(l_multiset) > l_max:
             continue
-        for l_p, l_q, l_r in _parent_assignments(l_multiset):
+        for l_p, l_q, l_r in _sum_slot_assignments(l_multiset):
             if l_p not in by_l or l_q not in by_l or l_r not in by_l:
                 continue
             out.extend(_match(efs, by_l, l_p, l_q, l_r, cut))
     return out
 
 
-def _parent_assignments(l_multiset: tuple[int, int, int]) -> list[tuple[int, int, int]]:
-    """Distinct (parent l, daughter l, daughter l); daughters unordered."""
+def _sum_slot_assignments(l_multiset: tuple[int, int, int]) -> list[tuple[int, int, int]]:
+    """Distinct (sum-slot l, l, l); the pair is unordered."""
     seen: set[tuple[int, tuple[int, int]]] = set()
     out = []
     for i in range(3):
@@ -107,8 +111,8 @@ def _match(efs, by_l, l_p, l_q, l_r, cut) -> list[RadialTriplet]:
     n_q, w_q = by_l[l_q]
     n_r, w_r = by_l[l_r]
 
-    # Daughters are unordered, so restrict to the upper triangle when they
-    # share an l. q == r is kept: that is the self-coupled parametric case.
+    # The pair is unordered, so restrict to the upper triangle when its two
+    # members share an l. q == r is kept: that is the self-coupled case.
     iq, ir = np.meshgrid(np.arange(len(n_q)), np.arange(len(n_r)), indexing="ij")
     keep = iq <= ir if l_q == l_r else np.ones_like(iq, dtype=bool)
     iq, ir = iq[keep], ir[keep]
@@ -122,8 +126,8 @@ def _match(efs, by_l, l_p, l_q, l_r, cut) -> list[RadialTriplet]:
         for ip in range(a, b):
             out.append(
                 RadialTriplet(
-                    parent=(l_p, int(n_p[ip])),
-                    daughters=((l_q, int(n_q[iq[j]])), (l_r, int(n_r[ir[j]]))),
+                    sum_mode=(l_p, int(n_p[ip])),
+                    pair=((l_q, int(n_q[iq[j]])), (l_r, int(n_r[ir[j]]))),
                     omega=(-float(w_p[ip]), float(w_q[iq[j]]), float(w_r[ir[j]])),
                     delta=float(sums[j] - w_p[ip]),
                 )
@@ -136,7 +140,7 @@ def count_with_m(triplets: list[RadialTriplet]) -> int:
 
 
 def to_frame(triplets: list[RadialTriplet]):
-    """Flat table, parent in the `a` slot. Persist this before running kappa."""
+    """Flat table, sum mode in the `a` slot. Persist this before running kappa."""
     import pandas as pd
 
     return pd.DataFrame(
@@ -158,8 +162,8 @@ def to_frame(triplets: list[RadialTriplet]):
 def from_frame(df) -> list[RadialTriplet]:
     return [
         RadialTriplet(
-            parent=(int(r.l_a), int(r.n_a)),
-            daughters=((int(r.l_b), int(r.n_b)), (int(r.l_c), int(r.n_c))),
+            sum_mode=(int(r.l_a), int(r.n_a)),
+            pair=((int(r.l_b), int(r.n_b)), (int(r.l_c), int(r.n_c))),
             omega=(float(r.omega_a), float(r.omega_b), float(r.omega_c)),
             delta=float(r.delta),
         )

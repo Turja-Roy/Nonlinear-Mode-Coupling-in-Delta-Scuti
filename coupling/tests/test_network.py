@@ -3,7 +3,7 @@ import pytest
 
 from coupling.network import Coupling, Network, NetworkMode, self_coupled, three_mode
 
-# Exact resonance, no damping: omega_a + omega_b + omega_c = 0 with the parent
+# Exact resonance, no damping: omega_a + omega_b + omega_c = 0 with the sum mode
 # carrying the negative sign, as a RadialTriplet does.
 W = (-5.0e-4, 3.0e-4, 2.0e-4)
 KAPPA = 30.0
@@ -58,7 +58,7 @@ def test_amplitude_actually_moves(conservative, run):
 
 
 def test_self_coupled_conserves_energy():
-    """b = c = d: the parent's factor is 1 and the daughter's is 2."""
+    """b = c = d: the sum slot's factor is 1 and the repeated mode's is 2."""
     net = self_coupled(omega_a=-4.0e-4, omega_d=2.0e-4, gamma_a=0.0, gamma_d=0.0, kappa=KAPPA)
     _, q = net.integrate(np.array([1e-6, 2e-7], dtype=complex), T_END)
     E = net.energy(q).sum(axis=0)

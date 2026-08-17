@@ -172,7 +172,7 @@ def self_coupled(
     gamma_d: float,
     kappa: float,
 ) -> Network:
-    """Parent a decaying into two copies of the same daughter d."""
+    """Sum-slot mode a decaying into two copies of the same mode d."""
     modes = [NetworkMode("a", omega_a, gamma_a), NetworkMode("d", omega_d, gamma_d)]
     return Network(modes, [Coupling(idx=(0, 1, 1), kappa=kappa)])
 
@@ -180,7 +180,7 @@ def self_coupled(
 def from_triplets(triplets, efs, ms_list=None, gamma_override=None) -> Network:
     """Network over the union of several RadialTriplets.
 
-    Each triplet's parent enters with a negative frequency, so every coupling's
+    Each triplet's sum mode enters with a negative frequency, so every coupling's
     detuning is the one enumerate_triplets already filtered on. A mode shared
     between triplets keeps whichever sign its first appearance fixed; a triplet
     that would need the opposite sign for a shared mode is rejected.

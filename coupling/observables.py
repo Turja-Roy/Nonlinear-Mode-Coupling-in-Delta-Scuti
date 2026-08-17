@@ -1,12 +1,17 @@
 """What a triplet does: coupling strength, growth rates, thresholds.
 
+Roles follow MW23: a **parent** is self-excited (gamma < 0, kappa-driven), a
+**daughter** is damped (gamma > 0) and gets excited nonlinearly. The slots a, b,
+c of a RadialTriplet carry no role — a is just the sum mode.
+
 A triplet supports two distinct readings, and they use different modes:
 
-- **direct / combination frequency** — two modes beat and drive the third at
-  their sum frequency, q_x = mu q_y q_z. `mu` belongs to the *driven* mode, so
-  all three are reported; ordinary combination frequencies sit near mu ~ 4.
-- **parametric** — the parent decays into the two daughters once its energy
-  exceeds `threshold_energy`.
+- **direct / combination frequency** — two parents beat and drive one daughter
+  at their sum or difference frequency, q_x = mu q_y q_z. `mu` belongs to the
+  *daughter*, so all three slots are reported; ordinary combination frequencies
+  sit near mu ~ 4.
+- **parametric** — one parent decays into two daughters once its energy exceeds
+  `threshold_energy`.
 """
 
 from __future__ import annotations
@@ -93,17 +98,19 @@ CHANNELS = ("parametric", "direct-sum", "direct-diff", "all-driven", "inactive",
 def channel(gamma_a: float, gamma_b: float, gamma_c: float) -> str:
     """Which channel the triplet can run, from linear stability alone.
 
-    gamma < 0 is driven, as in `threshold_energy`. A channel needs two
-    self-excited pumps, or one that is the parent:
+    gamma < 0 is a parent, gamma > 0 a potential daughter. Slot a is the sum
+    mode; it is a parent in some channels and the daughter in others. A direct
+    channel needs two parents, the parametric one needs a single parent that is
+    also the sum mode:
 
-    - parametric: parent driven, both daughters damped
-    - direct-sum: both daughters driven, they beat and drive the parent
-    - direct-diff: parent and one daughter driven, driving the other daughter
-      at the difference frequency
-    - all-driven: no damped sink, both readings open
-    - all-damped: no pump
-    - inactive: a lone driven daughter, whose decay products are not in this
-      triplet
+    - parametric: a is the only parent, b and c are its two daughters
+    - direct-sum: b and c are parents, they beat and drive daughter a at
+      omega_b + omega_c
+    - direct-diff: a and one of b, c are parents, driving the remaining
+      daughter at the difference frequency
+    - all-driven: three parents, no daughter to absorb the energy
+    - all-damped: no parent
+    - inactive: a lone parent among b, c; its daughters are not in this triplet
     """
     drv = (gamma_a < 0.0, gamma_b < 0.0, gamma_c < 0.0)
     n = sum(drv)
@@ -130,10 +137,12 @@ def classify_frame(df):
     return pd.Series(out, index=df.index, name="channel")
 
 
-def target_index(df) -> np.ndarray:
-    """Slot (0, 1, 2) of the damped mode the direct channel drives; -1 where no
-    direct channel runs. The mu-argmax slot answers a different question --
-    which mode responds most strongly -- and the two disagree on ~13% of rows."""
+def daughter_index(df) -> np.ndarray:
+    """Slot (0, 1, 2) of the daughter a direct channel drives; -1 where no
+    direct channel runs, i.e. where the triplet has no single daughter --
+    parametric has two, and the rest have none. The mu-argmax slot answers a
+    different question -- which mode responds most strongly -- and the two
+    disagree on ~13% of rows."""
     b_damped = df["gamma_b"].to_numpy() > 0.0
     cls = classify_frame(df).to_numpy()
     return np.where(
@@ -218,12 +227,12 @@ __all__ = [
     "TripletObservables",
     "channel",
     "classify_frame",
+    "daughter_index",
     "mu",
     "nonadiabatic_fraction",
     "nonadiabatic_shell",
     "observables",
     "parametric_growth_rate",
-    "target_index",
     "threshold_energy",
     "threshold_energy_ceiling",
     "to_frame",

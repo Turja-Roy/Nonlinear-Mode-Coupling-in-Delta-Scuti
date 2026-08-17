@@ -23,7 +23,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from coupling.kappa import kappa_abc
 from coupling.modes import gamma_turb, load_model
-from coupling.observables import classify_frame, target_index
+from coupling.observables import classify_frame, daughter_index
 
 CD = 7.27220522e-5  # rad/s per cycle/day
 DETUNING_CUT = 0.15  # in units of sqrt(GM/R^3), as in run_stage345.py
@@ -460,10 +460,12 @@ CHANNEL_STYLE = {
 @functools.cache
 def _channel_table():
     """Ranked table plus the channel each triplet can run and the mode it
-    drives: the damped target for the direct classes, the more strongly
-    responding daughter for the parametric one."""
+    drives, carried in the `_t` columns: the single daughter for the direct
+    classes, the more strongly responding of the two for the parametric one.
+    Channels with no daughter at all -- all-driven, all-damped, inactive --
+    fall back to the stronger of slots b, c, which has no physical reading."""
     obs = pd.read_csv(OUT / f"observables_{TAG}.csv")
-    idx = target_index(obs)
+    idx = daughter_index(obs)
     mus = obs[["mu_a", "mu_b", "mu_c"]].to_numpy()
     w = obs[["omega_a", "omega_b", "omega_c"]].abs().to_numpy()
     gam = np.abs(obs[["gamma_a", "gamma_b", "gamma_c"]].to_numpy())
@@ -519,6 +521,59 @@ def fig_channels():
     save(fig, "fig_channels")
 
 
+# Parent = self-excited (gamma < 0), daughter = damped and nonlinearly excited,
+# as in MW23 sec 2. Slot a is only the sum mode, so it is a parent in some
+# channels and the daughter in others; the subscript is "dau" because MW23's
+# daughter letter c collides with our slot c, and d is the granddaughter.
+CHANNEL_STYLE_ROLES = {
+    "direct-diff": (VERM, "direct, difference: two parents "
+                          "$\\to$ daughter at $|\\omega_a| - \\omega_x$"),
+    "direct-sum": (BLUE, "direct, sum: two parents "
+                         "$\\to$ daughter at $\\omega_b + \\omega_c$"),
+    "parametric": (GREEN, "parametric: one parent $\\to$ two daughters "
+                          "(stronger one plotted)"),
+}
+
+
+# ponytail: duplicate of fig_channels, kept only for side-by-side comparison.
+# Delete fig_channels once the roles labelling is adopted.
+def fig_channels_roles():
+    """fig_channels with MW23's role names. Same points, same colours: the only
+    difference is wording, so the two figures must overlay exactly."""
+    df = _channel_table()
+    panels = (("abs_kappa", r"$|\kappa_{abc}|$"),
+              ("delta_over_omega_t", r"$|\Delta_{abc}| / \omega_{\rm dau}$"),
+              ("gamma_over_omega_t", r"$|\gamma_{\rm dau}| / \omega_{\rm dau}$"),
+              ("delta_over_gamma_t", r"$|\Delta_{abc}| / |\gamma_{\rm dau}|$"))
+
+    fig, axes = plt.subplots(2, 2, figsize=(10.0, 7.4), sharey=True)
+    for ax, (col, xlabel) in zip(axes.flat, panels):
+        first = col == "abs_kappa"
+        idle = ~df.channel.isin(CHANNEL_STYLE_ROLES)
+        ax.scatter(df[col][idle], df.mu_t[idle], s=2, color="0.85", lw=0, rasterized=True,
+                   label=f"no channel, no daughter  [{int(idle.sum())}]" if first else None)
+        for name, (color, lbl) in CHANNEL_STYLE_ROLES.items():
+            m = (df.channel == name).to_numpy()
+            ax.scatter(df[col][m], df.mu_t[m], s=4, color=color, lw=0, alpha=0.5,
+                       rasterized=True, label=f"{lbl}  [{int(m.sum())}]" if first else None)
+        ax.set(xscale="log", yscale="log", xlabel=xlabel)
+        ax.axhline(1e3, color="0.3", ls="--", lw=1.2,
+                   label=r"$\mu > 10^3$ cut" if first else None)
+    axes[1, 1].axvline(1.0, color="0.3", ls=":", lw=1)
+    for ax in axes[:, 0]:
+        ax.set_ylabel(r"$\mu_{\rm dau}$")
+    axes[0, 0].legend(loc="lower left", fontsize=6.5, framealpha=0.9, markerscale=3)
+    n_dir = int(df.channel.str.startswith("direct").sum())
+    # Keep this no wider than fig_channels' title: savefig(bbox="tight") pads the
+    # canvas to fit it, and the two figures must stay overlayable.
+    fig.suptitle(f"MW23 Fig. 5 by coupling channel, {len(df)} triplets with $m$: "
+                 f"{n_dir} direct, {int((df.channel == 'parametric').sum())} parametric\n"
+                 r"$\mu_{\rm dau} = |\omega_{\rm dau} \kappa_{abc}| /"
+                 r" (\Delta_{abc}^2 + \gamma_{\rm dau}^2)^{1/2}$;"
+                 r"  parent $\gamma < 0$,  daughter $\gamma > 0$", y=1.0, fontsize=11)
+    save(fig, "fig_channels_roles")
+
+
 def fig_detuning():
     """Fractional detuning of the radial triplets, and the cut that bounds it."""
     df = _channel_table().drop_duplicates(["l_a", "n_a", "l_b", "n_b", "l_c", "n_c"])
@@ -548,7 +603,7 @@ def fig_detuning():
     grid = np.linspace(w_a.min(), w_a.max(), 200)
     ax.plot(grid, DETUNING_CUT * bg.omega_dyn / (grid * CD), color=VERM, lw=1.6,
             label=r"enumeration cut, $|\Delta| = 0.15\sqrt{GM/R^3}$")
-    ax.set(yscale="log", xlabel=r"parent frequency $\omega_a$ (c/d)",
+    ax.set(yscale="log", xlabel=r"sum-mode frequency $\omega_a$ (c/d)",
            ylabel=r"$|\Delta_{abc}| / \omega_a$",
            title="(b) the upper edge is the search cut")
     ax.legend(loc="lower left", fontsize=8, framealpha=0.9)
@@ -614,7 +669,7 @@ def fig_fourmode():
             markersize=4, label="median per $l_d$")
     ax.axhline(1.0, color=VERM, ls="--", lw=1.4)
     ax.text(16.6, 1.6, "instability threshold", color=VERM, fontsize=9)
-    ax.set(yscale="log", xlabel="parametric daughter degree $l_d$",
+    ax.set(yscale="log", xlabel="granddaughter degree $l_d$",
            ylabel=r"$E_c / E_{\rm th}$  at  $q_{a,b} = 10^{-6}$",
            title="Four-mode systems, full net (2.2M candidates): "
                  "all far below threshold")
@@ -630,8 +685,8 @@ def fig_m6():
     fig, ax = plt.subplots(figsize=(6.4, 4.2))
     for name, color, ls, lbl in (("E_P", BLUE, "-", "$E_P$ (parent, pumped)"),
                                  ("E_Q", SKY, "--", "$E_Q$ (parent, pumped)"),
-                                 ("E_c", ORANGE, "-", "$E_c$ (direct daughter)"),
-                                 ("E_d", VERM, "-", "$E_d$ (parametric daughter)")):
+                                 ("E_c", ORANGE, "-", "$E_c$ (daughter, direct)"),
+                                 ("E_d", VERM, "-", "$E_d$ (granddaughter, parametric)")):
         ax.plot(df.t_yr, df[name], color=color, ls=ls, lw=1.2, label=lbl)
     ax.set(yscale="log", xlabel="time (yr)", ylabel=r"$E/E_\star$",
            ylim=(1e-18, 1e-4),
@@ -654,6 +709,7 @@ ALL = {
     "gamma_panels": fig_gamma_panels, "kappa_cum": fig_kappa_cum,
     "xi_kappa_p": fig_xi_kappa_p, "xi_kappa_g": fig_xi_kappa_g,
     "mu": fig_mu, "eth": fig_eth, "channels": fig_channels,
+    "channels_roles": fig_channels_roles,
     "detuning": fig_detuning, "lowfreq": fig_lowfreq,
     "fourmode": fig_fourmode, "m6": fig_m6,
 }

@@ -7,11 +7,11 @@ from coupling.kappa import kappa_abc
 from coupling.observables import (
     channel,
     classify_frame,
+    daughter_index,
     mu,
     nonadiabatic_fraction,
     nonadiabatic_shell,
     parametric_growth_rate,
-    target_index,
     threshold_energy,
     threshold_energy_ceiling,
 )
@@ -79,7 +79,7 @@ def ranked():
     return pd.read_csv(RANKED)
 
 
-def test_parametric_class_matches_the_driven_parent_filter(ranked):
+def test_parametric_class_matches_the_driven_sum_slot_filter(ranked):
     """The filter fig_eth uses, and the 6713 rows of the pipeline note."""
     cls = classify_frame(ranked)
     expect = (ranked.gamma_a < 0) & (ranked.gamma_b > 0) & (ranked.gamma_c > 0)
@@ -94,8 +94,8 @@ def test_channel_is_constant_over_m(ranked):
     assert (n == 1).all()
 
 
-def test_direct_target_is_the_damped_mode(ranked):
-    idx = target_index(ranked)
+def test_direct_daughter_is_the_damped_mode(ranked):
+    idx = daughter_index(ranked)
     gam = ranked[["gamma_a", "gamma_b", "gamma_c"]].to_numpy()
     direct = idx >= 0
     assert (gam[direct, idx[direct]] > 0).all()

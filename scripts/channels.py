@@ -5,7 +5,7 @@
 
 Reads observables_<tag>.csv, writes channels_<tag>.csv: one row per coupling
 channel with counts at both the radial-triplet and the (triplet, m) level, and
-the frequency band of the mode each channel drives.
+the frequency band of the daughter each channel drives.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from coupling.observables import CHANNELS, classify_frame, target_index
+from coupling.observables import CHANNELS, classify_frame, daughter_index
 
 CD = 7.27220522e-5  # rad/s per cycle/day
 KEYS = ["l_a", "n_a", "l_b", "n_b", "l_c", "n_c"]
@@ -27,12 +27,12 @@ KEYS = ["l_a", "n_a", "l_b", "n_b", "l_c", "n_c"]
 
 def census(df: pd.DataFrame) -> pd.DataFrame:
     df = df.assign(channel=classify_frame(df))
-    idx = target_index(df)
+    idx = daughter_index(df)
     w = df[["omega_a", "omega_b", "omega_c"]].abs().to_numpy() / CD
     rows = np.arange(len(df))
 
-    # Direct channels drive one damped mode; the parametric channel feeds the
-    # two damped daughters, so quote their band instead.
+    # Direct channels have a single daughter; the parametric channel feeds two,
+    # so quote their band instead.
     f_lo = f_hi = np.where(idx >= 0, w[rows, np.maximum(idx, 0)], np.nan)
     param = df.channel.to_numpy() == "parametric"
     if param.any():
@@ -55,9 +55,9 @@ def census(df: pd.DataFrame) -> pd.DataFrame:
             "mu_max_median": m.mu_max.median(),
             "mu_max_max": m.mu_max.max(),
             "frac_detuning_median": r.frac_detuning.median(),
-            "f_target_q10": np.nanpercentile(m.f_lo, 10) if m.f_lo.notna().any() else np.nan,
-            "f_target_q50": np.nanpercentile(m[["f_lo", "f_hi"]], 50) if m.f_lo.notna().any() else np.nan,
-            "f_target_q90": np.nanpercentile(m.f_hi, 90) if m.f_hi.notna().any() else np.nan,
+            "f_daughter_q10": np.nanpercentile(m.f_lo, 10) if m.f_lo.notna().any() else np.nan,
+            "f_daughter_q50": np.nanpercentile(m[["f_lo", "f_hi"]], 50) if m.f_lo.notna().any() else np.nan,
+            "f_daughter_q90": np.nanpercentile(m.f_hi, 90) if m.f_hi.notna().any() else np.nan,
         })
     return pd.DataFrame(out).sort_values("n_radial", ascending=False, ignore_index=True)
 

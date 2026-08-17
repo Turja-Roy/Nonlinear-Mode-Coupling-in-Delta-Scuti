@@ -13,10 +13,10 @@ from .observables import (
     CHANNELS,
     channel,
     classify_frame,
+    daughter_index,
     mu,
     nonadiabatic_fraction,
     parametric_growth_rate,
-    target_index,
     threshold_energy,
 )
 from .modes import (
@@ -49,6 +49,7 @@ __all__ = [
     "build_mode_list",
     "channel",
     "classify_frame",
+    "daughter_index",
     "enumerate_triplets",
     "from_frame",
     "from_triplets",
@@ -71,7 +72,6 @@ __all__ = [
     "satisfies_selection_rules",
     "self_coupled",
     "summarise",
-    "target_index",
     "three_mode",
     "threshold_energy",
     "to_frame",

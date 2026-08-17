@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """M6: integrate a four-mode mixed system to a bounded state.
 
-Two legs share the direct daughter c:
+Two legs share the direct daughter c. P and Q are the parents -- self-excited,
+gamma < 0 -- and c is damped, so the modes it excites in turn are the
+granddaughters d (MW23 sec 5):
 
-    P -> Q + c      (P the higher-frequency driven parent)
-    c -> d + d      (self-coupled parametric daughter)
+    P -> Q + c      (direct leg; P is the sum slot, omega_P = omega_Q + omega_c)
+    c -> d + d      (parametric leg, self-coupled)
 
-c therefore enters one coupling as a daughter and the other as a parent, which
+c therefore enters one coupling as a daughter and the other as the pump, which
 network.py's one-sign-per-mode Network cannot hold -- it raises on exactly this.
-The equations are written out here instead, in the same convention: parent term
-carries exp(-i Delta t), daughter terms exp(+i Delta t), and the combinatorial
-factor is 2 for distinct partners, 1 for coincident ones.
+The equations are written out here instead, in the same convention: the sum-slot
+term carries exp(-i Delta t), the pair terms exp(+i Delta t), and the
+combinatorial factor is 2 for distinct partners, 1 for coincident ones.
 
 Selection is not on growth rate alone. Gamma/gamma_d ranks the strength of the
 instability, but the cost of the integration is set by Delta: the rotating-frame
@@ -182,7 +184,7 @@ def main() -> int:
               "for the pumped limit cycle)")
     else:
         swing = np.ptp(E[3, half:]) / max(E[3, half:].mean(), 1e-300)
-        print(f"\n  daughter energy swing over the second half: {swing:.3f}")
+        print(f"\n  granddaughter energy swing over the second half: {swing:.3f}")
         print("  bounded limit cycle" if swing > 1e-3 and E[3, -1] > E[3, 0]
               else "  fixed point or decay")
 
