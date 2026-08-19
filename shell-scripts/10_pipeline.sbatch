@@ -10,7 +10,7 @@
 #
 # The whole pipeline for ONE model, end to end:
 #
-#   MESA -> select profile -> GYRE inlists -> GYRE narrow -> stages 3-5
+#   MESA -> select profile -> GYRE inlists -> GYRE narrow -> coupling tables
 #        -> GYRE wide pass 1 -> pass 2 -> four-mode -> M6 -> figures
 #
 #   sbatch -J dsct_M2.2 shell-scripts/10_pipeline.sbatch dsct_M2.2_T7888
@@ -137,12 +137,12 @@ run_gyre gyre_ad.in  summary_ad.h5
 run_gyre gyre_nad.in summary_nad.h5
 check
 
-# ---------------------------------------------------------- 5. stages 3-5
-step "stages 3-5: triplets, kappa, observables"
+# ------------------------------------------------------ 5. coupling tables
+step "coupling tables: triplets, kappa, observables"
 if have "out/observables_$TAG.csv"; then
   echo "    out/observables_$TAG.csv exists, skipping"
 else
-  "$PYTHON" scripts/run_stage345.py --model "$MODEL" --force
+  "$PYTHON" scripts/three_mode_search.py --model "$MODEL" --force
 fi
 
 # ------------------------------------------------------- 6. wide net, pass 1

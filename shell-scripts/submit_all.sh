@@ -32,7 +32,7 @@ submit() {  # submit <deps-or-empty> <sbatch-args...> ; echoes the job id
   # passed to the script as a positional argument instead.
   local args=()
   # afterany, not afterok: the dependent only needs the owner's MESA track,
-  # which is stage 1 of 9. 10_pipeline.sbatch re-checks that the track is
+  # which is step 1 of 9. 10_pipeline.sbatch re-checks that the track is
   # really there, so a late failure in the owner must not cancel it.
   [ -n "$dep" ] && args+=(--dependency="afterany:$dep")
   args+=("$@")

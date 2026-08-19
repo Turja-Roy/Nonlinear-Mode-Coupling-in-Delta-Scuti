@@ -1,4 +1,4 @@
-! Stage 3b PROBE: same model, |n| <= 100 instead of 20, l <= 3 unchanged.
+! Wide-net PROBE: same model, |n| <= 100 instead of 20, l <= 3 unchanged.
 !
 ! Not the full l < 25 net. Sun et al. (2023) find two-eigenfunction overlap
 ! integrals go unreliable at |n| >~ 20 through cancellation, and kappa is a

@@ -4,7 +4,7 @@
 !   sqrt(GM/R^3) = 2.4799 c/d        detuning cut 0.15*nu_dyn = 0.3720 c/d
 !   large separation Dnu = 3.214 c/d   acoustic cutoff = 75.5 c/d
 !   int(N/r)dr = 3.6184e-03 s^-1              K = 15.838 c/d  (omega = K*Lam/|n|)
-! Narrow run: l <= 3, |n_pg| <= 20. Eigenfunctions for Stages 3-5.
+! Narrow run: l <= 3, |n_pg| <= 20. Eigenfunctions for the coupling tables.
 &constants
 /
 

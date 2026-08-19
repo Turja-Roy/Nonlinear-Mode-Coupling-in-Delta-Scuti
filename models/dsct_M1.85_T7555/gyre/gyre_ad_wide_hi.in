@@ -4,7 +4,7 @@
 !   sqrt(GM/R^3) = 3.5349 c/d        detuning cut 0.15*nu_dyn = 0.5302 c/d
 !   large separation Dnu = 4.589 c/d   acoustic cutoff = 125.1 c/d
 !   int(N/r)dr = 3.8768e-03 s^-1              K = 16.969 c/d  (omega = K*Lam/|n|)
-! Stage 3b pass 2 -- gnet only, l = 16-25.
+! Wide daughter net, pass 2 -- gnet only, l = 16-25.
 &constants
 /
 

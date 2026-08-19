@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate a model's six GYRE inlists from its MESA .GYRE profile.
 
-Every window in the inlists follows from the model, the way Stage 2 of
+Every window in the inlists follows from the model, the way sec 2 of
 Plans/nonlinear-coupling-pipeline.md derived them for dsct_M2.0 by hand:
 
   nu_dyn   = sqrt(GM/R^3)                 -- sets the detuning cut
@@ -21,7 +21,7 @@ absorbs.
 The parametric-daughter band defaults to the dsct_M2.0 band (1.7-5.2 c/d)
 scaled by nu_dyn.  That is a scaling assumption, not a derivation: the true
 band is omega_c/2 over the *direct daughter* frequencies, which are known
-only after Stage 3 has enumerated triplets for this model.  Re-run with
+only after three_mode_search.py has enumerated triplets for this model.  Re-run with
 --daughter-band LO HI once they are, and diff the n_pg windows.
 """
 
@@ -183,7 +183,7 @@ def main() -> int:
     grid_core = "\n&grid\n  w_osc = 10\n  w_exp = 2\n  w_ctr = 10\n{tags}/\n"
 
     write(gyre / "gyre_ad.in", hdr
-          + "! Narrow run: l <= 3, |n_pg| <= 20. Eigenfunctions for Stages 3-5.\n"
+          + "! Narrow run: l <= 3, |n_pg| <= 20. Eigenfunctions for the coupling tables.\n"
           + "&constants\n/\n" + model_blk + narrow_modes
           + osc.format(nad="") + "\n&rot\n/\n"
           + "\n&num\n  diff_scheme = 'COLLOC_GL4'\n/\n"
@@ -225,9 +225,9 @@ def main() -> int:
 
     for name, wins, core, summ, note in (
         ("wide", w1, True, "summary_ad_wide.h5",
-         f"! Stage 3b pass 1 -- wide daughter net, l <= {args.l_max_pass1}.\n"),
+         f"! Wide daughter net, pass 1 -- l <= {args.l_max_pass1}.\n"),
         ("wide_hi", w2, False, "summary_ad_wide_hi.h5",
-         f"! Stage 3b pass 2 -- gnet only, l = {args.l_max_pass1 + 1}-{args.l_max_pass2}.\n"),
+         f"! Wide daughter net, pass 2 -- gnet only, l = {args.l_max_pass1 + 1}-{args.l_max_pass2}.\n"),
     ):
         modes = ("".join(mode_block(l, -CORE_N_PG, CORE_N_PG, "core")
                          for l in range(args.l_max_core + 1)) if core else "")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Stages 3-5 for one model: triplets -> kappa -> observables.
+"""Three-mode coupling tables for one model: triplets -> kappa -> observables.
 
-    python3 scripts/run_stage345.py --model models/dsct_M2.0
+    python3 scripts/three_mode_search.py --model models/dsct_M2.0
 
 Writes three tables under --out, tagged with the model directory name:
 
@@ -74,14 +74,14 @@ def main() -> int:
     print(f"  {len(efs)} modes, sqrt(GM/R^3) = {bg.omega_dyn:.6e} rad/s, "
           f"detuning cut = {cut:.6e} rad/s")
 
-    print("stage 3: enumerating triplets ...")
+    print("enumerating triplets ...")
     trips = trip_mod.enumerate_triplets(efs, cut, l_max=args.l_max)
     n_m = trip_mod.count_with_m(trips)
     print(f"  {len(trips)} radial triplets, {n_m} with m  [{time.time() - t0:.1f}s]")
     trip_mod.to_frame(trips).to_csv(paths["triplets"], index=False)
     print(f"  -> {paths['triplets']}")
 
-    print("stages 4-5: kappa, mu, thresholds ...")
+    print("kappa, mu, thresholds ...")
     df = obs_mod.to_frame(trips, efs, bg)
     print(f"  {len(df)} rows  [{time.time() - t0:.1f}s]")
     df.to_csv(paths["observables"], index=False)

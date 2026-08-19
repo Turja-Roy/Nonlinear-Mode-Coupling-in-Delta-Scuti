@@ -27,7 +27,8 @@ from coupling.modes import gamma_turb, load_model
 from coupling.observables import classify_frame, daughter_index
 
 CD = 7.27220522e-5  # rad/s per cycle/day
-DETUNING_CUT = 0.15  # in units of sqrt(GM/R^3), as in run_stage345.py
+DETUNING_CUT = 0.15  # in units of sqrt(GM/R^3), as in three_mode_search.py
+MU_MIN = None  # lower y limit of every mu panel; None keeps the full range
 
 # argparse defaults; main() sets the rest.
 MODEL = pathlib.Path("models/dsct_M2.0")
@@ -664,6 +665,7 @@ def _mu_panels(key, style, bg_label, title, name, sub="c"):
         ax.axhline(1e3, color="0.3", ls="--", lw=1.2,
                    label=r"$\mu > 10^3$ cut" if first else None)
     axes[1, 1].axvline(1.0, color="0.3", ls=":", lw=1)
+    axes[0, 0].set_ylim(bottom=MU_MIN)  # sharey=True, so one call does all four
     for ax in axes[:, 0]:
         ax.set_ylabel(rf"$\mu_{sub}$")
     axes[0, 0].legend(loc="lower left", fontsize=6.5, framealpha=0.9, markerscale=3)
@@ -1039,6 +1041,7 @@ def fig_rank():
                                 r"(b) damped daughter ($\gamma > 0$) only")):
         ax.axhline(1e4, color="0.3", ls=":", lw=1.2)
         ax.set(xscale="log", yscale="log", xlabel="rank", title=title)
+    axes[0].set_ylim(bottom=MU_MIN)
     axes[0].set_ylabel(r"$\mu$")
     for ax in axes:  # the counts differ per panel, so each carries its own
         ax.legend(loc="lower left", fontsize=7, framealpha=0.9,
@@ -1080,6 +1083,7 @@ def fig_daughter():
             ax.set(yscale="log", xlabel=xlabel,
                    title=f"{rows[r]} -- by {'radial order' if c else 'frequency'}")
         axes[r, 0].set_ylabel(r"$\mu$")
+    axes[0, 0].set_ylim(bottom=MU_MIN)
     axes[0, 0].legend(loc="lower right", fontsize=7, framealpha=0.9, markerscale=5)
     fig.tight_layout()
     save(fig, "fig_daughter")
@@ -1106,8 +1110,9 @@ ALL = {
 }
 # Cross-model: one output for the whole grid, so these run once, not per tag.
 CROSS = {"rank": fig_rank, "daughter": fig_daughter}
-# Everything from "kappa_cum" on needs Stage 3-5 / four-mode CSVs for the tag.
-STAGE12 = ("propagation", "gamma", "gamma_panels")
+# Everything from "kappa_cum" on needs a coupling or four-mode CSV for the tag;
+# these three come from the stellar model alone.
+MODEL_ONLY = ("propagation", "gamma", "gamma_panels")
 
 
 def _run(model, tag, out, figs, names) -> None:
@@ -1169,14 +1174,15 @@ def main() -> int:
     ap.add_argument("--only", nargs="*", choices=sorted(ALL) + sorted(CROSS),
                     default=None,
                     help="subset of figures; default is all that have inputs")
-    ap.add_argument("--stage12", action="store_true",
-                    help=f"shorthand for --only {' '.join(STAGE12)}")
+    ap.add_argument("--model-only", action="store_true",
+                    help="shorthand for the figures that need no coupling "
+                         f"table: --only {' '.join(MODEL_ONLY)}")
     args = ap.parse_args()
 
     global MODEL_ROOT
     MODEL_ROOT = args.model.parent
 
-    names = STAGE12 if args.stage12 else (args.only or list(ALL) + list(CROSS))
+    names = MODEL_ONLY if args.model_only else (args.only or list(ALL) + list(CROSS))
     per_tag = [n for n in names if n in ALL]
     cross = [n for n in names if n in CROSS]
     root = args.figs or pathlib.Path("out/plots")
