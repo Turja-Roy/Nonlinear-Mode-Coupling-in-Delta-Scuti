@@ -10,6 +10,7 @@ from __future__ import annotations
 import functools
 import pathlib
 import sys
+from typing import NamedTuple
 
 import h5py
 import matplotlib
@@ -30,6 +31,7 @@ DETUNING_CUT = 0.15  # in units of sqrt(GM/R^3), as in run_stage345.py
 
 # argparse defaults; main() sets the rest.
 MODEL = pathlib.Path("models/dsct_M2.0")
+MODEL_ROOT = pathlib.Path("models")  # for cross-model figures; main() resets it
 OUT = pathlib.Path("out")
 TAG = FIGS = bg = efs = None
 
@@ -449,12 +451,163 @@ def fig_eth():
     save(fig, "fig_eth")
 
 
+def fig_eth_pg():
+    """fig_eth split by p/g make-up. Every row here is parametric: E_th is zero
+    unless the sum mode is the lone parent (`observables.threshold_energy`), so
+    the make-up is parent + its two daughters. The title reports the daughter
+    census rather than assuming it -- where every daughter is a g-mode the
+    make-up reads directly as the parent's type."""
+    df = _channel_table()
+    eth = df[(df.gamma_a < 0) & (df.E_th_over_E_star > 0)]
+    comp = _pg_comp(eth[["n_a", "n_b", "n_c"]].to_numpy())
+    x = np.log10(eth.E_th_over_E_star.to_numpy())
+    dau = _pg_letters(eth[["n_b", "n_c"]].to_numpy()).ravel()
+    n_g = int((dau == "g").sum())
+
+    fig, ax = plt.subplots(figsize=(6.4, 4.0))
+    _pg_stack(ax, x, comp, np.linspace(x.min(), x.max(), 60))
+    ax.set(xlabel=r"$\log_{10} (E_{\rm th}/E_\star)$", ylabel="triplets",
+           title=f"Parametric thresholds by $p$/$g$ make-up, {len(eth)} rows\n"
+                 f"{n_g} of {len(dau)} daughters are $g$-modes")
+    ax.legend(loc="upper left", fontsize=8, framealpha=0.9)
+    save(fig, "fig_eth_pg")
+
+
 # ------------------------------------------------------ coupling channels
+# (colour, alpha, legend label). fig_detuning reads the colour only.
 CHANNEL_STYLE = {
-    "direct-diff": (VERM, "difference: $\\omega_a - \\omega_x$ drives a damped daughter"),
-    "direct-sum": (BLUE, "sum: two driven daughters drive the parent"),
-    "parametric": (GREEN, "parametric: driven parent decays into two daughters"),
+    "direct-diff": (VERM, 0.5, "difference: $\\omega_a - \\omega_x$ drives a damped daughter"),
+    "direct-sum": (BLUE, 0.5, "sum: two driven daughters drive the parent"),
+    "parametric": (GREEN, 0.5, "parametric: driven parent decays into two daughters"),
 }
+
+
+# MW23 Fig. 5's triplet types. p-mode is n_pg > 0, g-mode n_pg < 0 -- their own
+# convention (sec 3.1: "-20 <= n <= 20, corresponding to g- and p-modes").
+# ponytail: sign(n_pg) only. ~20 modes in the observed band are genuinely mixed
+# (n_p > 0 and n_g > 0), where the Eckart label is unreliable; n_p, n_g sit in
+# summary_nad.h5 and can be read here with load_h5 if that ever matters.
+def _pg_type(ns, idx, j, rows):
+    """The five types, empty where they do not apply: no direct channel to name
+    a single daughter, or an f-mode (n_pg = 0) in the triplet."""
+    p = ns > 0
+    n_par_p = p.sum(axis=1) - p[rows, j]  # p-modes among the two parents
+    dau_p = p[rows, j]
+    out = np.full(len(rows), "mixed", dtype=object)
+    out[(n_par_p == 2) & dau_p] = "ppp"
+    out[(n_par_p == 2) & ~dau_p] = "ppg"
+    out[(n_par_p == 0) & ~dau_p] = "ggg"
+    out[(n_par_p == 0) & dau_p] = "ggp"
+    out[(ns == 0).any(axis=1)] = "f"  # f-mode: no p/g label
+    out[idx < 0] = ""  # no direct channel at all; this wins over "f"
+    return out
+
+
+def _pg_letters(ns):
+    """p / g / f per slot, from the sign of n_pg."""
+    return np.where(ns > 0, "p", np.where(ns < 0, "g", "f"))
+
+
+def _pg_comp(ns):
+    """Role-free p/g make-up: the three letters, p first, with every triplet
+    containing an f-mode lumped into one bucket. Unlike `_pg_type` this needs no
+    parent/daughter split, so it is defined for every row -- which is what
+    fig_detuning needs, roles being undefined for 72% of its radial triplets."""
+    s = np.sort(_pg_letters(ns), axis=1)[:, ::-1]  # sorts f < g < p, so reverse
+    key = np.char.add(np.char.add(s[:, 0], s[:, 1]), s[:, 2])
+    return np.where((s == "f").any(axis=1), "f", key)
+
+
+# Role-free counterpart of PG_TYPE_STYLE, same colour for the same make-up.
+# BLUE has no analogue: it marks mixed *parents* there, which needs roles.
+PG_COMP_STYLE = {
+    "ppp": ("0.55", "three $p$-modes"),
+    "ppg": (GREEN, "two $p$-modes, one $g$-mode"),
+    "pgg": (VERM, "one $p$-mode, two $g$-modes"),
+    "ggg": ("0.05", "three $g$-modes"),
+    "f": (SKY, "contains an $f$-mode ($n_{pg} = 0$)"),
+}
+
+
+def _pg_param_type(ns):
+    """Parametric make-up, "parent|daughter pair" -- e.g. "g|gg". Only
+    meaningful where slot a is the lone parent, i.e. channel == "parametric";
+    MW23's five types do not apply there, they assume two parents and one
+    daughter."""
+    lt = _pg_letters(ns)
+    pair = np.sort(lt[:, 1:], axis=1)[:, ::-1]
+    return np.char.add(np.char.add(lt[:, 0], "|"),
+                       np.char.add(pair[:, 0], pair[:, 1]))
+
+
+def _pg_bars(ax, sub, cls, style, title):
+    """Horizontal census of `cls` over `sub`. Bars count radial triplets -- the
+    distinct physical triads, m being degenerate without rotation -- with the
+    m-resolved count annotated. `style` maps class -> (colour, label)."""
+    rad = ~sub.duplicated(["l_a", "n_a", "l_b", "n_b", "l_c", "n_c"]).to_numpy()
+    # Every class in `style`, not just the populated ones: an empty class is a
+    # result (no direct triplet here has two g-mode parents and a p daughter).
+    names = sorted(style, key=lambda k: -int((cls == k)[rad].sum()))
+    n_rad = [int((cls == k)[rad].sum()) for k in names]
+    n_m = [int((cls == k).sum()) for k in names]
+    y = np.arange(len(names))[::-1]
+    ax.barh(y, n_rad, color=[style[k][0] for k in names], height=0.62)
+    for yi, r, m in zip(y, n_rad, n_m):
+        ax.text(r + max(n_rad) * 0.02, yi, f"{r}  ({m} with $m$)",
+                va="center", fontsize=8, color="0.25")
+    ax.set(yticks=y, yticklabels=[style[k][1] for k in names],
+           xlim=(0, max(n_rad) * 1.42), xlabel="radial triplets", title=title)
+    ax.grid(axis="y", visible=False)
+
+
+# Compact class names for the census; the scatter figures carry the long ones.
+PG_DIRECT_CENSUS = {
+    "ppp": ("0.55", "$pp$ parents $\\to$ $p$"),
+    "ppg": (GREEN, "$pp$ parents $\\to$ $g$"),
+    "ggp": (VERM, "$gg$ parents $\\to$ $p$"),
+    "ggg": ("0.05", "$gg$ parents $\\to$ $g$"),
+    "mixed": (BLUE, "$pg$ parents $\\to$ either"),
+    "f": (SKY, "$f$-mode in triplet"),
+}
+
+
+def _pg_stack(ax, x, comp, bins, **kw):
+    """Stacked histogram of `x` split by `comp`, populated classes only, in
+    PG_COMP_STYLE order with counts on the labels. Returns nothing."""
+    order = [k for k in PG_COMP_STYLE if (comp == k).any()]
+    masks = [comp == k for k in order]
+    ax.hist([x[m] for m in masks], bins=bins, stacked=True,
+            color=[PG_COMP_STYLE[k][0] for k in order],
+            label=[f"{PG_COMP_STYLE[k][1]}  [{int(m.sum())}]"
+                   for k, m in zip(order, masks)], **kw)
+
+
+# gamma is looked up by frequency (coupling/modes.py DampingRates), so a mode
+# with no nonadiabatic counterpart inside the tolerance gets gamma = NaN, and
+# mu with it. Those rows must be dropped, not merely left undrawn: numpy sorts
+# NaN last, so a descending mu ranking would hand them rank 1.
+GAMMA_MU_COLS = ["mu_a", "mu_b", "mu_c", "gamma_a", "gamma_b", "gamma_c"]
+
+
+def _drop_nonfinite(obs, tag=""):
+    """(frame without non-finite gamma/mu rows, number dropped)."""
+    ok = np.isfinite(obs[GAMMA_MU_COLS].to_numpy()).all(axis=1)
+    n = int((~ok).sum())
+    if n:
+        print(f"  dropped {n} of {len(obs)} rows with non-finite gamma/mu"
+              f"{f' [{tag}]' if tag else ''}")
+        obs = obs[ok].reset_index(drop=True)
+    return obs, n
+
+
+def _daughter_slot(obs):
+    """(daughter_index, slot to report). The slot is the daughter wherever a
+    direct channel names one; elsewhere it falls back to the strongest-responding
+    of b, c, which has no physical reading -- hence idx is returned alongside so
+    callers can tell the two apart."""
+    idx = daughter_index(obs)
+    mus = obs[["mu_a", "mu_b", "mu_c"]].to_numpy()
+    return idx, np.where(idx >= 0, np.maximum(idx, 0), 1 + mus[:, 1:].argmax(axis=1))
 
 
 @functools.cache
@@ -464,19 +617,19 @@ def _channel_table():
     classes, the more strongly responding of the two for the parametric one.
     Channels with no daughter at all -- all-driven, all-damped, inactive --
     fall back to the stronger of slots b, c, which has no physical reading."""
-    obs = pd.read_csv(OUT / f"observables_{TAG}.csv")
-    idx = daughter_index(obs)
+    obs, _ = _drop_nonfinite(pd.read_csv(OUT / f"observables_{TAG}.csv"))
+    idx, j = _daughter_slot(obs)
     mus = obs[["mu_a", "mu_b", "mu_c"]].to_numpy()
     w = obs[["omega_a", "omega_b", "omega_c"]].abs().to_numpy()
     gam = np.abs(obs[["gamma_a", "gamma_b", "gamma_c"]].to_numpy())
     ls = obs[["l_a", "l_b", "l_c"]].to_numpy()
     ns = obs[["n_a", "n_b", "n_c"]].to_numpy()
-    j = np.where(idx >= 0, np.maximum(idx, 0), 1 + mus[:, 1:].argmax(axis=1))
     rows = np.arange(len(obs))
     w_t, gam_t = w[rows, j], gam[rows, j]
     return obs.assign(
         channel=classify_frame(obs),
         mu_t=mus[rows, j], f_t=w_t / CD, l_t=ls[rows, j], n_t=ns[rows, j],
+        pg_type=_pg_type(ns, idx, j, rows),
         abs_kappa=obs.kappa.abs(),
         delta_over_omega_t=(obs.delta.abs() / w_t),
         gamma_over_omega_t=gam_t / w_t,
@@ -485,40 +638,45 @@ def _channel_table():
     )
 
 
-def fig_channels():
-    """MW23 Fig. 5 -- mu against the four quantities it is built from -- split
-    by channel. Their mode c is the mode mu belongs to, so ours is the mode the
-    channel drives. Their kappa abscissa is linear, which works under their
-    mu > 1e3 cut; the full sample spans six decades, so it is log here."""
+def _mu_panels(key, style, bg_label, title, name, sub="c"):
+    """MW23 Fig. 5: mu against the four quantities it is built from, one colour
+    per value of `key`, everything else in a faint background layer. `sub` is
+    the subscript naming the driven mode in the axis labels. Their kappa
+    abscissa is linear, which works under their mu > 1e3 cut; the full sample
+    spans six decades, so it is log here."""
     df = _channel_table()
     panels = (("abs_kappa", r"$|\kappa_{abc}|$"),
-              ("delta_over_omega_t", r"$|\Delta_{abc}| / \omega_c$"),
-              ("gamma_over_omega_t", r"$|\gamma_c| / \omega_c$"),
-              ("delta_over_gamma_t", r"$|\Delta_{abc}| / |\gamma_c|$"))
+              ("delta_over_omega_t", rf"$|\Delta_{{abc}}| / \omega_{sub}$"),
+              ("gamma_over_omega_t", rf"$|\gamma_{sub}| / \omega_{sub}$"),
+              ("delta_over_gamma_t", rf"$|\Delta_{{abc}}| / |\gamma_{sub}|$"))
+    idle = ~df[key].isin(style)
 
     fig, axes = plt.subplots(2, 2, figsize=(10.0, 7.4), sharey=True)
     for ax, (col, xlabel) in zip(axes.flat, panels):
         first = col == "abs_kappa"
-        idle = ~df.channel.isin(CHANNEL_STYLE)
         ax.scatter(df[col][idle], df.mu_t[idle], s=2, color="0.85", lw=0, rasterized=True,
-                   label=f"no channel  [{int(idle.sum())}]" if first else None)
-        for name, (color, lbl) in CHANNEL_STYLE.items():
-            m = (df.channel == name).to_numpy()
-            ax.scatter(df[col][m], df.mu_t[m], s=4, color=color, lw=0, alpha=0.5,
+                   label=f"{bg_label}  [{int(idle.sum())}]" if first else None)
+        for val, (color, alpha, lbl) in style.items():
+            m = (df[key] == val).to_numpy()
+            ax.scatter(df[col][m], df.mu_t[m], s=4, color=color, lw=0, alpha=alpha,
                        rasterized=True, label=f"{lbl}  [{int(m.sum())}]" if first else None)
         ax.set(xscale="log", yscale="log", xlabel=xlabel)
         ax.axhline(1e3, color="0.3", ls="--", lw=1.2,
                    label=r"$\mu > 10^3$ cut" if first else None)
     axes[1, 1].axvline(1.0, color="0.3", ls=":", lw=1)
     for ax in axes[:, 0]:
-        ax.set_ylabel(r"$\mu_c$")
+        ax.set_ylabel(rf"$\mu_{sub}$")
     axes[0, 0].legend(loc="lower left", fontsize=6.5, framealpha=0.9, markerscale=3)
-    n_dir = int(df.channel.str.startswith("direct").sum())
-    fig.suptitle(f"MW23 Fig. 5 by coupling channel, {len(df)} triplets with $m$: "
-                 f"{n_dir} direct, {int((df.channel == 'parametric').sum())} parametric\n"
-                 r"$\mu_c = |\omega_c \kappa_{abc}| / (\Delta_{abc}^2 + \gamma_c^2)^{1/2}$,"
-                 r" with $c$ the mode the channel drives", y=1.0, fontsize=11)
-    save(fig, "fig_channels")
+    # savefig(bbox="tight") pads the canvas to fit the title, so these titles
+    # must stay the same width or the figures stop being overlayable.
+    fig.suptitle(title, y=1.0, fontsize=11)
+    save(fig, name)
+
+
+def _n_channels(df):
+    """Direct and parametric counts, for the two channel figures' titles."""
+    return (int(df.channel.str.startswith("direct").sum()),
+            int((df.channel == "parametric").sum()))
 
 
 # Parent = self-excited (gamma < 0), daughter = damped and nonlinearly excited,
@@ -526,52 +684,55 @@ def fig_channels():
 # channels and the daughter in others; the subscript is "dau" because MW23's
 # daughter letter c collides with our slot c, and d is the granddaughter.
 CHANNEL_STYLE_ROLES = {
-    "direct-diff": (VERM, "direct, difference: two parents "
-                          "$\\to$ daughter at $|\\omega_a| - \\omega_x$"),
-    "direct-sum": (BLUE, "direct, sum: two parents "
-                         "$\\to$ daughter at $\\omega_b + \\omega_c$"),
-    "parametric": (GREEN, "parametric: one parent $\\to$ two daughters "
-                          "(stronger one plotted)"),
+    "direct-diff": (VERM, 0.5, "direct, difference: two parents "
+                               "$\\to$ daughter at $|\\omega_a| - \\omega_x$"),
+    "direct-sum": (BLUE, 0.5, "direct, sum: two parents "
+                              "$\\to$ daughter at $\\omega_b + \\omega_c$"),
+    "parametric": (GREEN, 0.5, "parametric: one parent $\\to$ two daughters "
+                               "(stronger one plotted)"),
 }
 
 
-# ponytail: duplicate of fig_channels, kept only for side-by-side comparison.
-# Delete fig_channels once the roles labelling is adopted.
-def fig_channels_roles():
-    """fig_channels with MW23's role names. Same points, same colours: the only
-    difference is wording, so the two figures must overlay exactly."""
+def fig_channels():
+    """Split by channel, in MW23's role names."""
     df = _channel_table()
-    panels = (("abs_kappa", r"$|\kappa_{abc}|$"),
-              ("delta_over_omega_t", r"$|\Delta_{abc}| / \omega_{\rm dau}$"),
-              ("gamma_over_omega_t", r"$|\gamma_{\rm dau}| / \omega_{\rm dau}$"),
-              ("delta_over_gamma_t", r"$|\Delta_{abc}| / |\gamma_{\rm dau}|$"))
+    n_dir, n_par = _n_channels(df)
+    _mu_panels(
+        "channel", CHANNEL_STYLE_ROLES, "no channel, no daughter",
+        r"Triplets with coupling $\mu$ coupling channel,"
+        f"{len(df)} triplets with $m$: "
+        f"{n_dir} direct, {n_par} parametric\n"
+        r"$\mu_{\rm dau} = |\omega_{\rm dau} \kappa_{abc}| /"
+        r" (\Delta_{abc}^2 + \gamma_{\rm dau}^2)^{1/2}$;"
+        r"  parent $\gamma < 0$,  daughter $\gamma > 0$",
+        "fig_channels", sub=r"{\rm dau}")
 
-    fig, axes = plt.subplots(2, 2, figsize=(10.0, 7.4), sharey=True)
-    for ax, (col, xlabel) in zip(axes.flat, panels):
-        first = col == "abs_kappa"
-        idle = ~df.channel.isin(CHANNEL_STYLE_ROLES)
-        ax.scatter(df[col][idle], df.mu_t[idle], s=2, color="0.85", lw=0, rasterized=True,
-                   label=f"no channel, no daughter  [{int(idle.sum())}]" if first else None)
-        for name, (color, lbl) in CHANNEL_STYLE_ROLES.items():
-            m = (df.channel == name).to_numpy()
-            ax.scatter(df[col][m], df.mu_t[m], s=4, color=color, lw=0, alpha=0.5,
-                       rasterized=True, label=f"{lbl}  [{int(m.sum())}]" if first else None)
-        ax.set(xscale="log", yscale="log", xlabel=xlabel)
-        ax.axhline(1e3, color="0.3", ls="--", lw=1.2,
-                   label=r"$\mu > 10^3$ cut" if first else None)
-    axes[1, 1].axvline(1.0, color="0.3", ls=":", lw=1)
-    for ax in axes[:, 0]:
-        ax.set_ylabel(r"$\mu_{\rm dau}$")
-    axes[0, 0].legend(loc="lower left", fontsize=6.5, framealpha=0.9, markerscale=3)
-    n_dir = int(df.channel.str.startswith("direct").sum())
-    # Keep this no wider than fig_channels' title: savefig(bbox="tight") pads the
-    # canvas to fit it, and the two figures must stay overlayable.
-    fig.suptitle(f"MW23 Fig. 5 by coupling channel, {len(df)} triplets with $m$: "
-                 f"{n_dir} direct, {int((df.channel == 'parametric').sum())} parametric\n"
-                 r"$\mu_{\rm dau} = |\omega_{\rm dau} \kappa_{abc}| /"
-                 r" (\Delta_{abc}^2 + \gamma_{\rm dau}^2)^{1/2}$;"
-                 r"  parent $\gamma < 0$,  daughter $\gamma > 0$", y=1.0, fontsize=11)
-    save(fig, "fig_channels_roles")
+
+# MW23 Fig. 5's gray/black/green/red/blue, in Okabe-Ito. The two grays carry
+# their own alpha: at 0.5 over white "0.05" renders as ~0.5 and stops being
+# distinguishable from "0.55".
+PG_TYPE_STYLE = {
+    "ppp": ("0.55", 0.9, "three $p$-modes"),
+    "ggg": ("0.05", 0.9, "three $g$-modes"),
+    "ppg": (GREEN, 0.5, "two $p$-mode parents $\\to$ $g$-mode daughter"),
+    "ggp": (VERM, 0.5, "two $g$-mode parents $\\to$ $p$-mode daughter"),
+    "mixed": (BLUE, 0.5, "one $p$-mode and one $g$-mode parent (daughter either)"),
+}
+
+
+def fig_channels_pg_types():
+    """Split by the p/g make-up of the triplet. MW23's five types need two
+    parents and one daughter, so only the direct channels are coloured;
+    everything else stays in the background layer."""
+    df = _channel_table()
+    n_typed = int(df.pg_type.isin(PG_TYPE_STYLE).sum())
+    _mu_panels(
+        "pg_type", PG_TYPE_STYLE, "no direct daughter",
+        f"Coupling strength: triplet type, {n_typed} of {len(df)} "
+        f"triplets with $m$ have two parents and one daughter\n"
+        r"$\mu_c = |\omega_c \kappa_{abc}| / (\Delta_{abc}^2 + \gamma_c^2)^{1/2}$;"
+        r"  $p$-mode is $n_{pg} > 0$,  $g$-mode is $n_{pg} < 0$",
+        "fig_channels_pg_types")
 
 
 def fig_detuning():
@@ -608,6 +769,72 @@ def fig_detuning():
            title="(b) the upper edge is the search cut")
     ax.legend(loc="lower left", fontsize=8, framealpha=0.9)
     save(fig, "fig_detuning")
+
+
+def fig_detuning_pg():
+    """fig_detuning by p/g make-up instead of by channel. Role-free, because
+    roles are undefined for most radial triplets here. The detuning tightens
+    monotonically with p content -- MW23's point about p-modes being densely
+    and near-uniformly spaced in frequency, so resonances land closer."""
+    df = _channel_table().drop_duplicates(["l_a", "n_a", "l_b", "n_b", "l_c", "n_c"])
+    comp = _pg_comp(df[["n_a", "n_b", "n_c"]].to_numpy())
+    x = np.log10(df.frac_detuning.to_numpy())
+
+    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.2))
+    ax = axes[0]
+    _pg_stack(ax, x, comp, np.linspace(x.min(), x.max(), 46))
+    ax.axvline(np.median(x), color="k", ls="--", lw=1.2)
+    ax.text(np.median(x) + 0.06, ax.get_ylim()[1] * 0.92,
+            f"median ${_sci(10 ** np.median(x))}$", fontsize=9)
+    ax.set(xlabel=r"$\log_{10}\, |\Delta_{abc}| / \omega_a$",
+           ylabel="radial triplets",
+           title=f"(a) {len(df)} radial triplets by $p$/$g$ make-up")
+    ax.legend(loc="upper left", fontsize=7, framealpha=0.9)
+
+    ax = axes[1]
+    w_a = np.abs(df.omega_a.to_numpy()) / CD
+    fd = df.frac_detuning.to_numpy()
+    for k, (color, _) in PG_COMP_STYLE.items():
+        m = comp == k
+        if m.any():
+            ax.scatter(w_a[m], fd[m], s=4, color=color, lw=0, alpha=0.7,
+                       rasterized=True)
+    grid = np.linspace(w_a.min(), w_a.max(), 200)
+    # PURPLE, not fig_detuning's VERM: VERM is the one-p-two-g class here.
+    ax.plot(grid, DETUNING_CUT * bg.omega_dyn / (grid * CD), color=PURPLE, lw=1.6,
+            label=r"enumeration cut, $|\Delta| = 0.15\sqrt{GM/R^3}$")
+    ax.set(yscale="log", xlabel=r"sum-mode frequency $\omega_a$ (c/d)",
+           ylabel=r"$|\Delta_{abc}| / \omega_a$",
+           title="(b) the upper edge is the search cut")
+    ax.legend(loc="lower left", fontsize=8, framealpha=0.9)
+    save(fig, "fig_detuning_pg")
+
+
+def fig_pg_census():
+    """The two role-bearing channels split by p/g make-up, side by side. They
+    need different classifications and that is the point: direct has two
+    parents and one daughter, so MW23's five types apply; parametric has one
+    parent and two daughters, so its classes are parent | daughter pair."""
+    df = _channel_table()
+    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.0))
+
+    par = df[df.channel == "parametric"]
+    ns = par[["n_a", "n_b", "n_c"]].to_numpy()
+    cls = _pg_param_type(ns)
+    style = {k: (PG_COMP_STYLE[c][0], f"${k[0]}$ parent $\\to$ ${k[2:]}$")
+             for k, c in zip(cls, _pg_comp(ns))}
+    _pg_bars(axes[0], par, cls, style,
+             f"(a) parametric: one parent $\\to$ two daughters\n"
+             f"{int((~par.duplicated(['l_a','n_a','l_b','n_b','l_c','n_c'])).sum())}"
+             f" radial triplets")
+
+    dr = df[df.channel.str.startswith("direct")]
+    _pg_bars(axes[1], dr, dr.pg_type.to_numpy(), PG_DIRECT_CENSUS,
+             f"(b) direct: two parents $\\to$ one daughter\n"
+             f"{int((~dr.duplicated(['l_a','n_a','l_b','n_b','l_c','n_c'])).sum())}"
+             f" radial triplets")
+    fig.tight_layout()
+    save(fig, "fig_pg_census")
 
 
 def fig_lowfreq():
@@ -696,6 +923,168 @@ def fig_m6():
     save(fig, "fig_m6")
 
 
+A_PARENT = 1e-6  # MW23 Fig. 6: every parent pinned here, arbitrary but chosen
+MU_CUT = 1e3     # so the best-coupled daughters land near their parents
+
+
+def fig_spectrum():
+    """MW23 Fig. 6 -- the artificial power spectrum. Parents pinned at
+    A_a = A_b = 1e-6, daughters at A_c = mu A_a A_b, triplets with mu > 1e3.
+
+    MW23 assume every mode is kappa-unstable and driven to that amplitude,
+    taking no account of linear stability. Our gamma disagrees for most of them,
+    so their set is drawn faint and the subset that has a genuinely damped
+    daughter is drawn solid on top."""
+    df = _channel_table()
+    hi = df[df.mu_t > MU_CUT]
+    real = hi.channel.str.startswith("direct").to_numpy()
+
+    ls = hi[["l_a", "l_b", "l_c"]].to_numpy()
+    ns = hi[["n_a", "n_b", "n_c"]].to_numpy()
+    ws = hi[["omega_a", "omega_b", "omega_c"]].abs().to_numpy() / CD
+    is_dau = (ls == hi.l_t.to_numpy()[:, None]) & (ns == hi.n_t.to_numpy()[:, None])
+    # Parents all sit at the same height, so one stem per distinct (l, n_pg):
+    # per-triplet stems would just paint a wall over the daughters. The faint /
+    # solid split is a statement about daughters, so parents are drawn once.
+    par = {(int(a), int(b)): float(w)
+           for a, b, w in zip(ls[~is_dau], ns[~is_dau], ws[~is_dau])}
+
+    fig, ax = plt.subplots(figsize=(7.8, 4.6))
+    ax.vlines(list(par.values()), 1e-13, A_PARENT, color=BLUE, lw=0.9, alpha=0.7,
+              rasterized=True, label=f"parents, $A = 10^{{-6}}$  [{len(par)} modes]")
+    for m, alpha, lw, tag in ((~real, 0.25, 0.5, "no damped daughter"),
+                              (real, 0.9, 0.7, r"damped daughter ($\gamma > 0$)")):
+        sub = hi[m]
+        ax.vlines(sub.f_t, 1e-13, sub.mu_t * 1e-12, color=VERM, lw=lw,
+                  alpha=alpha, rasterized=True,
+                  label=f"daughters, {tag}  [{len(sub)}]")
+
+    f_f = sorted(ef.omega / CD for (l, n), ef in efs.items() if n == 0)
+    for i, f in enumerate(f_f):
+        ax.axvline(f, color="0.25", ls=":", lw=1.2, label=None if i else
+                   f"$f$-modes, {f_f[0]:.1f}-{f_f[-1]:.1f} c/d (MW23 text: $\\approx$15)")
+    w_dyn = bg.omega_dyn / CD
+    ax.axvline(w_dyn, color=GREEN, ls="--", lw=1.4,
+               label=f"$\\sqrt{{GM/R^3}} = {w_dyn:.2f}$ c/d (MW23 caption)")
+
+    ax.set(yscale="log", xlim=(0, 85), ylim=(3e-13, 4e-6),
+           xlabel="mode frequency (c/d)",
+           ylabel=r"mode amplitude $A$",
+           title=f"MW23 Fig. 6: {len(hi)} triplets with $\\mu > 10^3$;  "
+                 r"$A_c = \mu A_a A_b$ at $A_a = A_b = 10^{-6}$")
+    ax.legend(loc="upper right", fontsize=7, framealpha=0.9)
+    save(fig, "fig_spectrum")
+
+
+# MW23 Fig. 7's mass colours, in Okabe-Ito.
+MASS_COLOR = {2.2: VERM, 2.0: ORANGE, 1.85: BLUE, 1.7: PURPLE}
+M_SUN = 1.989e33
+
+
+class _ModelTable(NamedTuple):
+    tag: str
+    mass: float          # Msun
+    style: dict          # colour + linestyle
+    obs: pd.DataFrame
+    idx: np.ndarray      # daughter_index
+    j: np.ndarray        # reported slot
+    n_dropped: int       # rows lost to non-finite gamma/mu
+
+
+def _cross_models() -> list[_ModelTable]:
+    """One entry per tag with a table under OUT. Mass comes from the model's own
+    GYRE summary rather than shell-scripts/config.sh. Tags of equal mass share
+    MW23's colour and are told apart by linestyle -- their sec 4.1 quotes
+    log g 3.9, which is Table 1's 3.93 rounded, so which of our two M = 2.0 tags
+    is "the representative model" is genuinely ambiguous."""
+    out = []
+    seen: dict[float, int] = {}
+    for path in sorted(OUT.glob("observables_*.csv")):
+        tag = path.stem[len("observables_"):]
+        obs, n_dropped = _drop_nonfinite(pd.read_csv(path), tag)
+        idx, j = _daughter_slot(obs)
+        summary = MODEL_ROOT / tag / "gyre" / "summary_nad.h5"
+        mass = (float(np.ravel(load_h5(summary)["M_star"])[0]) / M_SUN
+                if summary.exists() else float("nan"))
+        key = round(mass, 2)
+        n = seen.get(key, 0)
+        seen[key] = n + 1
+        style = dict(color=MASS_COLOR.get(key, "0.5"), ls=("-", "--", ":", "-.")[n % 4])
+        out.append(_ModelTable(tag, mass, style, obs, idx, j, n_dropped))
+    if not out:
+        raise FileNotFoundError(f"no observables_*.csv in {OUT}")
+    return out
+
+
+def _slot_values(obs, j, cols):
+    """The reported slot's value of `cols`, e.g. ("mu_a", "mu_b", "mu_c")."""
+    return obs[list(cols)].to_numpy()[np.arange(len(obs)), j]
+
+
+def fig_rank():
+    """MW23 Fig. 7 -- triplets rank-ordered by mu, one curve per model. Panel
+    (a) is their reading, every triplet; (b) keeps only those whose daughter is
+    actually damped. Colour is stellar mass, as in their figure."""
+    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.2), sharey=True)
+    for t in _cross_models():
+        mu_t = _slot_values(t.obs, t.j, ("mu_a", "mu_b", "mu_c"))
+        drop = f"  $-${t.n_dropped} NaN" if t.n_dropped else ""
+        for ax, m in zip(axes, (np.ones(len(mu_t), bool), t.idx >= 0)):
+            v = np.sort(mu_t[m])[::-1]
+            ax.plot(np.arange(1, len(v) + 1), v, lw=1.4, **t.style,
+                    label=f"{t.tag}   $M = {t.mass:.2f}\\,M_\\odot$   "
+                          f"[{int((v > 1e4).sum())}]{drop}")
+
+    for ax, title in zip(axes, ("(a) every triplet, as MW23",
+                                r"(b) damped daughter ($\gamma > 0$) only")):
+        ax.axhline(1e4, color="0.3", ls=":", lw=1.2)
+        ax.set(xscale="log", yscale="log", xlabel="rank", title=title)
+    axes[0].set_ylabel(r"$\mu$")
+    for ax in axes:  # the counts differ per panel, so each carries its own
+        ax.legend(loc="lower left", fontsize=7, framealpha=0.9,
+                  title=r"[ ] = triplets with $\mu > 10^4$", title_fontsize=7)
+    save(fig, "fig_rank")
+
+
+def fig_daughter():
+    """MW23 Fig. 8 -- mu against the daughter's frequency and radial order, all
+    models at once. Top row is their reading, every triplet; bottom keeps only
+    the triplets whose daughter is genuinely damped. Colour is stellar mass, as
+    in fig_rank. MW23 sec 4.2 read off this figure that the mu ~ 1e3 triplets
+    often carry high-order p-mode daughters (f >~ 60 c/d, n >~ 10) and sometimes
+    low-frequency g-mode ones (f <~ 15 c/d, n < 0)."""
+    # sharex="col" so the two readings of the same axis line up row to row.
+    fig, axes = plt.subplots(2, 2, figsize=(11.6, 7.4), sharey=True, sharex="col")
+    for t in _cross_models():
+        mu_t = _slot_values(t.obs, t.j, ("mu_a", "mu_b", "mu_c"))
+        f_t = np.abs(_slot_values(t.obs, t.j, ("omega_a", "omega_b", "omega_c"))) / CD
+        n_t = _slot_values(t.obs, t.j, ("n_a", "n_b", "n_c"))
+        drop = f"  $-${t.n_dropped} NaN" if t.n_dropped else ""
+        for r, m in enumerate((np.ones(len(mu_t), bool), t.idx >= 0)):
+            for c, x in enumerate((f_t, n_t)):
+                axes[r, c].scatter(
+                    x[m], mu_t[m], s=2, lw=0, alpha=0.3, rasterized=True,
+                    color=t.style["color"],
+                    label=f"{t.tag}   $M = {t.mass:.2f}\\,M_\\odot${drop}"
+                          if (r, c) == (0, 0) else None)
+
+    rows = ("(a) every triplet, as MW23", r"(b) damped daughter ($\gamma > 0$) only")
+    for r in (0, 1):
+        for c, xlabel in enumerate(("daughter frequency (c/d)",
+                                    r"daughter radial order $n_{pg}$")):
+            ax = axes[r, c]
+            for y in (1e3, 1e4):
+                ax.axhline(y, color="0.3", ls=":", lw=1.0)
+            if c:  # p-modes to the right of n_pg = 0, g-modes to the left
+                ax.axvline(0, color="0.3", ls="--", lw=1.0)
+            ax.set(yscale="log", xlabel=xlabel,
+                   title=f"{rows[r]} -- by {'radial order' if c else 'frequency'}")
+        axes[r, 0].set_ylabel(r"$\mu$")
+    axes[0, 0].legend(loc="lower right", fontsize=7, framealpha=0.9, markerscale=5)
+    fig.tight_layout()
+    save(fig, "fig_daughter")
+
+
 def _discover_models(root: pathlib.Path):
     """Sibling model dirs load_model can read: a detail dump and a
     nonadiabatic summary. Skips polytropes and half-finished runs."""
@@ -709,10 +1098,14 @@ ALL = {
     "gamma_panels": fig_gamma_panels, "kappa_cum": fig_kappa_cum,
     "xi_kappa_p": fig_xi_kappa_p, "xi_kappa_g": fig_xi_kappa_g,
     "mu": fig_mu, "eth": fig_eth, "channels": fig_channels,
-    "channels_roles": fig_channels_roles,
+    "channels_pg_types": fig_channels_pg_types,
     "detuning": fig_detuning, "lowfreq": fig_lowfreq,
+    "eth_pg": fig_eth_pg, "detuning_pg": fig_detuning_pg,
+    "pg_census": fig_pg_census, "spectrum": fig_spectrum,
     "fourmode": fig_fourmode, "m6": fig_m6,
 }
+# Cross-model: one output for the whole grid, so these run once, not per tag.
+CROSS = {"rank": fig_rank, "daughter": fig_daughter}
 # Everything from "kappa_cum" on needs Stage 3-5 / four-mode CSVs for the tag.
 STAGE12 = ("propagation", "gamma", "gamma_panels")
 
@@ -742,6 +1135,22 @@ def _run(model, tag, out, figs, names) -> None:
     print("done ->", FIGS)
 
 
+def _run_cross(out, figs, names) -> None:
+    """Cross-model figures: one output for the whole grid, written to the plots
+    root rather than any tag's subdir."""
+    global OUT, FIGS
+    if not names:
+        return
+    OUT, FIGS = out, figs
+    FIGS.mkdir(parents=True, exist_ok=True)
+    print(f"cross-model figures -> {FIGS}")
+    for name in names:
+        try:
+            CROSS[name]()
+        except FileNotFoundError as exc:
+            print(f"  SKIPPED {name}: {exc}")
+
+
 def main() -> int:
     import argparse
 
@@ -757,19 +1166,26 @@ def main() -> int:
                     help="output dir; defaults to out/plots/<tag>, so models "
                          "never overwrite each other. With --all-tags it is a "
                          "parent and each tag still gets its own subdir")
-    ap.add_argument("--only", nargs="*", choices=sorted(ALL), default=None,
+    ap.add_argument("--only", nargs="*", choices=sorted(ALL) + sorted(CROSS),
+                    default=None,
                     help="subset of figures; default is all that have inputs")
     ap.add_argument("--stage12", action="store_true",
                     help=f"shorthand for --only {' '.join(STAGE12)}")
     args = ap.parse_args()
 
-    names = STAGE12 if args.stage12 else (args.only or list(ALL))
+    global MODEL_ROOT
+    MODEL_ROOT = args.model.parent
+
+    names = STAGE12 if args.stage12 else (args.only or list(ALL) + list(CROSS))
+    per_tag = [n for n in names if n in ALL]
+    cross = [n for n in names if n in CROSS]
     root = args.figs or pathlib.Path("out/plots")
 
     if not args.all_tags:
         tag = args.tag or args.model.name
         _run(args.model, tag, args.out,
-             args.figs or root / tag, names)
+             args.figs or root / tag, per_tag)
+        _run_cross(args.out, root, cross)
         return 0
 
     models = _discover_models(args.model.parent)
@@ -778,8 +1194,9 @@ def main() -> int:
         return 1
     print(f"{len(models)} tags: {' '.join(m.name for m in models)}\n")
     for model in models:
-        _run(model, model.name, args.out, root / model.name, names)
+        _run(model, model.name, args.out, root / model.name, per_tag)
         print()
+    _run_cross(args.out, root, cross)
     return 0
 
 
