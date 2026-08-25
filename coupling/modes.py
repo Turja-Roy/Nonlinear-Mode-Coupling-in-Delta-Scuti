@@ -110,29 +110,33 @@ def nu_turb(bg: Background, omega: float) -> np.ndarray:
     return np.where(cz, bg.v_conv * l_mlt * f, 0.0 * bg.v_conv)
 
 
-def _viscous_F(l: int, r: np.ndarray, xi_r: np.ndarray, xi_h: np.ndarray) -> np.ndarray:
+def _viscous_F(
+    l: int, r: np.ndarray, xi_r: np.ndarray, xi_h: np.ndarray, div_xi: np.ndarray
+) -> np.ndarray:
     """Higgins & Kopal (1968) dissipation function, in the form of Lai (1994)
     eq. 8.8, for xi = xi_r Y e_r + xi_h r grad Y with int |Y_lm|^2 dOmega = 1.
 
     F = 2 eps_ij eps_ij - (2/3) (div xi)^2 after the angular integral, so it is
-    positive semi-definite. G is Lai's div xi, built from the same splined
-    dxi_r/dr as the first term rather than from ef.div_xi: the radial pieces
-    cancel to (1/3)(2 eps_rr - eps_hh)^2, and mixing two estimates of the same
-    derivative into that cancellation can drive F negative.
+    positive semi-definite. Both trace terms come from the one GYRE div xi:
+    eps_rr = div xi - trace_h exactly, so the radial pieces cancel to
+    (1/3)(2 eps_rr - eps_hh)^2 with no second estimate of dxi_r/dr to spoil it.
+
+    dxi_h/dr is still splined -- GYRE reports no horizontal derivative, and
+    rebuilding one from the momentum equation gains nothing on a grid this fine.
 
     Lai's (l+|m|)!/(l-|m|)! factor is an artefact of his Jackson-normalised
     Y_lm and does not apply here, so F carries no m dependence.
     """
     L2 = l * (l + 1)
-    dxi_r = CubicSpline(r, xi_r).derivative()(r)
-    dxi_h = CubicSpline(r, xi_h).derivative()(r)
     trace_h = 2 * xi_r / r - L2 * xi_h / r
+    dxi_r = div_xi - trace_h
+    dxi_h = CubicSpline(r, xi_h).derivative()(r)
     return (
         2 * dxi_r**2
         + trace_h**2
         + L2 * (dxi_h + (xi_r - xi_h) / r) ** 2
         + (l - 1) * L2 * (l + 2) * (xi_h / r) ** 2
-        - (2 / 3) * (dxi_r + trace_h) ** 2
+        - (2 / 3) * div_xi**2
     )
 
 
@@ -152,7 +156,7 @@ def gamma_turb(ef: Eigenfunction) -> float:
     bg = ef.bg
     m = (bg.r > 0) & (bg.x <= 1.0)
     r = bg.r[m]
-    F = _viscous_F(ef.l, r, ef.xi_r[m], ef.xi_h[m])
+    F = _viscous_F(ef.l, r, ef.xi_r[m], ef.xi_h[m], ef.div_xi[m])
     integrand = bg.rho[m] * nu_turb(bg, ef.omega)[m] * r**2 * F
     return float(ef.omega**2 * np.trapezoid(integrand, r) / bg.E_star)
 

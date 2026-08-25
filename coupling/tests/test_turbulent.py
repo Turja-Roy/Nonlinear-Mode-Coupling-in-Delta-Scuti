@@ -70,7 +70,8 @@ def test_viscous_F_positive_definite():
             c = rng.normal(size=(2, 4))
             xi_r = sum(c[0, k] * r ** (k + 1) for k in range(4))
             xi_h = 0.0 * r if l == 0 else sum(c[1, k] * r ** (k + 1) for k in range(4))
-            F = _viscous_F(l, r, xi_r, xi_h)
+            div_xi = _div_xi(l, r, xi_r, xi_h)
+            F = _viscous_F(l, r, xi_r, xi_h, div_xi)
             assert F.min() > -1e-12 * max(abs(F).max(), 1.0)
 
 
@@ -83,8 +84,30 @@ def test_viscous_F_matches_strain_tensor_at_l0():
         # Same derivative _viscous_F uses; the identity is exact, not numerical.
         d = CubicSpline(r, xi_r).derivative()(r)
         want = 2 * (d**2 + 2 * (xi_r / r) ** 2) - (2 / 3) * (d + 2 * xi_r / r) ** 2
-        got = _viscous_F(0, r, xi_r, 0.0 * r)
+        got = _viscous_F(0, r, xi_r, 0.0 * r, d + 2 * xi_r / r)
         assert got == pytest.approx(want, rel=1e-12)
+
+
+def _div_xi(l, r, xi_r, xi_h):
+    """The continuity identity GYRE's lag_rho satisfies, for synthetic fields."""
+    return (
+        CubicSpline(r, xi_r).derivative()(r) + 2 * xi_r / r - l * (l + 1) * xi_h / r
+    )
+
+
+def test_viscous_F_div_xi_route_matches_a_spline(efs):
+    """_viscous_F takes dxi_r/dr from GYRE's div xi rather than splining it. On
+    GYRE's own grid the two agree to ~1e-6 in the integral of F, so gamma_turb
+    does not move; measured, no mode shifts by more than 1e-4. The tolerance is
+    loose against that and still orders tighter than any sign or index slip."""
+    for ef in efs.values():
+        bg = ef.bg
+        m = (bg.r > 0) & (bg.x <= 1.0)
+        r = bg.r[m]
+        got = _viscous_F(ef.l, r, ef.xi_r[m], ef.xi_h[m], ef.div_xi[m])
+        want = _viscous_F(ef.l, r, ef.xi_r[m], ef.xi_h[m], _div_xi(ef.l, r, ef.xi_r[m], ef.xi_h[m]))
+        scale = np.trapezoid(abs(want), r)
+        assert np.trapezoid(abs(got - want), r) < 1e-4 * scale
 
 
 def test_gamma_turb_positive_and_subdominant(efs):
