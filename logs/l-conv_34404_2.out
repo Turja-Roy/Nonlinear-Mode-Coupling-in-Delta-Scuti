@@ -1,0 +1,14 @@
+=== dsct_M2.0_T7696 on 16 core(s)  2026-08-25T00:19:04-05:00 ===
+loading models/dsct_M2.0_T7696 ...
+  2302 modes, sqrt(GM/R^3) = 2.195599e-04 rad/s, detuning cut = 3.293398e-05 rad/s
+  gamma_rad + gamma_turb: driven modes 82 -> 80
+  sum mode restricted to 80 self-excited modes
+enumerating triplets ...
+  54685 radial triplets  [338.9s]
+  -> out/lconv/triplets_dsct_M2.0_T7696.csv
+kappa, mu, thresholds ...
+  54685 rows on 16 core(s)  [822.1s]
+  -> out/lconv/observables_dsct_M2.0_T7696.csv
+  -> out/lconv/kappa_dsct_M2.0_T7696.csv
+done in 826.7s
+=== dsct_M2.0_T7696 done  2026-08-25T00:33:00-05:00 ===

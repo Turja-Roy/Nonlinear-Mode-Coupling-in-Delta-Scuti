@@ -1,0 +1,14 @@
+=== dsct_M2.2_T7888 on 16 core(s)  2026-08-25T00:19:02-05:00 ===
+loading models/dsct_M2.2_T7888 ...
+  2667 modes, sqrt(GM/R^3) = 1.803428e-04 rad/s, detuning cut = 2.705142e-05 rad/s
+  gamma_rad + gamma_turb: driven modes 43 -> 38
+  sum mode restricted to 38 self-excited modes
+enumerating triplets ...
+  12649 radial triplets  [368.6s]
+  -> out/lconv/triplets_dsct_M2.2_T7888.csv
+kappa, mu, thresholds ...
+  12649 rows on 16 core(s)  [445.4s]
+  -> out/lconv/observables_dsct_M2.2_T7888.csv
+  -> out/lconv/kappa_dsct_M2.2_T7888.csv
+done in 446.8s
+=== dsct_M2.2_T7888 done  2026-08-25T00:26:37-05:00 ===

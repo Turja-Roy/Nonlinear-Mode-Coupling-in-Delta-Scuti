@@ -1,0 +1,134 @@
+5 tags: dsct_M1.7_T7750 dsct_M1.85_T7555 dsct_M2.0 dsct_M2.0_T7696 dsct_M2.2_T7888
+
+model models/dsct_M1.7_T7750  tag dsct_M1.7_T7750  -> out/plots/dsct_M1.7_T7750
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_m6
+  fig_lconv
+  fig_l_ingredients
+done -> out/plots/dsct_M1.7_T7750
+
+model models/dsct_M1.85_T7555  tag dsct_M1.85_T7555  -> out/plots/dsct_M1.85_T7555
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_m6
+  fig_lconv
+  fig_l_ingredients
+done -> out/plots/dsct_M1.85_T7555
+
+model models/dsct_M2.0  tag dsct_M2.0  -> out/plots/dsct_M2.0
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_m6
+  fig_lconv
+  fig_l_ingredients
+done -> out/plots/dsct_M2.0
+
+model models/dsct_M2.0_T7696  tag dsct_M2.0_T7696  -> out/plots/dsct_M2.0_T7696
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_m6
+  fig_lconv
+  fig_l_ingredients
+done -> out/plots/dsct_M2.0_T7696
+
+model models/dsct_M2.2_T7888  tag dsct_M2.2_T7888  -> out/plots/dsct_M2.2_T7888
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  dropped 2643 of 71545 rows with non-finite gamma/mu
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_m6
+  fig_lconv
+  fig_l_ingredients
+done -> out/plots/dsct_M2.2_T7888
+
+cross-model figures -> out/plots
+  dropped 2643 of 71545 rows with non-finite gamma/mu [dsct_M2.2_T7888]
+  fig_rank
+  dropped 2643 of 71545 rows with non-finite gamma/mu [dsct_M2.2_T7888]
+  fig_daughter
+=== figures done  2026-08-25T01:14:28-05:00 ===
