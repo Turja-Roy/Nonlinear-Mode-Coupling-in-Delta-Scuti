@@ -74,22 +74,34 @@ def enumerate_triplets(
     efs: dict[Key, Eigenfunction],
     cut: float,
     l_max: int = 3,
+    sum_keys: set[Key] | None = None,
 ) -> list[RadialTriplet]:
-    """Selection rules first, then |Delta| < cut. `cut` in rad/s."""
+    """Selection rules first, then |Delta| < cut. `cut` in rad/s.
+
+    `sum_keys` restricts slot a, the sum mode, to those (l, n_pg). The pair
+    still ranges over the whole net. That asymmetry is what makes a wide-net
+    scan tractable: only a self-excited mode can pump a parametric pair, and the
+    driven set is a few dozen modes against a few thousand.
+    """
     by_l: dict[int, tuple[np.ndarray, np.ndarray]] = {}
+    sum_l: dict[int, tuple[np.ndarray, np.ndarray]] = {}
     for l in range(l_max + 1):
         keys = sorted((k for k in efs if k[0] == l), key=lambda k: efs[k].omega)
         if keys:
             by_l[l] = (np.array([k[1] for k in keys]), np.array([efs[k].omega for k in keys]))
+            sub = keys if sum_keys is None else [k for k in keys if k in sum_keys]
+            if sub:
+                sum_l[l] = (np.array([k[1] for k in sub]),
+                            np.array([efs[k].omega for k in sub]))
 
     out: list[RadialTriplet] = []
     for l_multiset in l_multisets(l_max):
         if max(l_multiset) > l_max:
             continue
         for l_p, l_q, l_r in _sum_slot_assignments(l_multiset):
-            if l_p not in by_l or l_q not in by_l or l_r not in by_l:
+            if l_p not in sum_l or l_q not in by_l or l_r not in by_l:
                 continue
-            out.extend(_match(efs, by_l, l_p, l_q, l_r, cut))
+            out.extend(_match(efs, sum_l[l_p], by_l, l_p, l_q, l_r, cut))
     return out
 
 
@@ -106,8 +118,10 @@ def _sum_slot_assignments(l_multiset: tuple[int, int, int]) -> list[tuple[int, i
     return out
 
 
-def _match(efs, by_l, l_p, l_q, l_r, cut) -> list[RadialTriplet]:
-    n_p, w_p = by_l[l_p]
+def _match(efs, p_modes, by_l, l_p, l_q, l_r, cut) -> list[RadialTriplet]:
+    # The sum slot comes in separately: restricting it must not also restrict a
+    # pair slot that happens to share its l.
+    n_p, w_p = p_modes
     n_q, w_q = by_l[l_q]
     n_r, w_r = by_l[l_r]
 
@@ -139,8 +153,12 @@ def count_with_m(triplets: list[RadialTriplet]) -> int:
     return sum(len(t.m_combinations()) for t in triplets)
 
 
-def to_frame(triplets: list[RadialTriplet]):
-    """Flat table, sum mode in the `a` slot. Persist this before running kappa."""
+def to_frame(triplets: list[RadialTriplet], with_m: bool = True):
+    """Flat table, sum mode in the `a` slot. Persist this before running kappa.
+
+    `with_m` off drops the n_m column. Counting m combinations goes through
+    sympy's wigner_3j, which is affordable at l <= 3 and not at l ~ 25.
+    """
     import pandas as pd
 
     return pd.DataFrame(
@@ -152,7 +170,7 @@ def to_frame(triplets: list[RadialTriplet]):
                 "omega_a": t.omega[0], "omega_b": t.omega[1], "omega_c": t.omega[2],
                 "delta": t.delta,
                 "abs_delta_over_omega_a": abs(t.delta / t.omega[0]),
-                "n_m": len(t.m_combinations()),
+                **({"n_m": len(t.m_combinations())} if with_m else {}),
             }
             for t in triplets
         ]

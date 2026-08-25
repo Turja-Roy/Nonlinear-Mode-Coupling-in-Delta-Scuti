@@ -21,6 +21,10 @@ verified against them column by column:
 kappa_all_m dominates the runtime (~61 s for dsct_M2.0's 71142 m-combinations
 at 11.8 ms/triplet), and observables() calls it already, so both tables are
 built from one pass rather than two.
+
+For the wide net the defaults do not scale: point --detail-dir at detail_wide,
+restrict the sum mode with --parents-only, and rank on --m000. See
+Plans/l-convergence.md.
 """
 
 from __future__ import annotations
@@ -29,6 +33,7 @@ import argparse
 import pathlib
 import sys
 import time
+from dataclasses import replace
 
 import pandas as pd
 
@@ -36,7 +41,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from coupling import observables as obs_mod
 from coupling import triplets as trip_mod
-from coupling.modes import load_model
+from coupling.modes import gamma_turb, load_model
 
 DETUNING_CUT = 0.15  # in units of sqrt(GM/R^3), following MW23 sec 3.4
 
@@ -53,6 +58,20 @@ def main() -> int:
     ap.add_argument("--l-max", type=int, default=3)
     ap.add_argument("--cut", type=float, default=DETUNING_CUT,
                     help="detuning cut in units of sqrt(GM/R^3)")
+    ap.add_argument("--detail-dir", default="detail",
+                    help="eigenfunction dumps under <model>/gyre; detail_wide "
+                         "for the l <= 25 net")
+    ap.add_argument("--inlist", default="gyre_ad.in")
+    ap.add_argument("--nad", nargs="*", default=["summary_nad.h5"])
+    ap.add_argument("--gamma", choices=("rad", "tot"), default="rad",
+                    help="tot adds the turbulent rate to the radiative one, "
+                         "which also moves the parent/daughter split")
+    ap.add_argument("--parents-only", action="store_true",
+                    help="restrict the sum mode to the self-excited modes; the "
+                         "pair still ranges over the whole net")
+    ap.add_argument("--m000", action="store_true",
+                    help="kappa at m = (0, 0, 0) only, skipping sympy's "
+                         "wigner_3j over every m combination")
     ap.add_argument("--force", action="store_true",
                     help="overwrite existing tables for this tag")
     args = ap.parse_args()
@@ -69,20 +88,33 @@ def main() -> int:
 
     t0 = time.time()
     print(f"loading {model} ...")
-    bg, efs = load_model(model)
+    bg, efs = load_model(model, detail_dir=args.detail_dir, inlist=args.inlist,
+                         nad=tuple(args.nad))
     cut = args.cut * bg.omega_dyn
     print(f"  {len(efs)} modes, sqrt(GM/R^3) = {bg.omega_dyn:.6e} rad/s, "
           f"detuning cut = {cut:.6e} rad/s")
 
+    if args.gamma == "tot":
+        n_drv_rad = sum(ef.gamma < 0.0 for ef in efs.values())
+        efs = {k: replace(ef, gamma=ef.gamma + gamma_turb(ef)) for k, ef in efs.items()}
+        n_drv = sum(ef.gamma < 0.0 for ef in efs.values())
+        print(f"  gamma_rad + gamma_turb: driven modes {n_drv_rad} -> {n_drv}")
+
+    sum_keys = None
+    if args.parents_only:
+        sum_keys = {k for k, ef in efs.items() if ef.gamma < 0.0}
+        print(f"  sum mode restricted to {len(sum_keys)} self-excited modes")
+
     print("enumerating triplets ...")
-    trips = trip_mod.enumerate_triplets(efs, cut, l_max=args.l_max)
-    n_m = trip_mod.count_with_m(trips)
-    print(f"  {len(trips)} radial triplets, {n_m} with m  [{time.time() - t0:.1f}s]")
-    trip_mod.to_frame(trips).to_csv(paths["triplets"], index=False)
+    trips = trip_mod.enumerate_triplets(efs, cut, l_max=args.l_max, sum_keys=sum_keys)
+    print(f"  {len(trips)} radial triplets  [{time.time() - t0:.1f}s]")
+    if not args.m000:
+        print(f"  {trip_mod.count_with_m(trips)} with m")
+    trip_mod.to_frame(trips, with_m=not args.m000).to_csv(paths["triplets"], index=False)
     print(f"  -> {paths['triplets']}")
 
     print("kappa, mu, thresholds ...")
-    df = obs_mod.to_frame(trips, efs, bg)
+    df = obs_mod.to_frame(trips, efs, bg, m000=args.m000)
     print(f"  {len(df)} rows  [{time.time() - t0:.1f}s]")
     df.to_csv(paths["observables"], index=False)
     print(f"  -> {paths['observables']}")

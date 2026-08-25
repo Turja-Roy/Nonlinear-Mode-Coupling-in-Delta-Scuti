@@ -47,6 +47,30 @@ def test_matches_brute_force(efs, cut):
     assert fast == _brute_force(small, cut)
 
 
+def test_sum_keys_restricts_only_the_sum_slot(efs, cut):
+    """The restriction picks out slot a alone. The failure it guards against is
+    a sum slot whose l coincides with a pair slot's, which would silently thin
+    the pair too and drop real triplets."""
+    small = _restrict(efs)
+    full = {_canonical(t) for t in enumerate_triplets(small, cut, l_max=SMALL["l_max"])}
+    keys = sorted({t.sum_mode for t in
+                   enumerate_triplets(small, cut, l_max=SMALL["l_max"])})
+    sub = set(keys[: max(1, len(keys) // 3)])
+    got = enumerate_triplets(small, cut, l_max=SMALL["l_max"], sum_keys=sub)
+
+    assert {t.sum_mode for t in got} <= sub
+    assert {_canonical(t) for t in got} == {c for c in full if c[0] in sub}
+    # and the pair is genuinely unrestricted
+    assert any(k not in sub for t in got for k in t.pair)
+
+
+def test_sum_keys_none_is_the_unrestricted_net(efs, cut):
+    small = _restrict(efs)
+    a = enumerate_triplets(small, cut, l_max=SMALL["l_max"])
+    b = enumerate_triplets(small, cut, l_max=SMALL["l_max"], sum_keys=set(small))
+    assert {_canonical(t) for t in a} == {_canonical(t) for t in b}
+
+
 def test_no_duplicates(efs, cut):
     triplets = enumerate_triplets(efs, cut)
     assert len({_canonical(t) for t in triplets}) == len(triplets)
