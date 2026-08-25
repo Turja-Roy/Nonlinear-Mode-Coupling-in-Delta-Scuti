@@ -1,0 +1,653 @@
+5 tags: dsct_M1.7_T7750 dsct_M1.85_T7555 dsct_M2.0 dsct_M2.0_T7696 dsct_M2.2_T7888
+
+model models/dsct_M1.7_T7750  tag dsct_M1.7_T7750  -> out/plots/dsct_M1.7_T7750
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_m6
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots/dsct_M1.7_T7750
+
+model models/dsct_M1.85_T7555  tag dsct_M1.85_T7555  -> out/plots/dsct_M1.85_T7555
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_m6
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots/dsct_M1.85_T7555
+
+model models/dsct_M2.0  tag dsct_M2.0  -> out/plots/dsct_M2.0
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_m6
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots/dsct_M2.0
+
+model models/dsct_M2.0_T7696  tag dsct_M2.0_T7696  -> out/plots/dsct_M2.0_T7696
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_m6
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots/dsct_M2.0_T7696
+
+model models/dsct_M2.2_T7888  tag dsct_M2.2_T7888  -> out/plots/dsct_M2.2_T7888
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  dropped 2643 of 71545 rows with non-finite gamma/mu
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_m6
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots/dsct_M2.2_T7888
+
+cross-model figures -> out/plots
+  dropped 2643 of 71545 rows with non-finite gamma/mu [dsct_M2.2_T7888]
+  fig_rank
+  dropped 2643 of 71545 rows with non-finite gamma/mu [dsct_M2.2_T7888]
+  fig_daughter
+=== l_max = 3  2026-08-25T13:34:01-05:00 ===
+5 tags: dsct_M1.7_T7750 dsct_M1.85_T7555 dsct_M2.0 dsct_M2.0_T7696 dsct_M2.2_T7888
+
+model models/dsct_M1.7_T7750  tag dsct_M1.7_T7750  -> out/plots_lmax/lmax03/dsct_M1.7_T7750
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax03/dsct_M1.7_T7750
+
+model models/dsct_M1.85_T7555  tag dsct_M1.85_T7555  -> out/plots_lmax/lmax03/dsct_M1.85_T7555
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax03/dsct_M1.85_T7555
+
+model models/dsct_M2.0  tag dsct_M2.0  -> out/plots_lmax/lmax03/dsct_M2.0
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax03/dsct_M2.0
+
+model models/dsct_M2.0_T7696  tag dsct_M2.0_T7696  -> out/plots_lmax/lmax03/dsct_M2.0_T7696
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax03/dsct_M2.0_T7696
+
+model models/dsct_M2.2_T7888  tag dsct_M2.2_T7888  -> out/plots_lmax/lmax03/dsct_M2.2_T7888
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax03/dsct_M2.2_T7888
+
+=== l_max = 6  2026-08-25T13:37:20-05:00 ===
+5 tags: dsct_M1.7_T7750 dsct_M1.85_T7555 dsct_M2.0 dsct_M2.0_T7696 dsct_M2.2_T7888
+
+model models/dsct_M1.7_T7750  tag dsct_M1.7_T7750  -> out/plots_lmax/lmax06/dsct_M1.7_T7750
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 259 of 10986 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax06/dsct_M1.7_T7750
+
+model models/dsct_M1.85_T7555  tag dsct_M1.85_T7555  -> out/plots_lmax/lmax06/dsct_M1.85_T7555
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 343 of 20267 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax06/dsct_M1.85_T7555
+
+model models/dsct_M2.0  tag dsct_M2.0  -> out/plots_lmax/lmax06/dsct_M2.0
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 389 of 27646 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax06/dsct_M2.0
+
+model models/dsct_M2.0_T7696  tag dsct_M2.0_T7696  -> out/plots_lmax/lmax06/dsct_M2.0_T7696
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 210 of 22841 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax06/dsct_M2.0_T7696
+
+model models/dsct_M2.2_T7888  tag dsct_M2.2_T7888  -> out/plots_lmax/lmax06/dsct_M2.2_T7888
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax06/dsct_M2.2_T7888
+
+=== l_max = 10  2026-08-25T13:40:40-05:00 ===
+5 tags: dsct_M1.7_T7750 dsct_M1.85_T7555 dsct_M2.0 dsct_M2.0_T7696 dsct_M2.2_T7888
+
+model models/dsct_M1.7_T7750  tag dsct_M1.7_T7750  -> out/plots_lmax/lmax10/dsct_M1.7_T7750
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 457 of 20115 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax10/dsct_M1.7_T7750
+
+model models/dsct_M1.85_T7555  tag dsct_M1.85_T7555  -> out/plots_lmax/lmax10/dsct_M1.85_T7555
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 596 of 38143 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax10/dsct_M1.85_T7555
+
+model models/dsct_M2.0  tag dsct_M2.0  -> out/plots_lmax/lmax10/dsct_M2.0
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 682 of 48952 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax10/dsct_M2.0
+
+model models/dsct_M2.0_T7696  tag dsct_M2.0_T7696  -> out/plots_lmax/lmax10/dsct_M2.0_T7696
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 459 of 38362 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax10/dsct_M2.0_T7696
+
+model models/dsct_M2.2_T7888  tag dsct_M2.2_T7888  -> out/plots_lmax/lmax10/dsct_M2.2_T7888
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 59 of 12147 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax10/dsct_M2.2_T7888
+
+=== l_max = 15  2026-08-25T13:44:03-05:00 ===
+5 tags: dsct_M1.7_T7750 dsct_M1.85_T7555 dsct_M2.0 dsct_M2.0_T7696 dsct_M2.2_T7888
+
+model models/dsct_M1.7_T7750  tag dsct_M1.7_T7750  -> out/plots_lmax/lmax15/dsct_M1.7_T7750
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 472 of 30292 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax15/dsct_M1.7_T7750
+
+model models/dsct_M1.85_T7555  tag dsct_M1.85_T7555  -> out/plots_lmax/lmax15/dsct_M1.85_T7555
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 600 of 56281 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax15/dsct_M1.85_T7555
+
+model models/dsct_M2.0  tag dsct_M2.0  -> out/plots_lmax/lmax15/dsct_M2.0
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 682 of 60484 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax15/dsct_M2.0
+
+model models/dsct_M2.0_T7696  tag dsct_M2.0_T7696  -> out/plots_lmax/lmax15/dsct_M2.0_T7696
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 476 of 42682 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax15/dsct_M2.0_T7696
+
+model models/dsct_M2.2_T7888  tag dsct_M2.2_T7888  -> out/plots_lmax/lmax15/dsct_M2.2_T7888
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 64 of 12649 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax15/dsct_M2.2_T7888
+
+=== l_max = 25  2026-08-25T13:47:30-05:00 ===
+5 tags: dsct_M1.7_T7750 dsct_M1.85_T7555 dsct_M2.0 dsct_M2.0_T7696 dsct_M2.2_T7888
+
+model models/dsct_M1.7_T7750  tag dsct_M1.7_T7750  -> out/plots_lmax/lmax25/dsct_M1.7_T7750
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 472 of 80399 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax25/dsct_M1.7_T7750
+
+model models/dsct_M1.85_T7555  tag dsct_M1.85_T7555  -> out/plots_lmax/lmax25/dsct_M1.85_T7555
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 650 of 145415 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax25/dsct_M1.85_T7555
+
+model models/dsct_M2.0  tag dsct_M2.0  -> out/plots_lmax/lmax25/dsct_M2.0
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 682 of 109058 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax25/dsct_M2.0
+
+model models/dsct_M2.0_T7696  tag dsct_M2.0_T7696  -> out/plots_lmax/lmax25/dsct_M2.0_T7696
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 476 of 54685 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax25/dsct_M2.0_T7696
+
+model models/dsct_M2.2_T7888  tag dsct_M2.2_T7888  -> out/plots_lmax/lmax25/dsct_M2.2_T7888
+loading narrow model...
+figures:
+  fig_mu
+  fig_eth
+  dropped 64 of 12649 rows with non-finite gamma/mu
+  fig_eth_pg
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_detuning_pg
+  fig_pg_census
+  fig_lowfreq
+  fig_spectrum
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots_lmax/lmax25/dsct_M2.2_T7888
+
+=== figures done  2026-08-25T13:51:05-05:00 ===
