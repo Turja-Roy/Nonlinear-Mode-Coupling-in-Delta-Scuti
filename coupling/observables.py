@@ -21,7 +21,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .background import Background
-from .kappa import KappaResult, kappa_all_m
+from .kappa import KappaResult, kappa_all_m, kappa_for_triplet
 from .modes import Eigenfunction
 from .triplets import RadialTriplet
 
@@ -38,6 +38,32 @@ def parametric_growth_rate(kappa: float, omega_b: float, omega_c: float, q_a: fl
     return 2.0 * abs(kappa) * np.sqrt(abs(omega_b * omega_c)) * abs(q_a)
 
 
+def _pair_energy(
+    kappa: float,
+    omega_b: float,
+    omega_c: float,
+    gamma_b: float,
+    gamma_c: float,
+    delta: float,
+    gamma_sum: float,
+    E_star: float,
+) -> float:
+    """gamma_b gamma_c / (4 kappa^2 |omega_b omega_c|) [1 + delta^2/gamma_sum^2].
+
+    Shared by the parametric threshold and the equilibrium of MW25 eq. A7; the
+    two differ only in which gamma sum sets the detuning penalty. A vanishing
+    gamma_sum is inf, not 0: with no net dissipation the phase cannot lock and
+    there is no equilibrium. threshold_energy never reaches that branch, since
+    it passes gamma_b + gamma_c and both are positive by then.
+    """
+    if gamma_b <= 0.0 or gamma_c <= 0.0 or kappa == 0.0:
+        return 0.0
+    if gamma_sum == 0.0:
+        return np.inf
+    detune = 1.0 + delta**2 / gamma_sum**2
+    return (gamma_b * gamma_c) / (4.0 * kappa**2 * abs(omega_b * omega_c)) * detune * E_star
+
+
 def threshold_energy(
     kappa: float,
     omega_b: float,
@@ -49,13 +75,40 @@ def threshold_energy(
 ) -> float:
     """Parent energy at which the daughter pair goes unstable.
 
+    The daughters drive each other through the parent, so their 2x2 system
+    grows once 4 kappa^2 omega_b omega_c |q_a|^2 beats gamma_b gamma_c; the
+    bracket is the penalty for sitting off resonance.
+
     Returns 0 if either daughter is driven rather than damped: the pair is
     then linearly unstable and the parametric threshold does not apply.
     """
-    if gamma_b <= 0.0 or gamma_c <= 0.0 or kappa == 0.0:
-        return 0.0
-    detune = 1.0 + delta**2 / (gamma_b + gamma_c) ** 2
-    return (gamma_b * gamma_c) / (4.0 * kappa**2 * abs(omega_b * omega_c)) * detune * E_star
+    return _pair_energy(
+        kappa, omega_b, omega_c, gamma_b, gamma_c, delta, gamma_b + gamma_c, E_star
+    )
+
+
+def equilibrium_energy(
+    kappa: float,
+    omega_b: float,
+    omega_c: float,
+    gamma_a: float,
+    gamma_b: float,
+    gamma_c: float,
+    delta: float,
+    E_star: float,
+) -> float:
+    """MW25 eq. A7 (their eq. 6 in energy units): where the driven mode settles.
+
+    The fixed point of the amplitude-phase system, with the phase locked at
+    cot beta_eq = delta / gamma. It is `threshold_energy` with the daughter-pair
+    damping replaced by the triplet total gamma_a + gamma_b + gamma_c, which is
+    why a driven mode saturates near the amplitude at which it first went
+    nonlinearly unstable.
+    """
+    return _pair_energy(
+        kappa, omega_b, omega_c, gamma_b, gamma_c, delta,
+        gamma_a + gamma_b + gamma_c, E_star,
+    )
 
 
 def threshold_energy_ceiling(
@@ -156,6 +209,7 @@ class TripletObservables:
     kappa: float
     mu: tuple[float, float, float]  # per driven mode
     E_threshold: float  # in erg
+    E_equilibrium: float  # in erg, MW25 eq. A7
     refine: int
 
     @property
@@ -167,8 +221,16 @@ def observables(
     t: RadialTriplet,
     efs: dict[tuple[int, int], Eigenfunction],
     bg: Background,
+    m000: bool = False,
 ) -> list[TripletObservables]:
-    ks, refine = kappa_all_m(t, efs)
+    """`m000` keeps only m = (0, 0, 0). The radial integrals are m-independent,
+    so the whole m set costs one sympy wigner_3j evaluation per combination --
+    fine at l <= 3, prohibitive across a wide net."""
+    if m000:
+        r = kappa_for_triplet(t, efs, (0, 0, 0))
+        ks, refine = {(0, 0, 0): r.kappa}, r.refine
+    else:
+        ks, refine = kappa_all_m(t, efs)
     gam = [efs[k].gamma for k in t.keys]
     out = []
     for ms, k in ks.items():
@@ -180,6 +242,9 @@ def observables(
                 E_threshold=threshold_energy(
                     k, t.omega[1], t.omega[2], gam[1], gam[2], t.delta, bg.E_star
                 ),
+                E_equilibrium=equilibrium_energy(
+                    k, t.omega[1], t.omega[2], gam[0], gam[1], gam[2], t.delta, bg.E_star
+                ),
                 refine=refine,
             )
         )
@@ -190,6 +255,7 @@ def to_frame(
     triplets: list[RadialTriplet],
     efs: dict[tuple[int, int], Eigenfunction],
     bg: Background,
+    m000: bool = False,
 ):
     """Ranked table: one row per (triplet, m combination)."""
     import pandas as pd
@@ -197,7 +263,7 @@ def to_frame(
     rows = []
     for t in triplets:
         gam = [efs[k].gamma for k in t.keys]
-        for o in observables(t, efs, bg):
+        for o in observables(t, efs, bg, m000=m000):
             rows.append(
                 {
                     "l_a": t.ls[0], "n_a": t.ns[0], "m_a": o.ms[0],
@@ -210,6 +276,7 @@ def to_frame(
                     "mu_a": o.mu[0], "mu_b": o.mu[1], "mu_c": o.mu[2],
                     "mu_max": o.mu_max,
                     "E_th_over_E_star": o.E_threshold / bg.E_star,
+                    "E_eq_over_E_star": o.E_equilibrium / bg.E_star,
                     "E_th_ceiling_over_E_star": threshold_energy_ceiling(
                         o.kappa, t.omega[1], t.omega[2], t.delta, 1.0
                     ),
@@ -228,6 +295,7 @@ __all__ = [
     "channel",
     "classify_frame",
     "daughter_index",
+    "equilibrium_energy",
     "mu",
     "nonadiabatic_fraction",
     "nonadiabatic_shell",

@@ -8,6 +8,7 @@ from coupling.observables import (
     channel,
     classify_frame,
     daughter_index,
+    equilibrium_energy,
     mu,
     nonadiabatic_fraction,
     nonadiabatic_shell,
@@ -58,6 +59,34 @@ def test_ceiling_bounds_every_gamma_pair():
 
 def test_threshold_is_zero_for_a_driven_daughter():
     assert threshold_energy(30.0, 3e-4, 2e-4, -1e-9, 2e-9, 0.0, 1.0) == 0.0
+
+
+def test_equilibrium_is_the_threshold_with_the_triplet_gamma_sum():
+    """MW25 eq. A7 differs from E_th only in the detuning penalty's denominator,
+    so the two coincide at gamma_a = 0 and at zero detuning."""
+    k, wb, wc, gb, gc = 30.0, 3e-4, 2e-4, 1e-9, 2e-9
+    assert equilibrium_energy(k, wb, wc, 0.0, gb, gc, 4e-9, 1.0) == pytest.approx(
+        threshold_energy(k, wb, wc, gb, gc, 4e-9, 1.0), rel=1e-12
+    )
+    assert equilibrium_energy(k, wb, wc, -5e-10, gb, gc, 0.0, 1.0) == pytest.approx(
+        threshold_energy(k, wb, wc, gb, gc, 0.0, 1.0), rel=1e-12
+    )
+
+
+def test_a_driven_parent_lowers_the_equilibrium_below_the_threshold():
+    """gamma_a < 0 shrinks gamma below gamma_b + gamma_c, so the detuning penalty
+    grows -- the parent settles above where it first went unstable."""
+    k, wb, wc, gb, gc, d = 30.0, 3e-4, 2e-4, 1e-9, 2e-9, 1e-8
+    assert equilibrium_energy(k, wb, wc, -1e-9, gb, gc, d, 1.0) > threshold_energy(
+        k, wb, wc, gb, gc, d, 1.0
+    )
+
+
+def test_equilibrium_degenerate_cases():
+    """A driven daughter means the parametric reading does not apply at all; a
+    triplet that neither gains nor loses energy has no equilibrium to settle to."""
+    assert equilibrium_energy(30.0, 3e-4, 2e-4, 1e-9, -1e-9, 2e-9, 0.0, 1.0) == 0.0
+    assert equilibrium_energy(30.0, 3e-4, 2e-4, -3.0, 1.0, 2.0, 1e-8, 1.0) == np.inf
 
 
 def test_channel_covers_every_gamma_sign_pattern():
