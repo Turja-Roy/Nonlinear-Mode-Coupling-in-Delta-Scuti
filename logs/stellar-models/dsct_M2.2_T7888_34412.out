@@ -1,0 +1,430 @@
+=== dsct_M2.2_T7888  (M=2.2, log g=3.830, MW23 Teff=7888) ===
+    host=compute-1-33.local.tier3-atlas.uta.edu  cores=16  started Tue Aug 25 06:03:23 PM CDT 2026
+    workdir=/net/nas-1-16/users/home2/txr7972/Stellar
+    MESA_DIR=/net/nas-1-16/users/home2/txr7972/soft/mesa-26.04.1
+    GYRE_DIR=/net/nas-1-16/users/home2/txr7972/soft/gyre-9.1.1
+
+--- [dsct_M2.2_T7888] MESA already run; skipping (--force-all to redo)
+
+--- [dsct_M2.2_T7888] selecting profile at log g = 3.830
+matching on log g = 3.830   (32 profiles)
+
+         profile   model     Teff   R/Rsun    logL    logg   nu_dyn     X_c
+---------------------------------------------------------------------------
+  profile32.data     702   7912.1    2.987   1.498   3.830    2.480  0.2430
+  profile31.data     701   7914.6    2.985   1.498   3.831    2.483  0.2435
+  profile30.data     700   7917.0    2.983   1.498   3.831    2.485  0.2440
+  profile29.data     699   7919.5    2.981   1.498   3.832    2.488  0.2445
+  profile28.data     698   7921.9    2.979   1.498   3.832    2.491  0.2450
+  profile27.data     697   7924.3    2.977   1.498   3.833    2.493  0.2455
+  profile26.data     696   7926.8    2.974   1.498   3.834    2.496  0.2460
+  profile25.data     695   7929.2    2.972   1.498   3.834    2.499  0.2465
+
+selected: LOGS/profile32.data
+GYRE input: LOGS/profile32.data.GYRE
+
+  R_Rsun             2.987   expect     2.987 +/- 0.020   OK
+  logg               3.830   expect     3.830 +/- 0.005   OK
+  dyn_freq_cpd       2.480   expect     2.480 +/- 0.040   OK
+
+  Teff 7912.1 K, +24.1 K vs MW23
+  detuning cut 0.15*nu_dyn = 0.372 c/d
+    -> profile32.data.GYRE
+
+--- [dsct_M2.2_T7888] generating GYRE inlists
+
+dsct_M2.2_T7888:  nu_dyn=2.4799  Dnu=3.214  nu_ac=75.5  K=15.838 c/d
+  core scan 0.69-21.6-77.0 c/d;  daughter band 1.47-4.50 c/d  (scaled)
+  wrote models/dsct_M2.2_T7888/gyre/gyre_ad.in
+  wrote models/dsct_M2.2_T7888/gyre/gyre_nad.in
+  gnet pass 1 (l 2-15): 886 modes;  pass 2 (l 16-25): 1520 modes
+  wrote models/dsct_M2.2_T7888/gyre/gyre_ad_wide.in
+  wrote models/dsct_M2.2_T7888/gyre/gyre_nad_wide.in
+  wrote models/dsct_M2.2_T7888/gyre/gyre_ad_wide_hi.in
+  wrote models/dsct_M2.2_T7888/gyre/gyre_nad_wide_hi.in
+
+--- [dsct_M2.2_T7888] GYRE narrow net (l <= 3, |n_pg| <= 20)
+    gyre_ad.in: summary_ad.h5 exists, skipping
+    gyre_nad.in: summary_nad.h5 exists, skipping
+=== adiabatic (summary_ad.h5, windows from gyre_ad.in) ===
+142 modes total, 4 l values requested
+
+  l  count     n_pg range       freq range (c/d)   gaps
+--------------------------------------------------------
+  0     20      1 ..   20      8.787 ..   65.160      0
+  1     40    -20 ..   20      1.073 ..   66.577      0
+  2     41    -20 ..   20      1.850 ..   68.136      0
+  3     41    -20 ..   20      2.602 ..   69.446      0
+
+142 detail files, 7114 grid points in detail.l2.n+19.h5
+dlnrho/dlnr from (As, V_2, Gamma_1) vs numerical
+  median rel err 3.63e-07, 95th pct 7.94e-03
+
+=== nonadiabatic (summary_nad.h5) ===
+
+24 driven modes (gamma < 0) of 139
+  driven n_pg range 0 .. 8,  freq 14.29 .. 28.21 c/d
+  mostly p-modes, as expected for the kappa mechanism
+  damping rates (dimensionless): 2.354e-09 .. 1.541e-01
+  gamma covers 139 of 142 adiabatic modes (0 duplicate n_pg labels in the nad summary, harmless)
+    no gamma: l =  1  n_pg =    19  63.3804 c/d
+    no gamma: l =  2  n_pg =    17  58.6193 c/d
+    no gamma: l =  3  n_pg =    19  66.2211 c/d
+  pass require_gamma=True to build_mode_list to drop these
+
+OK
+
+--- [dsct_M2.2_T7888] coupling tables: triplets, kappa, observables
+    out/observables_dsct_M2.2_T7888.csv exists, skipping
+
+--- [dsct_M2.2_T7888] GYRE wide net pass 1 (l <= 15)
+    gyre_ad_wide.in: summary_ad_wide.h5 exists, skipping
+    gyre_nad_wide.in: summary_nad_wide.h5 exists, skipping
+=== adiabatic (summary_ad_wide.h5, windows from gyre_ad_wide.in) ===
+1147 modes total, 16 l values requested
+
+  l  count     n_pg range       freq range (c/d)   gaps
+--------------------------------------------------------
+  0     20      1 ..   20      8.787 ..   65.160      0
+  1     40    -20 ..   20      1.073 ..   66.577      0
+  2     47    -26 ..   20      1.430 ..   68.136      0
+  3     58    -37 ..   20      1.445 ..   69.446      0
+  4     69    -48 ..   20      1.446 ..   70.578      0
+  5     77    -58 ..   20      1.473 ..   71.627      2
+      missing n_pg: [0, 1]
+  6     86    -69 ..   20      1.468 ..   72.623      2
+      missing n_pg: [0, 1]
+  7     54    -80 ..  -27      1.460 ..    4.088      0
+  8     62    -91 ..  -30      1.460 ..    4.182      0
+  9     69   -102 ..  -34      1.456 ..    4.121      0
+ 10     76   -112 ..  -37      1.469 ..    4.193      0
+ 11     83   -123 ..  -41      1.468 ..    4.159      0
+ 12     91   -134 ..  -44      1.465 ..    4.216      0
+ 13     98   -145 ..  -48      1.463 ..    4.205      0
+ 14    105   -156 ..  -52      1.461 ..    4.172      0
+ 15    112   -166 ..  -55      1.468 ..    4.219      0
+
+2667 detail files, 7519 grid points in detail.l20.n-92.h5
+dlnrho/dlnr from (As, V_2, Gamma_1) vs numerical
+  median rel err 4.27e-07, 95th pct 6.72e-03
+
+=== nonadiabatic (summary_nad_wide.h5) ===
+
+43 driven modes (gamma < 0) of 1133
+  driven n_pg range -2 .. 8,  freq 14.29 .. 28.21 c/d
+  mostly p-modes, as expected for the kappa mechanism
+  damping rates (dimensionless): 2.354e-09 .. 1.564e-01
+  gamma covers 1130 of 1147 adiabatic modes (4 duplicate n_pg labels in the nad summary, harmless)
+    no gamma: l =  1  n_pg =    19  63.3804 c/d
+    no gamma: l =  2  n_pg =    17  58.6193 c/d
+    no gamma: l =  3  n_pg =    19  66.2211 c/d
+    no gamma: l =  4  n_pg =    18  64.1186 c/d
+    no gamma: l =  5  n_pg =    18  65.1364 c/d
+    no gamma: l =  5  n_pg =    20  71.6274 c/d
+    no gamma: l =  6  n_pg =    11  43.9201 c/d
+    no gamma: l =  6  n_pg =    17  62.8729 c/d
+    no gamma: l =  6  n_pg =    20  72.6231 c/d
+    no gamma: l =  7  n_pg =   -80  1.4604 c/d
+    no gamma: l =  8  n_pg =   -91  1.4598 c/d
+    no gamma: l =  9  n_pg =  -102  1.4562 c/d
+    no gamma: l = 10  n_pg =  -112  1.4685 c/d
+    no gamma: l = 11  n_pg =  -123  1.4682 c/d
+    no gamma: l = 12  n_pg =  -134  1.4652 c/d
+    no gamma: l = 13  n_pg =  -145  1.4630 c/d
+    no gamma: l = 14  n_pg =  -156  1.4610 c/d
+  pass require_gamma=True to build_mode_list to drop these
+
+checks failed
+!!! [dsct_M2.2_T7888] check_modes FAILED (--inlist gyre_ad_wide.in --ad summary_ad_wide.h5 --nad summary_nad_wide.h5 --detail detail_wide) -- continuing anyway
+nas-1-16:/users/home2/txr7972   24T   22T  1.4T  95% /net/nas-1-16/users/home2/txr7972
+
+--- [dsct_M2.2_T7888] GYRE wide net pass 2 (l = 16-25)
+    gyre_ad_wide_hi.in: summary_ad_wide_hi.h5 exists, skipping
+    gyre_nad_wide_hi.in: summary_nad_wide_hi.h5 exists, skipping
+=== adiabatic (summary_ad_wide_hi.h5, windows from gyre_ad_wide_hi.in) ===
+1520 modes total, 10 l values requested
+
+  l  count     n_pg range       freq range (c/d)   gaps
+--------------------------------------------------------
+ 16    119   -177 ..  -59      1.466 ..    4.186      0
+ 17    127   -188 ..  -62      1.464 ..    4.226      0
+ 18    134   -199 ..  -66      1.462 ..    4.210      0
+ 19    141   -209 ..  -69      1.468 ..    4.243      0
+ 20    148   -220 ..  -73      1.466 ..    4.226      0
+ 21    156   -231 ..  -76      1.464 ..    4.256      0
+ 22    163   -242 ..  -80      1.463 ..    4.229      0
+ 23    170   -252 ..  -83      1.467 ..    4.256      0
+ 24    177   -263 ..  -87      1.465 ..    4.232      0
+ 25    185   -274 ..  -90      1.464 ..    4.257      0
+
+2667 detail files, 7519 grid points in detail.l20.n-92.h5
+dlnrho/dlnr from (As, V_2, Gamma_1) vs numerical
+  median rel err 4.27e-07, 95th pct 6.72e-03
+
+=== nonadiabatic (summary_nad_wide_hi.h5) ===
+
+0 driven modes (gamma < 0) of 1516
+  damping rates (dimensionless): 1.079e-05 .. 2.358e-03
+  gamma covers 1329 of 1520 adiabatic modes (19 duplicate n_pg labels in the nad summary, harmless)
+    no gamma: l = 17  n_pg =  -188  1.4641 c/d
+    no gamma: l = 17  n_pg =  -187  1.4718 c/d
+    no gamma: l = 17  n_pg =  -186  1.4791 c/d
+    no gamma: l = 17  n_pg =  -185  1.4874 c/d
+    no gamma: l = 17  n_pg =  -184  1.4955 c/d
+    no gamma: l = 17  n_pg =  -182  1.5114 c/d
+    no gamma: l = 18  n_pg =  -199  1.4621 c/d
+    no gamma: l = 18  n_pg =  -198  1.4696 c/d
+    no gamma: l = 18  n_pg =  -197  1.4772 c/d
+    no gamma: l = 18  n_pg =  -196  1.4842 c/d
+    no gamma: l = 18  n_pg =  -195  1.4918 c/d
+    no gamma: l = 18  n_pg =  -194  1.4998 c/d
+    no gamma: l = 18  n_pg =  -193  1.5071 c/d
+    no gamma: l = 18  n_pg =  -192  1.5147 c/d
+    no gamma: l = 18  n_pg =  -191  1.5229 c/d
+    no gamma: l = 18  n_pg =  -190  1.5306 c/d
+    no gamma: l = 18  n_pg =  -189  1.5383 c/d
+    no gamma: l = 18  n_pg =  -188  1.5469 c/d
+    no gamma: l = 18  n_pg =  -187  1.5550 c/d
+    no gamma: l = 18  n_pg =  -186  1.5628 c/d
+    no gamma: l = 18  n_pg =  -185  1.5714 c/d
+    no gamma: l = 18  n_pg =  -182  1.5968 c/d
+    no gamma: l = 19  n_pg =  -209  1.4676 c/d
+    no gamma: l = 19  n_pg =  -208  1.4745 c/d
+    no gamma: l = 19  n_pg =  -207  1.4819 c/d
+    no gamma: l = 19  n_pg =  -206  1.4889 c/d
+    no gamma: l = 19  n_pg =  -205  1.4958 c/d
+    no gamma: l = 19  n_pg =  -204  1.5034 c/d
+    no gamma: l = 19  n_pg =  -203  1.5107 c/d
+    no gamma: l = 19  n_pg =  -202  1.5177 c/d
+    no gamma: l = 19  n_pg =  -201  1.5255 c/d
+    no gamma: l = 19  n_pg =  -200  1.5331 c/d
+    no gamma: l = 19  n_pg =  -199  1.5403 c/d
+    no gamma: l = 19  n_pg =  -198  1.5482 c/d
+    no gamma: l = 19  n_pg =  -197  1.5563 c/d
+    no gamma: l = 19  n_pg =  -196  1.5636 c/d
+    no gamma: l = 19  n_pg =  -195  1.5716 c/d
+    no gamma: l = 19  n_pg =  -194  1.5800 c/d
+    no gamma: l = 19  n_pg =  -193  1.5877 c/d
+    no gamma: l = 19  n_pg =  -192  1.5957 c/d
+    no gamma: l = 19  n_pg =  -191  1.6043 c/d
+    no gamma: l = 19  n_pg =  -190  1.6125 c/d
+    no gamma: l = 19  n_pg =  -189  1.6206 c/d
+    no gamma: l = 19  n_pg =  -188  1.6295 c/d
+    no gamma: l = 19  n_pg =  -187  1.6382 c/d
+    no gamma: l = 19  n_pg =  -186  1.6463 c/d
+    no gamma: l = 19  n_pg =  -185  1.6553 c/d
+    no gamma: l = 20  n_pg =  -220  1.4660 c/d
+    no gamma: l = 20  n_pg =  -219  1.4727 c/d
+    no gamma: l = 20  n_pg =  -218  1.4791 c/d
+    no gamma: l = 20  n_pg =  -217  1.4860 c/d
+    no gamma: l = 20  n_pg =  -216  1.4929 c/d
+    no gamma: l = 20  n_pg =  -215  1.4995 c/d
+    no gamma: l = 20  n_pg =  -214  1.5066 c/d
+    no gamma: l = 20  n_pg =  -213  1.5138 c/d
+    no gamma: l = 20  n_pg =  -212  1.5205 c/d
+    no gamma: l = 20  n_pg =  -211  1.5277 c/d
+    no gamma: l = 20  n_pg =  -210  1.5352 c/d
+    no gamma: l = 20  n_pg =  -209  1.5422 c/d
+    no gamma: l = 20  n_pg =  -208  1.5493 c/d
+    no gamma: l = 20  n_pg =  -207  1.5571 c/d
+    no gamma: l = 20  n_pg =  -206  1.5644 c/d
+    no gamma: l = 20  n_pg =  -205  1.5717 c/d
+    no gamma: l = 20  n_pg =  -204  1.5797 c/d
+    no gamma: l = 20  n_pg =  -203  1.5873 c/d
+    no gamma: l = 20  n_pg =  -202  1.5947 c/d
+    no gamma: l = 20  n_pg =  -201  1.6028 c/d
+    no gamma: l = 20  n_pg =  -200  1.6109 c/d
+    no gamma: l = 20  n_pg =  -199  1.6185 c/d
+    no gamma: l = 20  n_pg =  -198  1.6267 c/d
+    no gamma: l = 20  n_pg =  -197  1.6352 c/d
+    no gamma: l = 20  n_pg =  -196  1.6429 c/d
+    no gamma: l = 20  n_pg =  -195  1.6512 c/d
+    no gamma: l = 20  n_pg =  -194  1.6600 c/d
+    no gamma: l = 20  n_pg =  -193  1.6682 c/d
+    no gamma: l = 20  n_pg =  -192  1.6765 c/d
+    no gamma: l = 20  n_pg =  -191  1.6856 c/d
+    no gamma: l = 20  n_pg =  -190  1.6942 c/d
+    no gamma: l = 20  n_pg =  -189  1.7026 c/d
+    no gamma: l = 20  n_pg =  -188  1.7120 c/d
+    no gamma: l = 20  n_pg =  -185  1.7391 c/d
+    no gamma: l = 21  n_pg =  -220  1.5368 c/d
+    no gamma: l = 21  n_pg =  -215  1.5719 c/d
+    no gamma: l = 21  n_pg =  -214  1.5792 c/d
+    no gamma: l = 21  n_pg =  -213  1.5868 c/d
+    no gamma: l = 21  n_pg =  -212  1.5939 c/d
+    no gamma: l = 21  n_pg =  -211  1.6013 c/d
+    no gamma: l = 21  n_pg =  -210  1.6092 c/d
+    no gamma: l = 21  n_pg =  -209  1.6166 c/d
+    no gamma: l = 21  n_pg =  -208  1.6240 c/d
+    no gamma: l = 21  n_pg =  -207  1.6321 c/d
+    no gamma: l = 21  n_pg =  -206  1.6399 c/d
+    no gamma: l = 21  n_pg =  -205  1.6475 c/d
+    no gamma: l = 21  n_pg =  -204  1.6558 c/d
+    no gamma: l = 21  n_pg =  -203  1.6639 c/d
+    no gamma: l = 21  n_pg =  -202  1.6716 c/d
+    no gamma: l = 21  n_pg =  -201  1.6800 c/d
+    no gamma: l = 21  n_pg =  -200  1.6885 c/d
+    no gamma: l = 21  n_pg =  -199  1.6965 c/d
+    no gamma: l = 21  n_pg =  -198  1.7050 c/d
+    no gamma: l = 21  n_pg =  -197  1.7139 c/d
+    no gamma: l = 21  n_pg =  -196  1.7221 c/d
+    no gamma: l = 21  n_pg =  -195  1.7306 c/d
+    no gamma: l = 21  n_pg =  -194  1.7399 c/d
+    no gamma: l = 21  n_pg =  -193  1.7486 c/d
+    no gamma: l = 21  n_pg =  -192  1.7572 c/d
+    no gamma: l = 21  n_pg =  -191  1.7666 c/d
+    no gamma: l = 21  n_pg =  -190  1.7758 c/d
+    no gamma: l = 21  n_pg =  -189  1.7845 c/d
+    no gamma: l = 21  n_pg =  -188  1.7943 c/d
+    no gamma: l = 22  n_pg =  -219  1.6148 c/d
+    no gamma: l = 22  n_pg =  -212  1.6672 c/d
+    no gamma: l = 22  n_pg =  -211  1.6749 c/d
+    no gamma: l = 22  n_pg =  -210  1.6832 c/d
+    no gamma: l = 22  n_pg =  -209  1.6909 c/d
+    no gamma: l = 22  n_pg =  -208  1.6986 c/d
+    no gamma: l = 22  n_pg =  -207  1.7071 c/d
+    no gamma: l = 22  n_pg =  -206  1.7152 c/d
+    no gamma: l = 22  n_pg =  -205  1.7231 c/d
+    no gamma: l = 22  n_pg =  -204  1.7318 c/d
+    no gamma: l = 22  n_pg =  -203  1.7403 c/d
+    no gamma: l = 22  n_pg =  -202  1.7483 c/d
+    no gamma: l = 22  n_pg =  -201  1.7571 c/d
+    no gamma: l = 22  n_pg =  -200  1.7660 c/d
+    no gamma: l = 22  n_pg =  -199  1.7743 c/d
+    no gamma: l = 22  n_pg =  -198  1.7831 c/d
+    no gamma: l = 22  n_pg =  -197  1.7925 c/d
+    no gamma: l = 22  n_pg =  -196  1.8011 c/d
+    no gamma: l = 22  n_pg =  -195  1.8099 c/d
+    no gamma: l = 22  n_pg =  -194  1.8196 c/d
+    no gamma: l = 22  n_pg =  -193  1.8288 c/d
+    no gamma: l = 22  n_pg =  -192  1.8377 c/d
+    no gamma: l = 22  n_pg =  -191  1.8475 c/d
+    no gamma: l = 22  n_pg =  -189  1.8663 c/d
+    no gamma: l = 22  n_pg =  -188  1.8764 c/d
+    no gamma: l = 23  n_pg =  -217  1.7008 c/d
+    no gamma: l = 23  n_pg =  -211  1.7483 c/d
+    no gamma: l = 23  n_pg =  -209  1.7651 c/d
+    no gamma: l = 23  n_pg =  -208  1.7731 c/d
+    no gamma: l = 23  n_pg =  -207  1.7819 c/d
+    no gamma: l = 23  n_pg =  -206  1.7904 c/d
+    no gamma: l = 23  n_pg =  -205  1.7987 c/d
+    no gamma: l = 23  n_pg =  -204  1.8076 c/d
+    no gamma: l = 23  n_pg =  -203  1.8165 c/d
+    no gamma: l = 23  n_pg =  -202  1.8249 c/d
+    no gamma: l = 23  n_pg =  -201  1.8340 c/d
+    no gamma: l = 23  n_pg =  -200  1.8434 c/d
+    no gamma: l = 23  n_pg =  -199  1.8520 c/d
+    no gamma: l = 23  n_pg =  -198  1.8611 c/d
+    no gamma: l = 23  n_pg =  -197  1.8709 c/d
+    no gamma: l = 23  n_pg =  -196  1.8800 c/d
+    no gamma: l = 23  n_pg =  -195  1.8891 c/d
+    no gamma: l = 23  n_pg =  -194  1.8992 c/d
+    no gamma: l = 23  n_pg =  -193  1.9088 c/d
+    no gamma: l = 23  n_pg =  -192  1.9180 c/d
+    no gamma: l = 23  n_pg =  -191  1.9283 c/d
+    no gamma: l = 24  n_pg =  -221  1.7404 c/d
+    no gamma: l = 24  n_pg =  -208  1.8474 c/d
+    no gamma: l = 24  n_pg =  -207  1.8565 c/d
+    no gamma: l = 24  n_pg =  -206  1.8655 c/d
+    no gamma: l = 24  n_pg =  -205  1.8740 c/d
+    no gamma: l = 24  n_pg =  -204  1.8833 c/d
+    no gamma: l = 24  n_pg =  -203  1.8926 c/d
+    no gamma: l = 24  n_pg =  -202  1.9014 c/d
+    no gamma: l = 24  n_pg =  -201  1.9107 c/d
+    no gamma: l = 24  n_pg =  -200  1.9205 c/d
+    no gamma: l = 24  n_pg =  -199  1.9296 c/d
+    no gamma: l = 24  n_pg =  -198  1.9390 c/d
+    no gamma: l = 24  n_pg =  -197  1.9492 c/d
+    no gamma: l = 24  n_pg =  -196  1.9587 c/d
+    no gamma: l = 24  n_pg =  -195  1.9681 c/d
+    no gamma: l = 24  n_pg =  -194  1.9785 c/d
+    no gamma: l = 24  n_pg =  -192  1.9982 c/d
+    no gamma: l = 24  n_pg =  -191  2.0088 c/d
+    no gamma: l = 25  n_pg =  -274  1.4642 c/d
+    no gamma: l = 25  n_pg =  -273  1.4693 c/d
+    no gamma: l = 25  n_pg =  -272  1.4745 c/d
+    no gamma: l = 25  n_pg =  -271  1.4800 c/d
+    no gamma: l = 25  n_pg =  -269  1.4908 c/d
+    no gamma: l = 25  n_pg =  -219  1.8271 c/d
+    no gamma: l = 25  n_pg =  -205  1.9493 c/d
+    no gamma: l = 25  n_pg =  -204  1.9588 c/d
+    no gamma: l = 25  n_pg =  -203  1.9686 c/d
+    no gamma: l = 25  n_pg =  -202  1.9777 c/d
+    no gamma: l = 25  n_pg =  -201  1.9873 c/d
+    no gamma: l = 25  n_pg =  -200  1.9975 c/d
+    no gamma: l = 25  n_pg =  -199  2.0070 c/d
+    no gamma: l = 25  n_pg =  -198  2.0167 c/d
+    no gamma: l = 25  n_pg =  -197  2.0272 c/d
+    no gamma: l = 25  n_pg =  -195  2.0469 c/d
+    no gamma: l = 25  n_pg =  -194  2.0577 c/d
+  pass require_gamma=True to build_mode_list to drop these
+
+checks failed
+!!! [dsct_M2.2_T7888] check_modes FAILED (--inlist gyre_ad_wide_hi.in --ad summary_ad_wide_hi.h5 --nad summary_nad_wide_hi.h5 --detail detail_wide) -- continuing anyway
+
+--- [dsct_M2.2_T7888] four-mode search
+    out/four_mode_dsct_M2.2_T7888.csv exists, skipping
+
+--- [dsct_M2.2_T7888] mixed network integration
+588675 daughter candidates, 0 above threshold at q = 1e-06
+
+system: a(6,-1)  b(4,+5)  c(2,-1)  d(2,-6)
+  a(6,-1)        f  15.5520 c/d   gamma -4.042e-09 s^-1
+  b(4,+5)        f  26.6096 c/d   gamma -8.338e-07 s^-1
+  c(2,-1)        f  11.0690 c/d   gamma +1.264e-09 s^-1
+  d(2,-6)        f   5.5345 c/d   gamma +8.911e-13 s^-1
+  leg [b(4,+5)  a(6,-1)  c(2,-1)]  kappa +1.177  Delta +1.144e-02 c/d
+  leg [c(2,-1)  d(2,-6)  d(2,-6)]  kappa -1.131  Delta +7.132e-05 c/d
+  E_c_over_E_th 6.398e-07 at q = 1e-6
+
+parent amplitude 1.061e-04 (3x the default for daughter)
+pumped system, t_end 284494.60 yr, frozen: a(6,-1), b(4,+5)
+
+integrated 2.845e+05 yr
+  E_a(6,-1)        start 1.125e-08  end 1.125e-08  max 1.125e-08
+  E_b(4,+5)        start 1.125e-08  end 1.125e-08  max 1.125e-08
+  E_c(2,-1)        start 1.125e-14  end 6.571e-10  max 6.953e-10
+  E_d(2,-6)        start 1.125e-14  end 1.730e-21  max 2.743e-11
+  c(2,-1) energy swing over the second half: 0.000
+  d(2,-6) energy swing over the second half: 8.272
+
+  q_c vs 2 mu q_a q_b at 0.5x threshold (sub-threshold, slaved): median 5.984e-03
+  E_d there: start 1.250e-17 -> end 9.831e-18 (decays, as it must below threshold)
+
+-> out/mixed_network_dsct_M2.2_T7888.csv
+
+--- [dsct_M2.2_T7888] figures
+model models/dsct_M2.2_T7888  tag dsct_M2.2_T7888  -> out/plots/dsct_M2.2_T7888
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  dropped 2643 of 71545 rows with non-finite gamma/mu
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_limit_cycle
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots/dsct_M2.2_T7888
+cross-model figures -> out/plots
+  dropped 2643 of 71545 rows with non-finite gamma/mu [dsct_M2.2_T7888]
+  fig_rank
+  dropped 2643 of 71545 rows with non-finite gamma/mu [dsct_M2.2_T7888]
+  fig_daughter
+
+=== dsct_M2.2_T7888 done Wed Aug 26 12:05:02 AM CDT 2026 WITH FAILURES: --inlist gyre_ad_wide.in --ad summary_ad_wide.h5 --nad summary_nad_wide.h5 --detail detail_wide --inlist gyre_ad_wide_hi.in --ad summary_ad_wide_hi.h5 --nad summary_nad_wide_hi.h5 --detail detail_wide ===

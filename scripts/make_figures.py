@@ -953,23 +953,39 @@ def fig_fourmode():
     save(fig, "fig_fourmode")
 
 
-# ------------------------------------------------------------------- M6
-def fig_m6():
-    df = pd.read_csv(OUT / f"m6_network_{TAG}.csv"
-                     if (OUT / f"m6_network_{TAG}.csv").exists()
-                     else OUT / "m6_network.csv")
+# ----------------------------------------------------- mixed-network run
+# Slot letter -> (colour, linestyle, role). mixed_network.py names its modes
+# "<slot>(l,n)", so the plot needs no knowledge of how many there are.
+_SLOT = {"a": (BLUE, "-", "parent"), "b": (SKY, "--", "parent"),
+         "c": (ORANGE, "-", "daughter, direct"),
+         "d": (VERM, "-", "daughter, parametric"),
+         "e": (PURPLE, "--", "daughter, parametric"),
+         "P": (BLUE, "-", "parent"), "Q": (SKY, "--", "parent")}
+
+
+def fig_limit_cycle():
+    """Energy against time for the mixed direct/parametric network.
+
+    The x axis is a fraction of the run, not years: t_end is set by the slowest
+    rate of whichever system each model ranked first, which spans tens to
+    thousands of years across the ladder, and years would make the panels
+    incomparable. The span is in the title.
+    """
+    src = OUT / f"mixed_network_{TAG}.csv"
+    df = pd.read_csv(src if src.exists() else OUT / "mixed_network.csv")
+    cols = [c for c in df.columns if c.startswith("E_")]
     fig, ax = plt.subplots(figsize=(6.4, 4.2))
-    for name, color, ls, lbl in (("E_P", BLUE, "-", "$E_P$ (parent, pumped)"),
-                                 ("E_Q", SKY, "--", "$E_Q$ (parent, pumped)"),
-                                 ("E_c", ORANGE, "-", "$E_c$ (daughter, direct)"),
-                                 ("E_d", VERM, "-", "$E_d$ (granddaughter, parametric)")):
-        ax.plot(df.t_yr, df[name], color=color, ls=ls, lw=1.2, label=lbl)
-    ax.set(yscale="log", xlabel="time (yr)", ylabel=r"$E/E_\star$",
-           ylim=(1e-18, 1e-4),
-           title="Four-mode system driven at $3\\times$ threshold: "
-                 "bounded limit cycle")
+    for c in cols:
+        color, ls, role = _SLOT.get(c[2], (GREEN, ":", "mode"))
+        ax.plot(df.t_yr / df.t_yr.iloc[-1], df[c], color=color, ls=ls, lw=1.2,
+                label=f"${c[2]}$ = {c[2:]} ({role})")
+    lo = max(min(df[c].replace(0.0, np.nan).min() for c in cols), 1e-24)
+    ax.set(yscale="log", xlabel=f"time / {df.t_yr.iloc[-1]:.3g} yr",
+           ylabel=r"$E/E_\star$", ylim=(lo, None),
+           title=f"Mixed direct/parametric network, {len(cols)} modes, "
+                 f"{df.t_yr.iloc[-1]:.3g} yr")
     ax.legend(loc="lower right", framealpha=0.9, fontsize=8)
-    save(fig, "fig_m6")
+    save(fig, "fig_limit_cycle")
 
 
 # ------------------------------------------------------- l convergence
@@ -1455,7 +1471,7 @@ ALL = {
     "detuning": fig_detuning, "lowfreq": fig_lowfreq,
     "eth_pg": fig_eth_pg, "detuning_pg": fig_detuning_pg,
     "pg_census": fig_pg_census, "spectrum": fig_spectrum,
-    "fourmode": fig_fourmode, "m6": fig_m6,
+    "fourmode": fig_fourmode, "limit_cycle": fig_limit_cycle,
     "lconv": fig_lconv, "l_ingredients": fig_l_ingredients,
     "amplitude_sweep": fig_amplitude_sweep,
     "daughter_energy": fig_daughter_energy,

@@ -175,10 +175,17 @@ fi
 
 # Both read CSVs that are already on disk by now, so a failure here costs a
 # rerun of seconds, not of the wide net. Do not throw the job away over it.
-step "M6 network integration"
-"$PYTHON" scripts/m6_network.py --csv "out/four_mode_$TAG.csv" \
-    --out "out/m6_network_$TAG.csv" \
-  || { echo "!!! [$TAG] m6_network FAILED"; FAILED_CHECKS="$FAILED_CHECKS m6"; }
+step "mixed network integration"
+"$PYTHON" scripts/mixed_network.py --csv "out/four_mode_$TAG.csv" \
+    --out "out/mixed_network_$TAG.csv" \
+  || { echo "!!! [$TAG] mixed_network FAILED"; FAILED_CHECKS="$FAILED_CHECKS mixed"; }
+
+if [ -f "out/four_mode_${TAG}_parent.csv" ]; then
+  "$PYTHON" scripts/mixed_network.py --csv "out/four_mode_${TAG}_parent.csv" \
+      --out "out/mixed_network_parent_$TAG.csv" \
+    || { echo "!!! [$TAG] mixed_network (parent branch) FAILED"
+         FAILED_CHECKS="$FAILED_CHECKS mixed_parent"; }
+fi
 
 # --------------------------------------------------------------- 9. figures
 step "figures"

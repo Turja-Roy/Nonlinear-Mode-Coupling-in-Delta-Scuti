@@ -1,0 +1,228 @@
+=== dsct_M2.0_T7696  (M=2.0, log g=3.930, MW23 Teff=7696) ===
+    host=compute-1-23.local.tier3-atlas.uta.edu  cores=16  started Tue Aug 25 06:03:18 PM CDT 2026
+    workdir=/net/nas-1-16/users/home2/txr7972/Stellar
+    MESA_DIR=/net/nas-1-16/users/home2/txr7972/soft/mesa-26.04.1
+    GYRE_DIR=/net/nas-1-16/users/home2/txr7972/soft/gyre-9.1.1
+
+--- [dsct_M2.0_T7696] shares the dsct_M2.0 track; skipping MESA
+
+--- [dsct_M2.0_T7696] selecting profile at log g = 3.930
+matching on log g = 3.930   (331 profiles)
+
+         profile   model     Teff   R/Rsun    logL    logg   nu_dyn     X_c
+---------------------------------------------------------------------------
+ profile255.data     912   7694.6    2.538   1.308   3.930    3.019  0.3124
+ profile256.data     913   7693.2    2.539   1.309   3.930    3.017  0.3120
+ profile254.data     911   7696.0    2.537   1.308   3.930    3.021  0.3127
+ profile257.data     914   7691.9    2.540   1.309   3.929    3.015  0.3117
+ profile253.data     910   7697.3    2.536   1.308   3.931    3.023  0.3130
+ profile258.data     915   7690.5    2.542   1.309   3.929    3.013  0.3114
+ profile252.data     909   7698.7    2.535   1.308   3.931    3.025  0.3133
+ profile259.data     916   7689.1    2.543   1.309   3.929    3.011  0.3110
+
+selected: LOGS/profile255.data
+GYRE input: LOGS/profile255.data.GYRE
+
+  R_Rsun             2.538   expect     2.538 +/- 0.020   OK
+  logg               3.930   expect     3.930 +/- 0.005   OK
+  dyn_freq_cpd       3.019   expect     3.019 +/- 0.040   OK
+
+  Teff 7694.6 K, -1.4 K vs MW23
+  detuning cut 0.15*nu_dyn = 0.453 c/d
+    -> profile255.data.GYRE
+
+--- [dsct_M2.0_T7696] generating GYRE inlists
+
+dsct_M2.0_T7696:  nu_dyn=3.0192  Dnu=3.915  nu_ac=99.7  K=16.429 c/d
+  core scan 0.84-26.3-100.1 c/d;  daughter band 1.79-5.48 c/d  (scaled)
+  wrote models/dsct_M2.0_T7696/gyre/gyre_ad.in
+  wrote models/dsct_M2.0_T7696/gyre/gyre_nad.in
+  gnet pass 1 (l 2-15): 741 modes;  pass 2 (l 16-25): 1296 modes
+  wrote models/dsct_M2.0_T7696/gyre/gyre_ad_wide.in
+  wrote models/dsct_M2.0_T7696/gyre/gyre_nad_wide.in
+  wrote models/dsct_M2.0_T7696/gyre/gyre_ad_wide_hi.in
+  wrote models/dsct_M2.0_T7696/gyre/gyre_nad_wide_hi.in
+
+--- [dsct_M2.0_T7696] GYRE narrow net (l <= 3, |n_pg| <= 20)
+    gyre_ad.in: summary_ad.h5 exists, skipping
+    gyre_nad.in: summary_nad.h5 exists, skipping
+=== adiabatic (summary_ad.h5, windows from gyre_ad.in) ===
+142 modes total, 4 l values requested
+
+  l  count     n_pg range       freq range (c/d)   gaps
+--------------------------------------------------------
+  0     20      1 ..   20     10.715 ..   79.426      0
+  1     40    -20 ..   20      1.105 ..   81.185      0
+  2     41    -20 ..   20      1.906 ..   83.011      0
+  3     41    -20 ..   20      2.679 ..   84.605      0
+
+142 detail files, 7147 grid points in detail.l2.n+19.h5
+dlnrho/dlnr from (As, V_2, Gamma_1) vs numerical
+  median rel err 3.28e-07, 95th pct 8.80e-04
+
+=== nonadiabatic (summary_nad.h5) ===
+
+41 driven modes (gamma < 0) of 142
+  driven n_pg range -5 .. 8,  freq 9.37 .. 35.58 c/d
+  mostly p-modes, as expected for the kappa mechanism
+  damping rates (dimensionless): 6.000e-10 .. 1.461e-01
+  gamma covers 142 of 142 adiabatic modes (0 duplicate n_pg labels in the nad summary, harmless)
+
+OK
+
+--- [dsct_M2.0_T7696] coupling tables: triplets, kappa, observables
+    out/observables_dsct_M2.0_T7696.csv exists, skipping
+
+--- [dsct_M2.0_T7696] GYRE wide net pass 1 (l <= 15)
+    gyre_ad_wide.in: summary_ad_wide.h5 exists, skipping
+    gyre_nad_wide.in: summary_nad_wide.h5 exists, skipping
+=== adiabatic (summary_ad_wide.h5, windows from gyre_ad_wide.in) ===
+1006 modes total, 16 l values requested
+
+  l  count     n_pg range       freq range (c/d)   gaps
+--------------------------------------------------------
+  0     20      1 ..   20     10.715 ..   79.426      0
+  1     40    -20 ..   20      1.105 ..   81.185      0
+  2     43    -22 ..   20      1.733 ..   83.011      0
+  3     52    -31 ..   20      1.769 ..   84.605      0
+  4     62    -41 ..   20      1.751 ..   85.991      0
+  5     71    -50 ..   20      1.765 ..   87.275      0
+  6     80    -59 ..   20      1.773 ..   88.493      0
+  7     46    -68 ..  -23      1.778 ..    4.944      0
+  8     52    -77 ..  -26      1.782 ..    4.940      0
+  9     59    -87 ..  -29      1.770 ..    4.951      0
+ 10     65    -96 ..  -32      1.776 ..    5.005      0
+ 11     71   -105 ..  -35      1.781 ..    5.026      0
+ 12     77   -114 ..  -38      1.784 ..    5.006      0
+ 13     83   -123 ..  -41      1.786 ..    5.034      0
+ 14     89   -132 ..  -44      1.788 ..    5.064      0
+ 15     96   -142 ..  -47      1.777 ..    5.059      0
+
+2302 detail files, 7429 grid points in detail.l20.n-96.h5
+dlnrho/dlnr from (As, V_2, Gamma_1) vs numerical
+  median rel err 3.45e-07, 95th pct 9.57e-04
+
+=== nonadiabatic (summary_nad_wide.h5) ===
+
+82 driven modes (gamma < 0) of 998
+  driven n_pg range -9 .. 8,  freq 9.37 .. 35.99 c/d
+  mostly p-modes, as expected for the kappa mechanism
+  damping rates (dimensionless): 6.000e-10 .. 1.739e-01
+  gamma covers 998 of 1006 adiabatic modes (5 duplicate n_pg labels in the nad summary, harmless)
+    no gamma: l =  5  n_pg =    20  87.2749 c/d
+    no gamma: l =  5  n_pg =   -50  1.7647 c/d
+    no gamma: l =  6  n_pg =   -59  1.7725 c/d
+    no gamma: l =  7  n_pg =   -68  1.7777 c/d
+    no gamma: l =  8  n_pg =   -77  1.7822 c/d
+    no gamma: l =  9  n_pg =   -87  1.7699 c/d
+    no gamma: l = 10  n_pg =   -96  1.7764 c/d
+    no gamma: l = 11  n_pg =  -105  1.7814 c/d
+  pass require_gamma=True to build_mode_list to drop these
+
+OK
+nas-1-16:/users/home2/txr7972   24T   22T  1.4T  95% /net/nas-1-16/users/home2/txr7972
+
+--- [dsct_M2.0_T7696] GYRE wide net pass 2 (l = 16-25)
+    gyre_ad_wide_hi.in: summary_ad_wide_hi.h5 exists, skipping
+    gyre_nad_wide_hi.in: summary_nad_wide_hi.h5 exists, skipping
+=== adiabatic (summary_ad_wide_hi.h5, windows from gyre_ad_wide_hi.in) ===
+1296 modes total, 10 l values requested
+
+  l  count     n_pg range       freq range (c/d)   gaps
+--------------------------------------------------------
+ 16    102   -151 ..  -50      1.780 ..    5.060      0
+ 17    108   -160 ..  -53      1.782 ..    5.084      0
+ 18    114   -169 ..  -56      1.784 ..    5.097      0
+ 19    120   -178 ..  -59      1.786 ..    5.087      0
+ 20    127   -188 ..  -62      1.777 ..    5.094      0
+ 21    133   -197 ..  -65      1.779 ..    5.111      0
+ 22    139   -206 ..  -68      1.780 ..    5.116      0
+ 23    145   -215 ..  -71      1.782 ..    5.108      0
+ 24    151   -224 ..  -74      1.783 ..    5.117      0
+ 25    157   -233 ..  -77      1.784 ..    5.128      0
+
+2302 detail files, 7429 grid points in detail.l20.n-96.h5
+dlnrho/dlnr from (As, V_2, Gamma_1) vs numerical
+  median rel err 3.45e-07, 95th pct 9.57e-04
+
+=== nonadiabatic (summary_nad_wide_hi.h5) ===
+
+0 driven modes (gamma < 0) of 1296
+  damping rates (dimensionless): 7.680e-06 .. 1.887e-03
+  gamma covers 1289 of 1296 adiabatic modes (14 duplicate n_pg labels in the nad summary, harmless)
+    no gamma: l = 19  n_pg =  -162  1.9588 c/d
+    no gamma: l = 20  n_pg =  -174  1.9188 c/d
+    no gamma: l = 21  n_pg =  -183  1.9133 c/d
+    no gamma: l = 22  n_pg =  -183  2.0011 c/d
+    no gamma: l = 23  n_pg =  -191  2.0029 c/d
+    no gamma: l = 24  n_pg =  -182  2.1883 c/d
+    no gamma: l = 25  n_pg =  -181  2.2882 c/d
+  pass require_gamma=True to build_mode_list to drop these
+
+OK
+
+--- [dsct_M2.0_T7696] four-mode search
+    out/four_mode_dsct_M2.0_T7696.csv exists, skipping
+
+--- [dsct_M2.0_T7696] mixed network integration
+1882035 daughter candidates, 0 above threshold at q = 1e-06
+
+system: a(3,-1)  b(3,+1)  c(6,-23)  d(3,-25)
+  a(3,-1)        f  14.0183 c/d   gamma -1.437e-09 s^-1
+  b(3,+1)        f  18.3434 c/d   gamma -1.012e-08 s^-1
+  c(6,-23)       f   4.3293 c/d   gamma +2.093e-11 s^-1
+  d(3,-25)       f   2.1645 c/d   gamma +3.552e-11 s^-1
+  leg [b(3,+1)  a(3,-1)  c(6,-23)]  kappa +1.300  Delta +4.144e-03 c/d
+  leg [c(6,-23)  d(3,-25)  d(3,-25)]  kappa -2.214  Delta -2.266e-04 c/d
+  E_c_over_E_th 5.282e-08 at q = 1e-6
+
+parent amplitude 1.979e-04 (3x the default for daughter)
+pumped system, t_end 7137.60 yr, frozen: a(3,-1), b(3,+1)
+
+integrated 7.138e+03 yr
+  E_a(3,-1)        start 3.916e-08  end 3.916e-08  max 3.916e-08
+  E_b(3,+1)        start 3.916e-08  end 3.916e-08  max 3.916e-08
+  E_c(6,-23)       start 3.916e-14  end 1.126e-08  max 1.031e-07
+  E_d(3,-25)       start 3.916e-14  end 3.372e-15  max 2.479e-07
+  c(6,-23) energy swing over the second half: 0.192
+  d(3,-25) energy swing over the second half: 13.389
+
+  q_c vs 2 mu q_a q_b at 0.5x threshold (sub-threshold, slaved): median 5.978e-03
+  E_d there: start 4.351e-17 -> end 8.155e-26 (decays, as it must below threshold)
+
+-> out/mixed_network_dsct_M2.0_T7696.csv
+
+--- [dsct_M2.0_T7696] figures
+model models/dsct_M2.0_T7696  tag dsct_M2.0_T7696  -> out/plots/dsct_M2.0_T7696
+loading narrow model...
+figures:
+  fig_propagation
+  fig_gamma
+  fig_gamma_panels
+  fig_kappa_cum
+  fig_xi_kappa_p
+  fig_xi_kappa_g
+  fig_mu
+  fig_eth
+  fig_channels
+  fig_channels_pg_types
+  fig_detuning
+  fig_lowfreq
+  fig_eth_pg
+  fig_detuning_pg
+  fig_pg_census
+  fig_spectrum
+  fig_fourmode
+  fig_limit_cycle
+  fig_lconv
+  fig_l_ingredients
+  fig_amplitude_sweep
+  fig_daughter_energy
+done -> out/plots/dsct_M2.0_T7696
+cross-model figures -> out/plots
+  dropped 2643 of 71545 rows with non-finite gamma/mu [dsct_M2.2_T7888]
+  fig_rank
+  dropped 2643 of 71545 rows with non-finite gamma/mu [dsct_M2.2_T7888]
+  fig_daughter
+
+=== dsct_M2.0_T7696 done Tue Aug 25 06:12:58 PM CDT 2026 ===

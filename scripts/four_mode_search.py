@@ -1,11 +1,21 @@
 #!/usr/bin/env python3
-"""MW25 four-mode mixed systems on the wide net.
+"""MW25 four-mode mixed systems on the wide net. Two branches, two tables.
 
-    a, b parents  ->  c daughter, resonant with omega_a +- omega_b  (direct leg)
-    c             ->  d, d granddaughters, resonant with omega_c/2  (parametric leg)
+    daughter   a + b -> c,  then c -> d + d      resonant with omega_c/2
+    parent     a + b -> c,  and a -> d + d,  b -> d + d   at omega_a/2 ~ omega_b/2
 
-Parent means self-excited (gamma < 0), as in MW23 sec 2. c is damped and born
-from a and b, so its own decay products d are granddaughters (MW23 sec 5).
+Parent means self-excited (gamma < 0), as in MW23 sec 2. In the daughter branch
+c is damped and born from a and b, so its own decay products d are
+granddaughters (MW23 sec 5); nothing there absorbs the parents' kappa-mechanism
+flux, so that branch can only answer whether the *combination frequency* goes
+parametrically unstable.
+
+The parent branch is MW25's own configuration (their Figs. 3-6): one damped
+daughter pair, here self-coupled, sits at half of *both* parent frequencies and
+drains them directly. That is what bounds the parents, so it is the branch that
+decides whether delta Sct parents can be parametrically saturated at all. It
+needs both parents near-resonant with the same d, which is why MW25 pick parents
+of similar frequency; the angular rules then force them to equal degree.
 
 Ranking runs on kappa at m = (0, 0, 0): angular_factors goes through sympy's
 wigner_3j, and the full m set of an l ~ 15 triplet is a few hundred symbols,
@@ -115,9 +125,21 @@ def main() -> int:
             idx = by_l[ld]
             hit = idx[(np.abs(2 * w[idx] - w[ic]) < cut) & (g[idx] > 0)]
             quads += [(ia, ib, ic, int(k), sgn) for k in hit]
-    print(f"{len(direct)} direct triples, {len(quads)} four-mode candidates "
-          f"[{time.time() - t0:.0f} s]")
-    if not quads:
+    # MW25's branch: one self-coupled pair at half of *both* parent frequencies.
+    par_quads = []
+    for ia, ib, ic, sgn in direct:
+        for ld in by_l:
+            if not (satisfies_selection_rules(int(L[ia]), ld, ld)
+                    and satisfies_selection_rules(int(L[ib]), ld, ld)):
+                continue
+            idx = by_l[ld]
+            hit = idx[(np.abs(2 * w[idx] - w[ia]) < cut)
+                      & (np.abs(2 * w[idx] - w[ib]) < cut) & (g[idx] > 0)]
+            par_quads += [(ia, ib, ic, int(k), sgn) for k in hit]
+
+    print(f"{len(direct)} direct triples, {len(quads)} daughter-branch and "
+          f"{len(par_quads)} parent-branch candidates [{time.time() - t0:.0f} s]")
+    if not quads and not par_quads:
         print("no candidates")
         return 1
 
@@ -138,6 +160,10 @@ def main() -> int:
         legs.setdefault(tuple(sorted((keys[ia], keys[ib], keys[ic]))), triplet(sum_slot, pair))
     for _, _, ic, idd, _ in quads:
         legs.setdefault(tuple(sorted((keys[ic], keys[idd], keys[idd]))), triplet(ic, (idd, idd)))
+    for ia, ib, _, idd, _ in par_quads:
+        for ip in (ia, ib):
+            legs.setdefault(tuple(sorted((keys[ip], keys[idd], keys[idd]))),
+                            triplet(ip, (idd, idd)))
     print(f"{len(legs)} distinct radial triplets to integrate")
 
     t1 = time.time()
@@ -181,7 +207,7 @@ def main() -> int:
         delta_p = 2 * wd - wc
         # q_c driven off resonance by the two parents, then Gamma of the c -> d,d
         # parametric leg at that q_c. s_c = 2 for distinct parents, 1 for a
-        # self-coupled pair (a = b, sum branch only) -- the m6 integrator
+        # self-coupled pair (a = b, sum branch only) -- the mixed-network integrator
         # measured the 2 directly against the bare mu.
         s_c = 2.0 if ia != ib else 1.0
         q_c = s_c * abs(wc * kd) / np.hypot(delta_d, g[ic]) * Q_PARENT**2
@@ -200,9 +226,52 @@ def main() -> int:
             E_c_over_E_th=q_c**2 / eth if eth else np.inf,
         ))
 
-    df = pd.DataFrame(rows).sort_values("E_c_over_E_th", ascending=False)
+    par_rows = []
+    for ia, ib, ic, idd, sgn in par_quads:
+        kd, rd = kap[tuple(sorted((keys[ia], keys[ib], keys[ic])))]
+        ka, ra = kap[tuple(sorted((keys[ia], keys[idd], keys[idd])))]
+        kb, rb = kap[tuple(sorted((keys[ib], keys[idd], keys[idd])))]
+        wa, wb, wc, wd = w[ia], w[ib], w[ic], w[idd]
+        delta_d = (wa + wb - wc) if sgn > 0 else (min(wa, wb) + wc - max(wa, wb))
+        dpa, dpb = 2 * wd - wa, 2 * wd - wb
+        # Not E_c/E_th: what decides this branch is whether a parent at the
+        # observed amplitude crosses *its own* parametric threshold, so the
+        # relevant threshold is the smaller of the two parents'.
+        eth_a = threshold_energy(ka, wd, wd, g[idd], g[idd], dpa, 1.0)
+        eth_b = threshold_energy(kb, wd, wd, g[idd], g[idd], dpb, 1.0)
+        eth = min(eth_a, eth_b)
+        par_rows.append(dict(
+            branch="parent",
+            l_a=keys[ia][0], n_a=keys[ia][1], l_b=keys[ib][0], n_b=keys[ib][1],
+            l_c=keys[ic][0], n_c=keys[ic][1], l_d=keys[idd][0], n_d=keys[idd][1],
+            comb="sum" if sgn > 0 else "diff",
+            f_a=wa / CD, f_b=wb / CD, f_c=wc / CD, f_d=wd / CD,
+            gamma_a=g[ia], gamma_b=g[ib], gamma_c=g[ic], gamma_d=g[idd],
+            delta_direct=delta_d, delta_param_a=dpa, delta_param_b=dpb,
+            kappa_direct=kd, kappa_param_a=ka, kappa_param_b=kb,
+            refine_direct=rd, refine_param_a=ra, refine_param_b=rb,
+            E_th_par_a=eth_a, E_th_par_b=eth_b, E_th_par=eth,
+            E_par_over_E_th=Q_PARENT**2 / eth if eth else np.inf,
+        ))
+
     out = pathlib.Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
+    if par_rows:
+        pdf = pd.DataFrame(par_rows).sort_values("E_par_over_E_th", ascending=False)
+        par_out = out.with_name(out.stem + "_parent.csv")
+        pdf.to_csv(par_out, index=False)
+        print(f"\n{len(pdf)} parent-branch rows -> {par_out}")
+        print(pdf.head(15).to_string(index=False,
+              columns=["l_a", "n_a", "l_b", "n_b", "l_d", "n_d", "f_a", "f_b", "f_d",
+                       "kappa_param_a", "kappa_param_b", "E_par_over_E_th"]))
+        print(f"{int((pdf.E_par_over_E_th > 1).sum())} parents above their own "
+              f"parametric threshold at q_parent = {Q_PARENT:g}")
+
+    if not rows:
+        print(f"\ntotal {time.time() - t0:.0f} s")
+        return 0
+    df = pd.DataFrame(rows).sort_values("E_c_over_E_th", ascending=False)
+    df.insert(0, "branch", "daughter")
     df.to_csv(out, index=False)
     print(f"\n{len(df)} rows -> {out}")
     print(df.head(15).to_string(index=False,
