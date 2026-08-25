@@ -72,6 +72,9 @@ def main() -> int:
     ap.add_argument("--m000", action="store_true",
                     help="kappa at m = (0, 0, 0) only, skipping sympy's "
                          "wigner_3j over every m combination")
+    ap.add_argument("-j", "--jobs", type=int, default=1,
+                    help="forked workers for the kappa quadrature; loading and "
+                         "enumeration stay serial")
     ap.add_argument("--force", action="store_true",
                     help="overwrite existing tables for this tag")
     args = ap.parse_args()
@@ -114,8 +117,8 @@ def main() -> int:
     print(f"  -> {paths['triplets']}")
 
     print("kappa, mu, thresholds ...")
-    df = obs_mod.to_frame(trips, efs, bg, m000=args.m000)
-    print(f"  {len(df)} rows  [{time.time() - t0:.1f}s]")
+    df = obs_mod.to_frame(trips, efs, bg, m000=args.m000, jobs=args.jobs)
+    print(f"  {len(df)} rows on {args.jobs} core(s)  [{time.time() - t0:.1f}s]")
     df.to_csv(paths["observables"], index=False)
     print(f"  -> {paths['observables']}")
 

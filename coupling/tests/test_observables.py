@@ -1,6 +1,7 @@
 import pathlib
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from coupling.kappa import kappa_abc
@@ -87,6 +88,18 @@ def test_equilibrium_degenerate_cases():
     triplet that neither gains nor loses energy has no equilibrium to settle to."""
     assert equilibrium_energy(30.0, 3e-4, 2e-4, 1e-9, -1e-9, 2e-9, 0.0, 1.0) == 0.0
     assert equilibrium_energy(30.0, 3e-4, 2e-4, -3.0, 1.0, 2.0, 1e-8, 1.0) == np.inf
+
+
+def test_forked_kappa_matches_serial(efs, bg):
+    """jobs > 1 forks so the eigenfunctions stay shared; the arithmetic must be
+    untouched by it. Cheap guard against a worker seeing a stale _FORK dict."""
+    from coupling.observables import to_frame
+    from coupling.triplets import DETUNING_CUT_DIMLESS, enumerate_triplets
+
+    trips = enumerate_triplets(efs, DETUNING_CUT_DIMLESS * bg.omega_dyn, l_max=1)
+    a = to_frame(trips, efs, bg, m000=True, jobs=1)
+    b = to_frame(trips, efs, bg, m000=True, jobs=2)
+    pd.testing.assert_frame_equal(a, b)
 
 
 def test_channel_covers_every_gamma_sign_pattern():

@@ -251,19 +251,43 @@ def observables(
     return out
 
 
+# Set before forking so the workers inherit the eigenfunctions copy-on-write
+# instead of pickling a few GB of them, as in scripts/four_mode_search.py.
+_FORK: dict = {}
+
+
+def _observables_forked(t: RadialTriplet) -> list[TripletObservables]:
+    return observables(t, _FORK["efs"], _FORK["bg"], m000=_FORK["m000"])
+
+
 def to_frame(
     triplets: list[RadialTriplet],
     efs: dict[tuple[int, int], Eigenfunction],
     bg: Background,
     m000: bool = False,
+    jobs: int = 1,
 ):
-    """Ranked table: one row per (triplet, m combination)."""
+    """Ranked table: one row per (triplet, m combination).
+
+    `jobs` > 1 spreads the kappa quadrature over forked workers. The radial
+    integrals are independent per triplet, so this is a plain map; only the row
+    assembly stays here, in one place.
+    """
     import pandas as pd
 
+    if jobs > 1:
+        import multiprocessing as mp
+
+        _FORK.update(efs=efs, bg=bg, m000=m000)
+        with mp.get_context("fork").Pool(jobs) as pool:
+            per_triplet = pool.map(_observables_forked, triplets, chunksize=16)
+    else:
+        per_triplet = (observables(t, efs, bg, m000=m000) for t in triplets)
+
     rows = []
-    for t in triplets:
+    for t, obs in zip(triplets, per_triplet):
         gam = [efs[k].gamma for k in t.keys]
-        for o in observables(t, efs, bg, m000=m000):
+        for o in obs:
             rows.append(
                 {
                     "l_a": t.ls[0], "n_a": t.ns[0], "m_a": o.ms[0],
