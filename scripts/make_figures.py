@@ -17,6 +17,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
@@ -939,6 +940,155 @@ def fig_m6():
     save(fig, "fig_m6")
 
 
+# ------------------------------------------------------- l convergence
+@functools.cache
+def _lconv_table():
+    """The wide-net sweep: parent-headed triplets out to l = 25, kappa at
+    m = (0, 0, 0), gamma = gamma_rad + gamma_turb.
+
+    Lives under out/lconv/ rather than beside the narrow tables so that
+    _cross_models' observables_*.csv glob does not read it as another model.
+    Adds `l_d`, the larger of the two daughter degrees: a triplet enters the
+    net at l_max = l_d, so this column is what the cumulative slices key on.
+    """
+    df = pd.read_csv(OUT / "lconv" / f"observables_{TAG}.csv")
+    df = df[classify_frame(df) == "parametric"].copy()
+    df["l_d"] = df[["l_b", "l_c"]].max(axis=1)
+    df["abs_kappa"] = df.kappa.abs()
+    # Routh-Hurwitz needs a_1 > 0, i.e. the triplet must dissipate on net. Where
+    # the parent outruns its daughters, eq. A7's fixed point still exists but
+    # nothing settles onto it, and its energy dips below E_th -- which would be
+    # nonsense read as an equilibrium.
+    df["settles"] = (df.gamma_a + df.gamma_b + df.gamma_c) > 0.0
+    return df
+
+
+def _lconv_curves(df, col, how):
+    """(l_max, cumulative, per-l) for `col` reduced by `how` ("min" or "max").
+
+    Cumulative is the answer to "what would I get if I stopped the net here",
+    which is the question the figure exists to ask; per-l shows which shell
+    actually supplied it.
+    """
+    v = df[np.isfinite(df[col]) & (df[col] > 0)]
+    ls = np.arange(0, int(df.l_d.max()) + 1)
+    per = np.array([getattr(v[col][v.l_d == l], how)() if (v.l_d == l).any() else np.nan
+                    for l in ls])
+    cum = np.fmin.accumulate(per) if how == "min" else np.fmax.accumulate(per)
+    return ls, cum, per
+
+
+def _lconv_panel(ax, df, col, how, ylabel, title, color):
+    ls, cum, per = _lconv_curves(df, col, how)
+    ax.plot(ls, cum, "o-", color=color, label=r"net truncated at $l_{\rm max}$")
+    ax.plot(ls, per, "s--", color="0.55", lw=1.1, markersize=3.5,
+            label="that shell alone")
+    ax.set(yscale="log", ylabel=ylabel, title=title)
+    return cum
+
+
+def fig_lconv():
+    """Does the daughter net need l = 25? Each panel is the best a truncated net
+    can do, against where it was truncated. A curve still moving at the right
+    edge means the scan stopped before the physics did."""
+    df = _lconv_table()
+    l_top = int(df.l_d.max())
+    fig, axes = plt.subplots(2, 2, figsize=(11.0, 7.4), sharex=True,
+                             layout="constrained")
+
+    cum_th = _lconv_panel(axes[0, 0], df, "E_th_over_E_star", "min",
+                          r"$\min\, E_{\rm th} / E_\star$",
+                          r"(a) cheapest daughter pair to excite", BLUE)
+    _lconv_panel(axes[0, 1], df, "mu_max", "max", r"$\max\, \mu$",
+                 r"(b) strongest coupling", ORANGE)
+    settling = df[df.settles]
+    _lconv_panel(axes[1, 0], settling, "E_eq_over_E_star", "min",
+                 r"$\min\, E_{\rm eq} / E_\star$",
+                 rf"(c) lowest equilibrium (MW25 eq.~A7), "
+                 rf"{len(settling)} that settle", GREEN)
+
+    ax = axes[1, 1]
+    ls = np.arange(0, l_top + 1)
+    ax.plot(ls, [(df.l_d <= l).sum() for l in ls], "o-", color=VERM,
+            label="parametric triplets")
+    ax.plot(ls, [(settling.l_d <= l).sum() for l in ls], "s--", color=PURPLE,
+            lw=1.2, markersize=4, label=r"net damped, $\sum\gamma > 0$")
+    ax.set(yscale="log", ylabel="radial triplets in the net",
+           title=r"(d) supply, and how much of it can settle")
+    ax.legend(loc="upper left", fontsize=8, framealpha=0.9)
+
+    for a in axes.flat:
+        a.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        a.axvline(l_top, color="0.4", ls=":", lw=1)
+    for a in axes[1]:  # sharex: only the bottom row carries tick labels
+        a.set_xlabel(r"net truncated at $l_{\rm max}$")
+    for a in axes.flat[:3]:
+        a.legend(loc="upper right", fontsize=8, framealpha=0.9)
+
+    # Has it converged? Compare the last shell's contribution to the decade the
+    # whole net spans; anything above a few percent is still falling.
+    span = np.log10(cum_th[np.isfinite(cum_th)][0] / cum_th[-1])
+    last = np.log10(cum_th[-2] / cum_th[-1]) if np.isfinite(cum_th[-2]) else np.nan
+    verdict = ("converged" if last < 0.02 * max(span, 1e-9) or last < 1e-3
+               else "NOT converged")
+    axes[0, 0].text(0.03, 0.06,
+                    f"$l = {l_top}$ shell moves the floor by {last:.3f} dex\n"
+                    f"of {span:.2f} dex total: {verdict}",
+                    transform=axes[0, 0].transAxes, fontsize=8,
+                    color=VERM if "NOT" in verdict else "0.3")
+    fig.suptitle(rf"Does the daughter net converge in $l$?  "
+                 rf"{len(df)} parametric triplets, $\gamma_{{\rm rad}}+\gamma_{{\rm turb}}$")
+    save(fig, "fig_lconv")
+
+
+def fig_l_ingredients():
+    """Why an l optimum exists. E_th goes as gamma_b gamma_c (1 + Delta^2/gamma^2)
+    / kappa^2, and the three ingredients pull against each other: the achievable
+    detuning falls with l because the g-mode spectrum crowds, the damping climbs
+    with l, and kappa does whatever it does. Reference slopes are the
+    Dziembowski scalings quoted in the notes, not fits."""
+    df = _lconv_table()
+    gam = np.concatenate([df.gamma_b.to_numpy(), df.gamma_c.to_numpy()])
+    l_of_gam = np.concatenate([df.l_b.to_numpy(), df.l_c.to_numpy()])
+    ls = np.arange(0, int(df.l_d.max()) + 1)
+
+    def shell(v, l_key, how):
+        return np.array([getattr(v[l_key == l], how)() if (l_key == l).any() else np.nan
+                         for l in ls])
+
+    fig, axes = plt.subplots(1, 3, figsize=(13.0, 4.2), layout="constrained")
+    d = df.delta.abs().to_numpy()
+
+    for ax, (y_best, y_med, lbl, ttl, slope, color, best_lbl) in zip(axes, (
+        (shell(pd.Series(d), df.l_d.to_numpy(), "min"),
+         shell(pd.Series(d), df.l_d.to_numpy(), "median"),
+         r"$|\Delta_{abc}|$  $[\mathrm{rad\,s^{-1}}]$",
+         r"(a) achievable detuning", -2.0, BLUE, "closest to resonance"),
+        (shell(pd.Series(gam), l_of_gam, "min"),
+         shell(pd.Series(gam), l_of_gam, "median"),
+         r"$\gamma_{\rm rad}+\gamma_{\rm turb}$  $[\mathrm{s^{-1}}]$",
+         r"(b) daughter damping", 2.0, VERM, "least damped"),
+        (shell(df.abs_kappa, df.l_d.to_numpy(), "max"),
+         shell(df.abs_kappa, df.l_d.to_numpy(), "median"),
+         r"$|\kappa_{abc}|$", r"(c) coupling strength", None, GREEN,
+         "most strongly coupled"),
+    )):
+        ax.plot(ls, y_med, "o-", color=color, label="median in shell")
+        ax.plot(ls, y_best, "s--", color="0.55", lw=1.1, markersize=3.5,
+                label=best_lbl)
+        if slope is not None:
+            m = np.isfinite(y_med) & (ls > 0)
+            if m.any():
+                l0 = ls[m][len(ls[m]) // 2]
+                y0 = y_med[m][len(ls[m]) // 2]
+                ax.plot(ls[m], y0 * (ls[m] / l0) ** slope, ":", color="0.3", lw=1.2,
+                        label=rf"$l^{{{slope:+.0f}}}$")
+        ax.set(xlabel=r"daughter degree $l$", ylabel=lbl, yscale="log", title=ttl)
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax.legend(loc="best", fontsize=8, framealpha=0.9)
+    save(fig, "fig_l_ingredients")
+
+
 A_PARENT = 1e-6  # MW23 Fig. 6: every parent pinned here, arbitrary but chosen
 MU_CUT = 1e3     # so the best-coupled daughters land near their parents
 
@@ -1121,6 +1271,7 @@ ALL = {
     "eth_pg": fig_eth_pg, "detuning_pg": fig_detuning_pg,
     "pg_census": fig_pg_census, "spectrum": fig_spectrum,
     "fourmode": fig_fourmode, "m6": fig_m6,
+    "lconv": fig_lconv, "l_ingredients": fig_l_ingredients,
 }
 # Cross-model: one output for the whole grid, so these run once, not per tag.
 CROSS = {"rank": fig_rank, "daughter": fig_daughter}
