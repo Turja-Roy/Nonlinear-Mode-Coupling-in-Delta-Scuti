@@ -151,8 +151,10 @@ def _gamma_sets():
     the l <= 3 modes with a detail dump -- the summary files carry no
     displacement.
 
-    Returns (hi_l, lo_damped, lo_driven, band, turb), each an (omega, |gamma|)
-    pair; `band` is the (lo, hi) omega span of the driven modes.
+    Returns (hi_l, lo_damped, lo_driven, band, turb, comb): (omega, |gamma|)
+    pairs, plus `comb` = (damped, driven, n_flip) for the low-l total
+    gamma_rad + gamma_turb. `band` stays radiative, so the shading matches
+    across figures.
     """
     G = 6.67430e-8  # cgs
     nar = load_h5(MODEL / "gyre/summary_nad.h5")
@@ -177,18 +179,30 @@ def _gamma_sets():
     # l > 3 cut above.
     lo = l <= 3
     _, uniq = np.unique(np.stack([l[lo], npg[lo]]), axis=1, return_index=True)
-    w, g = w[lo][uniq], g[lo][uniq]
+    w, g, l_lo, npg_lo = w[lo][uniq], g[lo][uniq], l[lo][uniq], npg[lo][uniq]
     dam, drv = g > 0, g < 0
     band = (w[drv].min(), w[drv].max())
 
-    turb = np.array([[ef.omega, gamma_turb(ef)] for ef in efs.values()]).T
-    return hi_l, (w[dam], g[dam]), (w[drv], -g[drv]), band, (turb[0], turb[1])
+    # One pass: gamma_turb is a spline plus a quadrature per mode, and both the
+    # turbulent set and the combined one need it.
+    gt = {k: gamma_turb(ef) for k, ef in efs.items()}
+    turb = np.array([[efs[k].omega, v] for k, v in gt.items()]).T
+    # Wide-pass modes have no detail dump and so no turbulent rate; they keep
+    # their radiative value rather than dropping off the plot.
+    tur = np.array([gt.get((int(li), int(ni)), 0.0)
+                    for li, ni in zip(l_lo, npg_lo)])
+    tot = g + tur
+    n_flip = int(((g < 0) & (tot > 0)).sum())
+    return (hi_l, (w[dam], g[dam]), (w[drv], -g[drv]), band, (turb[0], turb[1]),
+            ((w[tot > 0], tot[tot > 0]), (w[tot < 0], -tot[tot < 0]), n_flip))
 
 
 LBL_HI = r"damped, $4 \leq l \leq 25$ (daughter net)"
 LBL_DAM = r"damped, $l \leq 3$"
 LBL_DRV = r"driven ($\gamma < 0$), $l \leq 3$"
 LBL_TRB = r"turbulent, $l \leq 3$"
+LBL_TOT_DAM = r"damped, $l \leq 3$  ($\gamma_{\rm rad} + \gamma_{\rm turb}$)"
+LBL_TOT_DRV = r"driven, $l \leq 3$  ($\gamma_{\rm tot} < 0$)"
 
 
 def _gamma_axes(ax, band, top_axis=True):
@@ -201,16 +215,24 @@ def _gamma_axes(ax, band, top_axis=True):
 
 
 def fig_gamma():
-    hi_l, dam, drv, band, trb = _gamma_sets()
+    """Low-l total gamma_rad + gamma_turb; fig_gamma_panels keeps the split.
+    The l > 3 net has no detail dump, so its points stay radiative."""
+    hi_l, _dam, _drv, band, _trb, (tot_dam, tot_drv, n_flip) = _gamma_sets()
     fig, ax = plt.subplots(figsize=(6.4, 4.2))
-    ax.scatter(*hi_l, s=4, color="0.75", lw=0, rasterized=True, label=LBL_HI)
-    ax.scatter(*dam, s=14, color=BLUE, lw=0, label=LBL_DAM)
-    ax.scatter(*drv, s=22, color=VERM, marker="D", lw=0, label=LBL_DRV)
-    ax.scatter(*trb, s=12, color=PURPLE, marker="^", lw=0, label=LBL_TRB)
+    ax.scatter(*hi_l, s=4, color="0.75", lw=0, rasterized=True,
+               label=LBL_HI + ", radiative only")
+    ax.scatter(*tot_dam, s=14, color=BLUE, lw=0, label=LBL_TOT_DAM)
+    ax.scatter(*tot_drv, s=22, color=VERM, marker="D", lw=0, label=LBL_TOT_DRV)
     _gamma_axes(ax, band)
     ax.set(xlabel=r"mode frequency $\omega$  $[\mathrm{rad\,s^{-1}}]$",
-           ylabel=r"damping rate $|\gamma|$  $[\mathrm{s^{-1}}]$",
-           title=r"Radiative and turbulent damping rates")
+           ylabel=r"total rate $|\gamma_{\rm rad} + \gamma_{\rm turb}|$"
+                  r"  $[\mathrm{s^{-1}}]$",
+           title=r"Total damping rate, radiative plus turbulent")
+    if n_flip:
+        ax.text(0.02, 0.97, f"{n_flip} radiatively driven mode"
+                            f"{'s' if n_flip > 1 else ''} net damped once\n"
+                            r"$\gamma_{\rm turb}$ is included",
+                transform=ax.transAxes, va="top", fontsize=8, color=VERM)
     ax.legend(loc="lower right", framealpha=0.9, fontsize=8)
     save(fig, "fig_gamma")
 
@@ -224,7 +246,7 @@ def fig_gamma_panels():
     turbulent viscosity damps every mode including the driven ones; they sit
     well below the radiative points, which is MW23's gamma_tot ~ gamma_rad.
     """
-    hi_l, dam, drv, band, trb = _gamma_sets()
+    hi_l, dam, drv, band, trb, _comb = _gamma_sets()
     n_in = lambda s: int(((s[0] >= band[0]) & (s[0] <= band[1])).sum())
 
     fig, axes = plt.subplots(2, 2, figsize=(9.6, 7.0), sharex=True, sharey=True)
