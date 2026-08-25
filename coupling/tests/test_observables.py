@@ -9,6 +9,7 @@ from coupling.observables import (
     channel,
     classify_frame,
     daughter_index,
+    equilibrium_energies,
     equilibrium_energy,
     mu,
     nonadiabatic_fraction,
@@ -88,6 +89,39 @@ def test_equilibrium_degenerate_cases():
     triplet that neither gains nor loses energy has no equilibrium to settle to."""
     assert equilibrium_energy(30.0, 3e-4, 2e-4, 1e-9, -1e-9, 2e-9, 0.0, 1.0) == 0.0
     assert equilibrium_energy(30.0, 3e-4, 2e-4, -3.0, 1.0, 2.0, 1e-8, 1.0) == np.inf
+
+
+def test_equilibrium_energies_obey_the_A7_invariant():
+    """A7 written cyclically forces E_i gamma_i / omega_i to be the same number
+    in every slot. A parametric triplet: sum mode driven and at negative omega,
+    both daughters damped and positive."""
+    k, delta = 30.0, 1e-8
+    omega = (-5e-4, 3e-4, 2e-4)
+    gamma = (-1e-9, 1e-5, 2e-5)
+    E = equilibrium_energies(k, omega, gamma, delta, 1.0)
+    assert all(e > 0 for e in E)
+    inv = [e * g / w for e, g, w in zip(E, gamma, omega)]
+    assert inv[1] == pytest.approx(inv[0], rel=1e-12)
+    assert inv[2] == pytest.approx(inv[0], rel=1e-12)
+    # the anchor slot is exactly what equilibrium_energy returns
+    assert E[0] == pytest.approx(
+        equilibrium_energy(k, omega[1], omega[2], *gamma, delta, 1.0), rel=1e-12
+    )
+
+
+def test_parametric_daughters_sit_far_below_their_parent():
+    """The energy ratio is gamma_a / gamma_b, a driving rate over a damping
+    rate, so the daughters of a parametric triplet are orders below the parent
+    -- unlike a direct daughter, which can approach its parents' amplitude."""
+    E = equilibrium_energies(30.0, (-5e-4, 3e-4, 2e-4), (-1e-9, 1e-5, 2e-5), 1e-8, 1.0)
+    assert E[1] / E[0] < 1e-3 and E[2] / E[0] < 1e-3
+
+
+def test_equilibrium_energies_nan_when_no_fixed_point_exists():
+    """Two driven slots, as in a direct triplet: one omega_i / gamma_i flips
+    sign, so A7 would need a negative energy somewhere."""
+    E = equilibrium_energies(30.0, (-5e-4, 3e-4, 2e-4), (-1e-9, -1e-9, 2e-5), 1e-8, 1.0)
+    assert all(np.isnan(e) for e in E)
 
 
 def test_forked_kappa_matches_serial(efs, bg):

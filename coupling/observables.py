@@ -127,6 +127,37 @@ def threshold_energy_ceiling(
     return delta**2 / (16.0 * kappa**2 * abs(omega_b * omega_c)) * E_star
 
 
+def equilibrium_energies(
+    kappa: float,
+    omega: tuple[float, float, float],
+    gamma: tuple[float, float, float],
+    delta: float,
+    E_star: float,
+) -> tuple[float, float, float]:
+    """All three slot energies at the MW25 eq. A7 fixed point, in erg.
+
+    Writing A7 cyclically and dividing any two of them collapses to
+
+        E_a gamma_a / omega_a = E_b gamma_b / omega_b = E_c gamma_c / omega_c,
+
+    so one anchor plus the ratios omega_i / gamma_i gives the set. Doing it that
+    way rather than term by term avoids the sign trap: for a parametric triplet
+    both gamma_a gamma_c and omega_a omega_c are negative and their ratio is
+    positive, which is easy to lose when each slot is written out separately.
+
+    All three ratios must share a sign, or the fixed point puts a negative
+    energy somewhere and there is nothing to settle onto; that returns NaN. It
+    is the ordinary case for a direct triplet, where two slots are driven.
+    """
+    ratio = [w / g if g != 0.0 else np.nan for w, g in zip(omega, gamma)]
+    if not np.all(np.isfinite(ratio)) or len({r > 0 for r in ratio}) != 1:
+        return (np.nan, np.nan, np.nan)
+    E_a = equilibrium_energy(
+        kappa, omega[1], omega[2], gamma[0], gamma[1], gamma[2], delta, E_star
+    )
+    return tuple(E_a * r / ratio[0] for r in ratio)
+
+
 def nonadiabatic_shell(bg: Background, omega: float) -> np.ndarray:
     """Mask where omega t_thermal < 2 pi, i.e. where an adiabatic eigenfunction
     is no longer justified. Sun et al. put this at r/R >~ 0.96 for a delta Sct."""
@@ -319,6 +350,7 @@ __all__ = [
     "channel",
     "classify_frame",
     "daughter_index",
+    "equilibrium_energies",
     "equilibrium_energy",
     "mu",
     "nonadiabatic_fraction",
