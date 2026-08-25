@@ -36,6 +36,8 @@ MODEL = pathlib.Path("models/dsct_M2.0")
 MODEL_ROOT = pathlib.Path("models")  # for cross-model figures; main() resets it
 OUT = pathlib.Path("out")
 TAG = FIGS = bg = efs = None
+SOURCE = "narrow"   # which coupling table _channel_table reads
+L_MAX_CUT = None    # keep rows with max(l_b, l_c) <= this
 
 # Okabe-Ito, fixed assignment order (colorblind-safe)
 BLUE, ORANGE, GREEN, VERM, PURPLE, SKY = (
@@ -51,6 +53,17 @@ plt.rcParams.update({
 
 
 def save(fig, name):
+    # A ladder rung has to say which rung it is: these figures are meant to be
+    # opened side by side, where the directory name is no longer visible. The
+    # restriction matters too -- the sweep ran --parents-only, so slot a is
+    # always driven and direct-sum, inactive and all-damped cannot appear.
+    if SOURCE == "lconv":
+        cut = (r"full net, $l \leq 25$" if L_MAX_CUT is None
+               else rf"$l_{{\rm max}} = {L_MAX_CUT}$")
+        fig.text(0.995, -0.015,
+                 f"wide sweep, {cut};  driven sum mode only,  "
+                 r"$m = (0,0,0)$,  $\gamma_{\rm rad}+\gamma_{\rm turb}$",
+                 ha="right", va="top", fontsize=7, color="0.45")
     for ext in ("pdf", "png"):
         fig.savefig(FIGS / f"{name}.{ext}")
     plt.close(fig)
@@ -433,9 +446,8 @@ def fig_xi_kappa_g():
 
 # ----------------------------------------------------- combination amplitudes
 def fig_mu():
-    obs = pd.read_csv(OUT / f"observables_{TAG}.csv",
-                      usecols=["omega_a", "omega_b", "omega_c",
-                               "mu_a", "mu_b", "mu_c", "mu_max"])
+    obs = _read_observables(["omega_a", "omega_b", "omega_c",
+                             "mu_a", "mu_b", "mu_c", "mu_max"])
     mus = obs[["mu_a", "mu_b", "mu_c"]].to_numpy()
     ws = np.abs(obs[["omega_a", "omega_b", "omega_c"]].to_numpy()) / CD
     f_driven = ws[np.arange(len(obs)), mus.argmax(axis=1)]
@@ -456,8 +468,7 @@ def fig_mu():
 
 # ------------------------------------------------------------ E_th histogram
 def fig_eth():
-    obs = pd.read_csv(OUT / f"observables_{TAG}.csv",
-                      usecols=["gamma_a", "E_th_over_E_star"])
+    obs = _read_observables(["gamma_a", "E_th_over_E_star"])
     eth = obs.E_th_over_E_star[(obs.gamma_a < 0) & (obs.E_th_over_E_star > 0)]
     fig, ax = plt.subplots(figsize=(6.4, 4.0))
     ax.hist(np.log10(eth), bins=60, color=BLUE, alpha=0.85)
@@ -634,14 +645,35 @@ def _daughter_slot(obs):
     return idx, np.where(idx >= 0, np.maximum(idx, 0), 1 + mus[:, 1:].argmax(axis=1))
 
 
+def _read_observables(usecols=None):
+    """The coupling table SOURCE names, truncated at L_MAX_CUT.
+
+    Every figure that plots triplets must come through here, or a ladder rung
+    silently renders the narrow net instead of its own -- which is exactly what
+    fig_eth and fig_mu used to do, reading the CSV path themselves.
+    """
+    path = (OUT / "lconv" / f"observables_{TAG}.csv" if SOURCE == "lconv"
+            else OUT / f"observables_{TAG}.csv")
+    need = None if usecols is None else sorted(set(usecols) | {"l_b", "l_c"})
+    obs = pd.read_csv(path, usecols=need)
+    if L_MAX_CUT is not None:
+        obs = obs[obs[["l_b", "l_c"]].max(axis=1) <= L_MAX_CUT].reset_index(drop=True)
+    return obs
+
+
 @functools.cache
 def _channel_table():
     """Ranked table plus the channel each triplet can run and the mode it
     drives, carried in the `_t` columns: the single daughter for the direct
     classes, the more strongly responding of the two for the parametric one.
     Channels with no daughter at all -- all-driven, all-damped, inactive --
-    fall back to the stronger of slots b, c, which has no physical reading."""
-    obs, _ = _drop_nonfinite(pd.read_csv(OUT / f"observables_{TAG}.csv"))
+    fall back to the stronger of slots b, c, which has no physical reading.
+
+    SOURCE picks the table: "narrow" is the l <= 3 net, "lconv" the wide
+    parent-restricted sweep, which is the only one carrying l > 3. L_MAX_CUT
+    then truncates it on the daughter slots, which is how one sweep stands in
+    for a whole ladder of nets."""
+    obs, _ = _drop_nonfinite(_read_observables())
     idx, j = _daughter_slot(obs)
     mus = obs[["mu_a", "mu_b", "mu_c"]].to_numpy()
     w = obs[["omega_a", "omega_b", "omega_c"]].abs().to_numpy()
@@ -953,6 +985,8 @@ def _lconv_table():
     """
     df = pd.read_csv(OUT / "lconv" / f"observables_{TAG}.csv")
     df = df[classify_frame(df) == "parametric"].copy()
+    if L_MAX_CUT is not None:
+        df = df[df[["l_b", "l_c"]].max(axis=1) <= L_MAX_CUT]
     df["l_d"] = df[["l_b", "l_c"]].max(axis=1)
     df["abs_kappa"] = df.kappa.abs()
     # Routh-Hurwitz needs a_1 > 0, i.e. the triplet must dissipate on net. Where
@@ -963,107 +997,132 @@ def _lconv_table():
     return df
 
 
-def _lconv_curves(df, col, how):
-    """(l_max, cumulative, per-l) for `col` reduced by `how` ("min" or "max").
-
-    Cumulative is the answer to "what would I get if I stopped the net here",
-    which is the question the figure exists to ask; per-l shows which shell
-    actually supplied it.
-    """
+def _lconv_bands(df, col, ls, pcts=(1, 10, 50)):
+    """Percentiles of `col` over every triplet with l_d <= l_max, for each
+    l_max in `ls`. Cumulative, because the question is what a net truncated
+    here would give -- and percentiles, because the extremum is one triplet and
+    moves on luck."""
     v = df[np.isfinite(df[col]) & (df[col] > 0)]
-    ls = np.arange(0, int(df.l_d.max()) + 1)
-    per = np.array([getattr(v[col][v.l_d == l], how)() if (v.l_d == l).any() else np.nan
-                    for l in ls])
-    cum = np.fmin.accumulate(per) if how == "min" else np.fmax.accumulate(per)
-    return ls, cum, per
-
-
-def _lconv_panel(ax, df, col, how, ylabel, title, color):
-    ls, cum, per = _lconv_curves(df, col, how)
-    ax.plot(ls, cum, "o-", color=color, label=r"net truncated at $l_{\rm max}$")
-    ax.plot(ls, per, "s--", color="0.55", lw=1.1, markersize=3.5,
-            label="that shell alone")
-    ax.set(yscale="log", ylabel=ylabel, title=title)
-    return cum
+    out = np.full((len(pcts), len(ls)), np.nan)
+    for i, lm in enumerate(ls):
+        sub = v[col][v.l_d <= lm]
+        if len(sub) > 10:
+            out[:, i] = np.percentile(sub, pcts)
+    return out
 
 
 def fig_lconv():
-    """Does the daughter net need l = 25? Each panel is the best a truncated net
-    can do, against where it was truncated. A curve still moving at the right
-    edge means the scan stopped before the physics did."""
+    """Does the daughter net need l = 25? Read (a) and (b) together: the
+    parametric threshold saturates while mu is still climbing, and they are
+    answering different questions -- how hard the parent must be driven, versus
+    how strongly one daughter responds once it is."""
     df = _lconv_table()
     l_top = int(df.l_d.max())
+    ls = np.arange(0, l_top + 1)
     fig, axes = plt.subplots(2, 2, figsize=(11.0, 7.4), sharex=True,
                              layout="constrained")
 
-    cum_th = _lconv_panel(axes[0, 0], df, "E_th_over_E_star", "min",
-                          r"$\min\, E_{\rm th} / E_\star$",
-                          r"(a) cheapest daughter pair to excite", BLUE)
-    _lconv_panel(axes[0, 1], df, "mu_max", "max", r"$\max\, \mu$",
-                 r"(b) strongest coupling", ORANGE)
-    settling = df[df.settles]
-    _lconv_panel(axes[1, 0], settling, "E_eq_over_E_star", "min",
-                 r"$\min\, E_{\rm eq} / E_\star$",
-                 rf"(c) lowest equilibrium (MW25 eq.~A7), "
-                 rf"{len(settling)} that settle", GREEN)
+    # (a) required parent amplitude, as a band
+    q = df.assign(q_th=np.sqrt(df.E_th_over_E_star.clip(lower=0)))
+    p1, p10, med = _lconv_bands(q, "q_th", ls)
+    ax = axes[0, 0]
+    ax.fill_between(ls, p1, med, color=BLUE, alpha=0.18, lw=0,
+                    label="p1 to median of the net")
+    ax.plot(ls, med, "o-", color=BLUE, label="median")
+    ax.plot(ls, p10, "s--", color=BLUE, lw=1.2, markersize=3.5, label="p10")
+    ax.plot(ls, p1, "-", color=BLUE, lw=1.0)
+    best = float(np.sqrt(df.E_th_over_E_star[df.E_th_over_E_star > 0].min()))
+    ax.axhline(best, color=VERM, ls=":", lw=1.2)
+    ax.text(0.98, best * 1.25, f"best in the whole net, ${_sci(best)}$",
+            transform=ax.get_yaxis_transform(), ha="right", fontsize=8, color=VERM)
+    ax.axhline(A_PARENT, color="0.3", ls="--", lw=1.2)
+    ax.text(0.98, A_PARENT * 1.25, r"MW23 reference parent, $10^{-6}$",
+            transform=ax.get_yaxis_transform(), ha="right", fontsize=8, color="0.3")
+    ax.set(yscale="log", ylabel=r"$q_{\rm th} = (E_{\rm th}/E_\star)^{1/2}$",
+           title="(a) parent amplitude needed to excite a pair")
+    ax.legend(loc="center left", fontsize=8, framealpha=0.9)
 
+    # (b) mu: max and median
+    ax = axes[0, 1]
+    mx, md = np.full(len(ls), np.nan), np.full(len(ls), np.nan)
+    for i, lm in enumerate(ls):
+        sub = df.mu_max[df.l_d <= lm]
+        if len(sub) > 10:
+            mx[i], md[i] = sub.max(), sub.median()
+    ax.plot(ls, mx, "o-", color=ORANGE, label=r"$\max \mu$")
+    ax.plot(ls, md, "s--", color=ORANGE, lw=1.2, markersize=3.5, label=r"median $\mu$")
+    ax.set(yscale="log", ylabel=r"$\mu$", title="(b) coupling strength")
+
+    # (c) can anything settle? Routh-Hurwitz needs net dissipation.
+    ax = axes[1, 0]
+    frac = np.array([df.settles[df.l_d <= lm].mean() if (df.l_d <= lm).sum() > 10
+                     else np.nan for lm in ls])
+    ax.plot(ls, 100 * frac, "o-", color=GREEN,
+            label="strongly damped daughters supply the dissipation")
+    ax.set(ylabel=r"per cent with $\sum\gamma > 0$",
+           title="(c) triplets that can reach an equilibrium at all")
+
+    # (d) supply
     ax = axes[1, 1]
-    ls = np.arange(0, l_top + 1)
     ax.plot(ls, [(df.l_d <= l).sum() for l in ls], "o-", color=VERM,
             label="parametric triplets")
-    ax.plot(ls, [(settling.l_d <= l).sum() for l in ls], "s--", color=PURPLE,
-            lw=1.2, markersize=4, label=r"net damped, $\sum\gamma > 0$")
+    ax.plot(ls, [(df.settles & (df.l_d <= l)).sum() for l in ls], "s--",
+            color=PURPLE, lw=1.2, markersize=4, label=r"of those, net damped")
     ax.set(yscale="log", ylabel="radial triplets in the net",
-           title=r"(d) supply, and how much of it can settle")
-    ax.legend(loc="upper left", fontsize=8, framealpha=0.9)
+           title="(d) supply of resonant triplets")
 
     for a in axes.flat:
         a.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-        a.axvline(l_top, color="0.4", ls=":", lw=1)
+        if a is not axes[0, 0]:  # (a) placed its own, clear of the captions
+            a.legend(loc="best", fontsize=8, framealpha=0.9)
     for a in axes[1]:  # sharex: only the bottom row carries tick labels
         a.set_xlabel(r"net truncated at $l_{\rm max}$")
-    for a in axes.flat[:3]:
-        a.legend(loc="upper right", fontsize=8, framealpha=0.9)
-
-    # Has it converged? Compare the last shell's contribution to the decade the
-    # whole net spans; anything above a few percent is still falling.
-    span = np.log10(cum_th[np.isfinite(cum_th)][0] / cum_th[-1])
-    last = np.log10(cum_th[-2] / cum_th[-1]) if np.isfinite(cum_th[-2]) else np.nan
-    verdict = ("converged" if last < 0.02 * max(span, 1e-9) or last < 1e-3
-               else "NOT converged")
-    axes[0, 0].text(0.03, 0.06,
-                    f"$l = {l_top}$ shell moves the floor by {last:.3f} dex\n"
-                    f"of {span:.2f} dex total: {verdict}",
-                    transform=axes[0, 0].transAxes, fontsize=8,
-                    color=VERM if "NOT" in verdict else "0.3")
-    fig.suptitle(rf"Does the daughter net converge in $l$?  "
-                 rf"{len(df)} parametric triplets, $\gamma_{{\rm rad}}+\gamma_{{\rm turb}}$")
+    fig.suptitle(rf"Truncating the daughter net: {len(df)} parametric triplets, "
+                 rf"$\gamma_{{\rm rad}}+\gamma_{{\rm turb}}$")
     save(fig, "fig_lconv")
 
 
 def fig_l_ingredients():
-    """Why an l optimum exists. E_th goes as gamma_b gamma_c (1 + Delta^2/gamma^2)
-    / kappa^2, and the three ingredients pull against each other: the achievable
-    detuning falls with l because the g-mode spectrum crowds, the damping climbs
-    with l, and kappa does whatever it does. Reference slopes are the
-    Dziembowski scalings quoted in the notes, not fits."""
+    """Why the threshold has an l optimum. E_th goes as
+    gamma_b gamma_c (1 + Delta^2/gamma^2) / kappa^2, and the three ingredients
+    pull against each other. Reference slopes are the Dziembowski scalings
+    quoted in the notes, not fits."""
     df = _lconv_table()
     gam = np.concatenate([df.gamma_b.to_numpy(), df.gamma_c.to_numpy()])
     l_of_gam = np.concatenate([df.l_b.to_numpy(), df.l_c.to_numpy()])
     ls = np.arange(0, int(df.l_d.max()) + 1)
 
     def shell(v, l_key, how):
-        return np.array([getattr(v[l_key == l], how)() if (l_key == l).any() else np.nan
-                         for l in ls])
+        return np.array([getattr(v[l_key == l], how)() if (l_key == l).sum() > 10
+                         else np.nan for l in ls])
 
     fig, axes = plt.subplots(1, 3, figsize=(13.0, 4.2), layout="constrained")
-    d = df.delta.abs().to_numpy()
 
-    for ax, (y_best, y_med, lbl, ttl, slope, color, best_lbl) in zip(axes, (
-        (shell(pd.Series(d), df.l_d.to_numpy(), "min"),
-         shell(pd.Series(d), df.l_d.to_numpy(), "median"),
-         r"$|\Delta_{abc}|$  $[\mathrm{rad\,s^{-1}}]$",
-         r"(a) achievable detuning", -2.0, BLUE, "closest to resonance"),
+    # (a) detuning. The median is useless here -- it just reports half the
+    # enumeration window -- so this shows the resonant tail and draws the cut.
+    ax = axes[0]
+    d = pd.Series(df.delta.abs().to_numpy())
+    ld = df.l_d.to_numpy()
+    p1 = np.array([np.percentile(d[ld == l], 1) if (ld == l).sum() > 10 else np.nan
+                   for l in ls])
+    p10 = np.array([np.percentile(d[ld == l], 10) if (ld == l).sum() > 10 else np.nan
+                    for l in ls])
+    ax.plot(ls, p10, "o-", color=BLUE, label="p10 in shell")
+    ax.plot(ls, p1, "s--", color="0.55", lw=1.1, markersize=3.5, label="p1 in shell")
+    cut = DETUNING_CUT * bg.omega_dyn
+    ax.axhline(cut, color=VERM, ls="--", lw=1.4)
+    ax.text(0.98, cut * 0.6, r"enumeration cut $0.15\sqrt{GM/R^3}$",
+            transform=ax.get_yaxis_transform(), ha="right", fontsize=8, color=VERM)
+    m = np.isfinite(p10) & (ls > 0)
+    if m.any():
+        l0, y0 = ls[m][len(ls[m]) // 2], p10[m][len(ls[m]) // 2]
+        ax.plot(ls[m], y0 * (ls[m] / l0) ** -2.0, ":", color="0.3", lw=1.2,
+                label=r"$l^{-2}$")
+    ax.set(xlabel=r"daughter degree $l$", yscale="log",
+           ylabel=r"$|\Delta_{abc}|$  $[\mathrm{rad\,s^{-1}}]$",
+           title="(a) achievable detuning")
+
+    for ax, (y_best, y_med, lbl, ttl, slope, color, best_lbl) in zip(axes[1:], (
         (shell(pd.Series(gam), l_of_gam, "min"),
          shell(pd.Series(gam), l_of_gam, "median"),
          r"$\gamma_{\rm rad}+\gamma_{\rm turb}$  $[\mathrm{s^{-1}}]$",
@@ -1079,14 +1138,140 @@ def fig_l_ingredients():
         if slope is not None:
             m = np.isfinite(y_med) & (ls > 0)
             if m.any():
-                l0 = ls[m][len(ls[m]) // 2]
-                y0 = y_med[m][len(ls[m]) // 2]
+                l0, y0 = ls[m][len(ls[m]) // 2], y_med[m][len(ls[m]) // 2]
                 ax.plot(ls[m], y0 * (ls[m] / l0) ** slope, ":", color="0.3", lw=1.2,
                         label=rf"$l^{{{slope:+.0f}}}$")
         ax.set(xlabel=r"daughter degree $l$", ylabel=lbl, yscale="log", title=ttl)
+        _core_gnet_boundary(ax)
+
+    for ax in axes:
         ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
         ax.legend(loc="best", fontsize=8, framealpha=0.9)
     save(fig, "fig_l_ingredients")
+
+
+def _core_gnet_boundary(ax, y=0.03):
+    """l <= 6 carries make_inlists' `core` family (|n_pg| <= 20, so p-modes and
+    low-order g-modes) on top of the g-mode net; l >= 7 is g-net only, where
+    every daughter is a high-order g-mode with |n| in the hundreds. Every break
+    at this l is that change of mode character, not a property of l itself."""
+    ax.axvline(6.5, color="0.45", ls="-.", lw=1)
+    ax.text(6.8, y, "core net ends\n($p$-modes drop out)", transform=
+            ax.get_xaxis_transform(), fontsize=7, color="0.45", va="bottom")
+
+
+# Daughter degree bands for the amplitude figures. Coarse on purpose: per-l
+# curves at 25 values are unreadable, and the question is which range matters.
+L_BANDS = ((0, 3, BLUE), (4, 6, GREEN), (7, 10, ORANGE),
+           (11, 15, VERM), (16, 25, PURPLE))
+
+
+def fig_amplitude_sweep():
+    """How hard must a parent be driven before anything happens, and which l
+    answers first. The parametric panel is empty below q ~ 4e-6: that is the
+    result, not a rendering fault."""
+    df = _lconv_table()
+    e = df[df.E_th_over_E_star > 0]
+    q = np.logspace(-6.5, -2.5, 120)
+
+    ct = _channel_table()
+    dr = ct[ct.channel.str.startswith("direct")]
+    l_dr = dr[["l_b", "l_c"]].max(axis=1).to_numpy()
+
+    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.4), layout="constrained")
+
+    ax = axes[0]
+    for lo, hi, color in L_BANDS:
+        m = (e.l_d >= lo) & (e.l_d <= hi)
+        if not m.any():
+            continue
+        eth = e.E_th_over_E_star[m].to_numpy()
+        n = [(eth < qi**2).sum() for qi in q]
+        ax.plot(q, n, color=color, label=rf"${lo} \leq l_d \leq {hi}$  [{int(m.sum())}]")
+    ax.axvline(A_PARENT, color="0.3", ls="--", lw=1.2)
+    ax.text(A_PARENT * 1.1, 0.5, r"MW23 parent $10^{-6}$", rotation=90,
+            transform=ax.get_xaxis_transform(), fontsize=8, color="0.3")
+    best = float(np.sqrt(e.E_th_over_E_star.min()))
+    ax.axvline(best, color=VERM, ls=":", lw=1.2)
+    ax.text(best * 1.1, 0.5, f"first pair, ${_sci(best)}$", rotation=90,
+            transform=ax.get_xaxis_transform(), fontsize=8, color=VERM)
+    ax.set(xscale="log", yscale="log", xlabel=r"parent amplitude $q_a$",
+           ylabel="daughter pairs above threshold",
+           title=r"(a) parametric: nothing is excitable until "
+                 r"$q_a \sim 4 \times 10^{-6}$")
+    ax.legend(loc="upper left", fontsize=7, framealpha=0.9)
+
+    ax = axes[1]
+    for lo, hi, color in L_BANDS:
+        m = (l_dr >= lo) & (l_dr <= hi)
+        if m.sum() < 10:
+            continue
+        mu = dr.mu_t.to_numpy()[m]
+        ax.plot(q, mu.max() * q**2, color=color,
+                label=rf"${lo} \leq l_d \leq {hi}$  [{int(m.sum())}]")
+        ax.plot(q, np.median(mu) * q**2, color=color, ls=":", lw=1.0)
+    ax.plot(q, q, color="0.3", ls="--", lw=1.2)
+    ax.text(0.98, 0.02, r"$A_x = q_a$: daughter matches its parents",
+            transform=ax.transAxes, ha="right", fontsize=8, color="0.3")
+    ax.set(xscale="log", yscale="log", xlabel=r"parent amplitude $q_a$",
+           ylabel=r"$A_x = \mu\, A_a A_b$",
+           title=r"(b) direct: solid = best in band, dotted = median")
+    ax.legend(loc="upper left", fontsize=7, framealpha=0.9)
+    save(fig, "fig_amplitude_sweep")
+
+
+def fig_daughter_energy():
+    """The two ways to make a daughter, on one scale. Direct daughters are
+    driven at the beat frequency and can approach their parents' amplitude;
+    parametric daughters grow to the eq. A7 fixed point, where
+    E_i / E_a = (omega_i/gamma_i)/(omega_a/gamma_a), i.e. roughly the parent's
+    driving rate over the daughter's damping rate. Two decades separate them."""
+    ct = _channel_table()
+    dr = ct[ct.channel.str.startswith("direct")]
+    l_dr = dr[["l_b", "l_c"]].max(axis=1).to_numpy()
+    # A_x / A_a = mu A_b, so at equal parent amplitudes the ratio is mu q.
+    ratio_dr = dr.mu_t.to_numpy() * A_PARENT
+
+    par = _lconv_table()
+    par = par[par.settles]
+    r_a = par.omega_a / par.gamma_a
+    ratio_par = np.sqrt(np.maximum(
+        pd.concat([(par[f"omega_{s}"] / par[f"gamma_{s}"]) / r_a for s in "bc"]), 0))
+    l_par = np.concatenate([par.l_b.to_numpy(), par.l_c.to_numpy()])
+
+    ls = np.arange(0, 26)
+    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.4), sharey=True,
+                             layout="constrained")
+    for ax, (v, lk, ttl, color, note) in zip(axes, (
+        (ratio_dr, l_dr, r"(a) direct: $A_x/A_a = \mu A_b$", VERM,
+         "stops at $l_d = 12$: driven parents end at $l = 6$,\n"
+         r"and the triangle rule caps $l_d \leq 2 l_{\rm parent}$"),
+        (np.asarray(ratio_par), l_par,
+         r"(b) parametric: $A_{\rm dau}/A_a$ at the eq.~A7 fixed point", GREEN,
+         "median sits near $10^{-2}$, set by\n"
+         r"$\gamma_{\rm parent}/\gamma_{\rm daughter}$"),
+    )):
+        v = np.asarray(v)
+        ok = np.isfinite(v) & (v > 0)
+        mx = np.array([v[ok & (lk == l)].max() if (ok & (lk == l)).sum() > 10
+                       else np.nan for l in ls])
+        md = np.array([np.median(v[ok & (lk == l)]) if (ok & (lk == l)).sum() > 10
+                       else np.nan for l in ls])
+        ax.plot(ls, md, "o-", color=color, label="median in shell")
+        ax.plot(ls, mx, "s--", color="0.55", lw=1.1, markersize=3.5,
+                label="best in shell")
+        ax.axhline(1.0, color="0.3", ls="--", lw=1.2)
+        ax.text(0.98, 1.3, "daughter matches parent", transform=ax.get_yaxis_transform(),
+                ha="right", fontsize=8, color="0.3")
+        ax.text(0.03, 0.90, note, transform=ax.transAxes, fontsize=7.5,
+                va="top", color="0.35")
+        ax.set(yscale="log", xlabel=r"daughter degree $l$", title=ttl)
+        _core_gnet_boundary(ax)
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax.legend(loc="lower left", fontsize=8, framealpha=0.9)
+    axes[0].set_ylabel(r"daughter amplitude / parent amplitude")
+    fig.suptitle(rf"Two routes to a daughter, at parent amplitude $10^{{-6}}$")
+    save(fig, "fig_daughter_energy")
 
 
 A_PARENT = 1e-6  # MW23 Fig. 6: every parent pinned here, arbitrary but chosen
@@ -1272,6 +1457,8 @@ ALL = {
     "pg_census": fig_pg_census, "spectrum": fig_spectrum,
     "fourmode": fig_fourmode, "m6": fig_m6,
     "lconv": fig_lconv, "l_ingredients": fig_l_ingredients,
+    "amplitude_sweep": fig_amplitude_sweep,
+    "daughter_energy": fig_daughter_energy,
 }
 # Cross-model: one output for the whole grid, so these run once, not per tag.
 CROSS = {"rank": fig_rank, "daughter": fig_daughter}
@@ -1280,13 +1467,16 @@ CROSS = {"rank": fig_rank, "daughter": fig_daughter}
 MODEL_ONLY = ("propagation", "gamma", "gamma_panels")
 
 
-def _run(model, tag, out, figs, names) -> None:
-    global MODEL, TAG, OUT, FIGS, bg, efs
+def _run(model, tag, out, figs, names, source="narrow", l_max_cut=None) -> None:
+    global MODEL, TAG, OUT, FIGS, bg, efs, SOURCE, L_MAX_CUT
 
     MODEL, TAG, OUT, FIGS = model, tag, out, figs
-    # The tables are cached per tag, so a multi-tag run must drop them.
+    SOURCE, L_MAX_CUT = source, l_max_cut
+    # The tables are cached per tag, so a multi-tag run must drop them --
+    # and so must a ladder run, where only L_MAX_CUT changes between passes.
     _kappa_table.cache_clear()
     _channel_table.cache_clear()
+    _lconv_table.cache_clear()
     FIGS.mkdir(parents=True, exist_ok=True)
 
     print(f"model {MODEL}  tag {TAG}  -> {FIGS}")
@@ -1339,6 +1529,12 @@ def main() -> int:
     ap.add_argument("--only", nargs="*", choices=sorted(ALL) + sorted(CROSS),
                     default=None,
                     help="subset of figures; default is all that have inputs")
+    ap.add_argument("--source", choices=("narrow", "lconv"), default="narrow",
+                    help="which coupling table to plot: the l <= 3 net, or the "
+                         "wide parent-restricted sweep under out/lconv/")
+    ap.add_argument("--l-max-cut", type=int, default=None,
+                    help="truncate the net at this daughter degree, so one "
+                         "sweep stands in for a ladder of nets")
     ap.add_argument("--model-only", action="store_true",
                     help="shorthand for the figures that need no coupling "
                          f"table: --only {' '.join(MODEL_ONLY)}")
@@ -1354,8 +1550,8 @@ def main() -> int:
 
     if not args.all_tags:
         tag = args.tag or args.model.name
-        _run(args.model, tag, args.out,
-             args.figs or root / tag, per_tag)
+        _run(args.model, tag, args.out, args.figs or root / tag, per_tag,
+             source=args.source, l_max_cut=args.l_max_cut)
         _run_cross(args.out, root, cross)
         return 0
 
@@ -1365,7 +1561,8 @@ def main() -> int:
         return 1
     print(f"{len(models)} tags: {' '.join(m.name for m in models)}\n")
     for model in models:
-        _run(model, model.name, args.out, root / model.name, per_tag)
+        _run(model, model.name, args.out, root / model.name, per_tag,
+             source=args.source, l_max_cut=args.l_max_cut)
         print()
     _run_cross(args.out, root, cross)
     return 0
