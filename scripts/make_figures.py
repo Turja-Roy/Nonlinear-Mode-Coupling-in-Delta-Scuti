@@ -796,41 +796,33 @@ def fig_detuning():
 
 
 def fig_detuning_pg():
-    """fig_detuning by p/g make-up instead of by channel. Role-free, because
-    roles are undefined for most radial triplets here. The detuning tightens
-    monotonically with p content -- MW23's point about p-modes being densely
-    and near-uniformly spaced in frequency, so resonances land closer."""
+    """Fractional detuning by p/g make-up, parametric against direct. Classes
+    are role-free: MW23's role-bearing types are undefined for most radial
+    triplets here. The grey outline is the triplets running neither channel."""
     df = _channel_table().drop_duplicates(["l_a", "n_a", "l_b", "n_b", "l_c", "n_c"])
     comp = _pg_comp(df[["n_a", "n_b", "n_c"]].to_numpy())
     x = np.log10(df.frac_detuning.to_numpy())
+    # Bins span every radial triplet, not each panel's subset.
+    bins = np.linspace(x.min(), x.max(), 46)
+    par = (df.channel == "parametric").to_numpy()
+    dir_ = df.channel.str.startswith("direct").to_numpy()
+    rest = ~par & ~dir_
 
-    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.2))
-    ax = axes[0]
-    _pg_stack(ax, x, comp, np.linspace(x.min(), x.max(), 46))
-    ax.axvline(np.median(x), color="k", ls="--", lw=1.2)
-    ax.text(np.median(x) + 0.06, ax.get_ylim()[1] * 0.92,
-            f"median ${_sci(10 ** np.median(x))}$", fontsize=9)
-    ax.set(xlabel=r"$\log_{10}\, |\Delta_{abc}| / \omega_a$",
-           ylabel="radial triplets",
-           title=f"(a) {len(df)} radial triplets by $p$/$g$ make-up")
-    ax.legend(loc="upper left", fontsize=7, framealpha=0.9)
-
-    ax = axes[1]
-    w_a = np.abs(df.omega_a.to_numpy()) / CD
-    fd = df.frac_detuning.to_numpy()
-    for k, (color, _) in PG_COMP_STYLE.items():
-        m = comp == k
-        if m.any():
-            ax.scatter(w_a[m], fd[m], s=4, color=color, lw=0, alpha=0.7,
-                       rasterized=True)
-    grid = np.linspace(w_a.min(), w_a.max(), 200)
-    # PURPLE, not fig_detuning's VERM: VERM is the one-p-two-g class here.
-    ax.plot(grid, DETUNING_CUT * bg.omega_dyn / (grid * CD), color=PURPLE, lw=1.6,
-            label=r"enumeration cut, $|\Delta| = 0.15\sqrt{GM/R^3}$")
-    ax.set(yscale="log", xlabel=r"sum-mode frequency $\omega_a$ (c/d)",
-           ylabel=r"$|\Delta_{abc}| / \omega_a$",
-           title="(b) the upper edge is the search cut")
-    ax.legend(loc="lower left", fontsize=8, framealpha=0.9)
+    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.2), sharey=True)
+    for lbl, ax, m, tag in (("a", axes[0], par, "parametric"),
+                            ("b", axes[1], dir_, "direct")):
+        ax.hist(x[rest], bins=bins, histtype="step", color="0.7", lw=1.2,
+                label=f"no channel  [{int(rest.sum())}]")
+        _pg_stack(ax, x[m], comp[m], bins)
+        med = np.median(x[m])
+        ax.axvline(med, color="k", ls="--", lw=1.2)
+        ax.text(med + 0.06, ax.get_ylim()[1] * 0.92,
+                f"median ${_sci(10 ** med)}$", fontsize=9)
+        ax.set(xlabel=r"$\log_{10}\, |\Delta_{abc}| / \omega_a$",
+               title=f"({lbl}) {int(m.sum())} {tag} radial "
+                     r"triplets by $p$/$g$ make-up")
+        ax.legend(loc="upper left", fontsize=7, framealpha=0.9)
+    axes[0].set_ylabel("radial triplets")
     save(fig, "fig_detuning_pg")
 
 
