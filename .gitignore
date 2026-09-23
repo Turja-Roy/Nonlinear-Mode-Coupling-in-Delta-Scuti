@@ -24,3 +24,8 @@ models/*/gyre/detail_wide/
 # regenerable caches / oversized intermediates
 out/*.tsv
 out/*.csv
+*.csv
+
+# C++ build
+build/
+compile_commands.json
