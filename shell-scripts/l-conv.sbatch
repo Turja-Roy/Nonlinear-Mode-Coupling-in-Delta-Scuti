@@ -18,18 +18,15 @@ cd "$WORKDIR"
 mkdir -p logs out
 
 source shell-scripts/config.sh
-setup_python
-
-export OMP_NUM_THREADS=1
-export OPENBLAS_NUM_THREADS=1
-export MKL_NUM_THREADS=1
 
 TAGS=(dsct_M2.0 dsct_M2.2_T7888 dsct_M2.0_T7696 dsct_M1.85_T7555 dsct_M1.7_T7750)
 TAG="${TAGS[$SLURM_ARRAY_TASK_ID]}"
 JOBS="${SLURM_CPUS_PER_TASK:-4}"
 
+./compile.sh -j "$JOBS" three_mode_search
+
 echo "=== $TAG on $JOBS core(s)  $(date -Is) ==="
-python -u scripts/three_mode_search.py \
+build/three_mode_search \
     --model "models/$TAG" \
     --detail-dir detail_wide --inlist gyre_ad_wide.in \
     --nad summary_nad_wide.h5 summary_nad_wide_hi.h5 \

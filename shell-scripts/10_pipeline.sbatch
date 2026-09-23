@@ -47,6 +47,13 @@ echo "    GYRE_DIR=$GYRE_DIR"
 test -d "$MODEL" || { echo "no such model dir: $MODEL" >&2; exit 2; }
 preflight || exit 2
 
+# --------------------------------------------------------- 0. build the apps
+# The coupling stages are C++; compile.sh vendors its headers and needs only
+# GSL and HDF5, and says which modules to load if it cannot find them. Python
+# is still what runs check_modes, select_model and make_figures.
+step "building the C++ apps"
+./compile.sh -j "${SLURM_CPUS_PER_TASK:-$(nproc)}"
+
 step() { echo; echo "--- [$TAG] $*"; }
 have() { [ -s "$1" ] && [ -z "$FORCE_ALL" ]; }
 
@@ -114,12 +121,12 @@ if [ "$REGENERATE_INLISTS" = "1" ]; then
       echo "    backed up $(basename "$f") -> $(basename "$f").handwritten"
     fi
   done
-  "$PYTHON" scripts/make_inlists.py "$MODEL" --profile "$PROFILE" --force
+  build/make_inlists "$MODEL" --profile "$PROFILE" --force
 else
   step "using existing inlists"
 fi
 
-# Also done by make_inlists.py, but REGENERATE_INLISTS=0 skips that.
+# Also done by make_inlists, but REGENERATE_INLISTS=0 skips that.
 mkdir -p "$MODEL/gyre/detail" "$MODEL/gyre/detail_wide"
 
 GYRE="$GYRE_DIR/bin/gyre"
@@ -142,7 +149,8 @@ step "coupling tables: triplets, kappa, observables"
 if have "out/observables_$TAG.csv"; then
   echo "    out/observables_$TAG.csv exists, skipping"
 else
-  "$PYTHON" scripts/three_mode_search.py --model "$MODEL" --force
+  build/three_mode_search --model "$MODEL" --force \
+      -j "${SLURM_CPUS_PER_TASK:-$(nproc)}"
 fi
 
 # ------------------------------------------------------- 6. wide net, pass 1
@@ -169,19 +177,19 @@ step "four-mode search"
 if have "out/four_mode_$TAG.csv"; then
   echo "    out/four_mode_$TAG.csv exists, skipping"
 else
-  "$PYTHON" scripts/four_mode_search.py --model "$MODEL" \
+  build/four_mode_search --model "$MODEL" \
       --out "out/four_mode_$TAG.csv" -j "${SLURM_CPUS_PER_TASK:-$(nproc)}"
 fi
 
 # Both read CSVs that are already on disk by now, so a failure here costs a
 # rerun of seconds, not of the wide net. Do not throw the job away over it.
 step "mixed network integration"
-"$PYTHON" scripts/mixed_network.py --csv "out/four_mode_$TAG.csv" \
+build/mixed_network --csv "out/four_mode_$TAG.csv" \
     --out "out/mixed_network_$TAG.csv" \
   || { echo "!!! [$TAG] mixed_network FAILED"; FAILED_CHECKS="$FAILED_CHECKS mixed"; }
 
 if [ -f "out/four_mode_${TAG}_parent.csv" ]; then
-  "$PYTHON" scripts/mixed_network.py --csv "out/four_mode_${TAG}_parent.csv" \
+  build/mixed_network --csv "out/four_mode_${TAG}_parent.csv" \
       --out "out/mixed_network_parent_$TAG.csv" \
     || { echo "!!! [$TAG] mixed_network (parent branch) FAILED"
          FAILED_CHECKS="$FAILED_CHECKS mixed_parent"; }

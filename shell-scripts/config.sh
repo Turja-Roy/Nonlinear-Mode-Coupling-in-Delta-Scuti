@@ -13,7 +13,7 @@ export MESA_DIR="${MESA_DIR:-$HOME/soft/mesa-26.04.1}"
 export GYRE_DIR="${GYRE_DIR:-$HOME/soft/gyre-9.1.1}"
 
 # ---------------------------------------------------------------- pipeline
-# Regenerate every model's GYRE inlists with scripts/make_inlists.py so all
+# Regenerate every model's GYRE inlists with build/make_inlists so all
 # five are produced identically. This rewrites dsct_M2.0's hand-written
 # inlists; the job copies them to *.in.handwritten first.
 REGENERATE_INLISTS="${REGENERATE_INLISTS:-1}"
