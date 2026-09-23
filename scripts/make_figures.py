@@ -17,6 +17,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
@@ -27,7 +28,7 @@ from coupling.modes import gamma_turb, load_model
 from coupling.observables import classify_frame, daughter_index
 
 CD = 7.27220522e-5  # rad/s per cycle/day
-DETUNING_CUT = 0.15  # in units of sqrt(GM/R^3), as in three_mode_search.py
+DETUNING_CUT = 0.15  # in units of sqrt(GM/R^3), as in apps/three_mode_search.cpp
 MU_MIN = None  # lower y limit of every mu panel; None keeps the full range
 
 # argparse defaults; main() sets the rest.
@@ -35,10 +36,16 @@ MODEL = pathlib.Path("models/dsct_M2.0")
 MODEL_ROOT = pathlib.Path("models")  # for cross-model figures; main() resets it
 OUT = pathlib.Path("out")
 TAG = FIGS = bg = efs = None
+SOURCE = "narrow"   # which coupling table _channel_table reads
+L_MAX_CUT = None    # keep rows with max(l_b, l_c) <= this
 
-# Okabe-Ito, fixed assignment order (colorblind-safe)
-BLUE, ORANGE, GREEN, VERM, PURPLE, SKY = (
-    "#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9")
+# Separated by hue, not by shade: no two data colours share a hue, and no pair
+# sits on the red-green axis. Worst separation over all pairs is dE 19.5 under
+# deuteranopia; the Okabe-Ito assignment this replaces reached 7.6, and 15.6
+# even in full colour (its orange and vermillion differed only in lightness).
+# Greys below are furniture -- axes, guides, background scatter -- never series.
+BLUE, YELLOW, RED, CYAN, BLACK = (
+    "#0072B2", "#E69F00", "#CC3311", "#33BBEE", "#000000")
 
 plt.rcParams.update({
     "figure.dpi": 150, "savefig.bbox": "tight",
@@ -50,6 +57,17 @@ plt.rcParams.update({
 
 
 def save(fig, name):
+    # A ladder rung has to say which rung it is: these figures are meant to be
+    # opened side by side, where the directory name is no longer visible. The
+    # restriction matters too -- the sweep ran --parents-only, so slot a is
+    # always driven and direct-sum, inactive and all-damped cannot appear.
+    if SOURCE == "lconv":
+        cut = (r"full net, $l \leq 25$" if L_MAX_CUT is None
+               else rf"$l_{{\rm max}} = {L_MAX_CUT}$")
+        fig.text(0.995, -0.015,
+                 f"wide sweep, {cut};  driven sum mode only,  "
+                 r"$m = (0,0,0)$,  $\gamma_{\rm rad}+\gamma_{\rm turb}$",
+                 ha="right", va="top", fontsize=7, color="0.45")
     for ext in ("pdf", "png"):
         fig.savefig(FIGS / f"{name}.{ext}")
     plt.close(fig)
@@ -115,18 +133,18 @@ def fig_propagation():
     ax.plot(x, np.where(N > 0, N, np.nan), color=BLUE, label=r"$N$")
     for l, ls in ((1, ":"), (2, "--"), (3, "-")):
         Sl = np.sqrt(l * (l + 1) * cs2) / r * to_cd
-        ax.plot(x, Sl, color=ORANGE, ls=ls, lw=1.2, label=rf"$S_{{{l}}}$")
+        ax.plot(x, Sl, color=YELLOW, ls=ls, lw=1.2, label=rf"$S_{{{l}}}$")
     # Bands and core boundary come from this model, not from dsct_M2.0's.
     drv_lo, drv_hi = (v / CD for v in _gamma_sets()[3])
     dtr_lo, dtr_hi = _daughter_band(drv_lo, drv_hi)
     x_core = _core_boundary(x, N2)
 
-    ax.axhspan(drv_lo, drv_hi, color=GREEN, alpha=0.12, lw=0)
+    ax.axhspan(drv_lo, drv_hi, color=CYAN, alpha=0.12, lw=0)
     ax.text(0.55, np.sqrt(drv_lo * drv_hi), "linearly driven band",
-            color=GREEN, fontsize=9)
-    ax.axhspan(dtr_lo, dtr_hi, color=VERM, alpha=0.12, lw=0)
+            color="0.25", fontsize=9)
+    ax.axhspan(dtr_lo, dtr_hi, color=RED, alpha=0.12, lw=0)
     ax.text(0.55, np.sqrt(dtr_lo * dtr_hi) * 0.85,
-            r"parametric daughter band ($\omega_c/2$)", color=VERM, fontsize=9)
+            r"parametric daughter band ($\omega_c/2$)", color=RED, fontsize=9)
     ax.axvline(x_core, color="0.4", ls=":", lw=1)
     ax.text(x_core + 0.007, 0.28, "conv. core\nboundary", fontsize=8, color="0.35")
     ax.set(xlabel=r"$x = r/R$", ylabel="frequency (c/d)", yscale="log",
@@ -206,7 +224,7 @@ LBL_TOT_DRV = r"driven, $l \leq 3$  ($\gamma_{\rm tot} < 0$)"
 
 
 def _gamma_axes(ax, band, top_axis=True):
-    ax.axvspan(*band, color=VERM, alpha=0.07, lw=0)
+    ax.axvspan(*band, color=RED, alpha=0.07, lw=0)
     ax.set(xscale="log", yscale="log")
     if top_axis:
         sec = ax.secondary_xaxis("top", functions=(lambda x: x / CD,
@@ -222,7 +240,7 @@ def fig_gamma():
     ax.scatter(*hi_l, s=4, color="0.75", lw=0, rasterized=True,
                label=LBL_HI + ", radiative only")
     ax.scatter(*tot_dam, s=14, color=BLUE, lw=0, label=LBL_TOT_DAM)
-    ax.scatter(*tot_drv, s=22, color=VERM, marker="D", lw=0, label=LBL_TOT_DRV)
+    ax.scatter(*tot_drv, s=22, color=RED, marker="D", lw=0, label=LBL_TOT_DRV)
     _gamma_axes(ax, band)
     ax.set(xlabel=r"mode frequency $\omega$  $[\mathrm{rad\,s^{-1}}]$",
            ylabel=r"total rate $|\gamma_{\rm rad} + \gamma_{\rm turb}|$"
@@ -232,7 +250,7 @@ def fig_gamma():
         ax.text(0.02, 0.97, f"{n_flip} radiatively driven mode"
                             f"{'s' if n_flip > 1 else ''} net damped once\n"
                             r"$\gamma_{\rm turb}$ is included",
-                transform=ax.transAxes, va="top", fontsize=8, color=VERM)
+                transform=ax.transAxes, va="top", fontsize=8, color=RED)
     ax.legend(loc="lower right", framealpha=0.9, fontsize=8)
     save(fig, "fig_gamma")
 
@@ -256,16 +274,16 @@ def fig_gamma_panels():
          f"{n_in(hi_l)} in band", "lower right"),
         (axes[0, 1], "(b) damped, $l \\leq 3$: radiative vs turbulent",
          [(dam, dict(s=18, color=BLUE, lw=0), LBL_DAM),
-          (trb, dict(s=12, color=PURPLE, marker="^", lw=0), LBL_TRB)],
+          (trb, dict(s=12, color=BLACK, marker="^", lw=0), LBL_TRB)],
          f"{n_in(dam)} radiative in band", "upper left"),
         (axes[1, 0], "(c) driven, $l \\leq 3$",
-         [(drv, dict(s=26, color=VERM, marker="D", lw=0), LBL_DRV)],
+         [(drv, dict(s=26, color=RED, marker="D", lw=0), LBL_DRV)],
          f"{n_in(drv)} in band", "upper left"),
         (axes[1, 1], "(d) all together",
          [(hi_l, dict(s=4, color="0.75", lw=0, rasterized=True), LBL_HI),
           (dam, dict(s=14, color=BLUE, lw=0), LBL_DAM),
-          (drv, dict(s=22, color=VERM, marker="D", lw=0), LBL_DRV),
-          (trb, dict(s=10, color=PURPLE, marker="^", lw=0), LBL_TRB)],
+          (drv, dict(s=22, color=RED, marker="D", lw=0), LBL_DRV),
+          (trb, dict(s=10, color=BLACK, marker="^", lw=0), LBL_TRB)],
          None, "upper left"),
     ]
     for ax, title, layers, note, legloc in panels:
@@ -276,7 +294,7 @@ def fig_gamma_panels():
         ax.legend(loc=legloc, framealpha=0.9, fontsize=7)
         if note:
             ax.text(np.sqrt(band[0] * band[1]), 3e-5, note, ha="center",
-                    fontsize=9, color=VERM if note.startswith("0") else "0.3",
+                    fontsize=9, color=RED if note.startswith("0") else "0.3",
                     fontweight="bold" if note.startswith("0") else "normal")
     for ax in axes[1]:
         ax.set_xlabel(r"mode frequency $\omega$  $[\mathrm{rad\,s^{-1}}]$")
@@ -329,7 +347,7 @@ def fig_kappa_cum():
     x_core = _x_core()
 
     fig, axes = plt.subplots(2, 1, figsize=(6.4, 5.6), sharex=True)
-    for ax, r, color, tag in zip(axes, rows, (BLUE, VERM),
+    for ax, r, color, tag in zip(axes, rows, (BLUE, RED),
                                  ("p-mode triplet", "g-mode triplet")):
         keys = _triplet_keys(r)
         res = kappa_abc(*(efs[k] for k in keys), (0, 0, 0))
@@ -391,7 +409,7 @@ def _xi_kappa(depth: bool, name: str):
     abscissa = (lambda r: R - r) if depth else (lambda r: r)
     lo = 1e7 if depth else 0.5 * x_core * R
     xlim = (R, lo) if depth else (lo, R)
-    colors = (BLUE, ORANGE) if depth else (VERM, PURPLE)
+    colors = (BLUE, YELLOW) if depth else (RED, BLACK)
     rows = [_best_rows(by)[0 if depth else 1] for by, _ in CRITERIA]
 
     fig, axes = plt.subplots(2, 2, figsize=(11.0, 6.8), sharex=True,
@@ -432,9 +450,8 @@ def fig_xi_kappa_g():
 
 # ----------------------------------------------------- combination amplitudes
 def fig_mu():
-    obs = pd.read_csv(OUT / f"observables_{TAG}.csv",
-                      usecols=["omega_a", "omega_b", "omega_c",
-                               "mu_a", "mu_b", "mu_c", "mu_max"])
+    obs = _read_observables(["omega_a", "omega_b", "omega_c",
+                             "mu_a", "mu_b", "mu_c", "mu_max"])
     mus = obs[["mu_a", "mu_b", "mu_c"]].to_numpy()
     ws = np.abs(obs[["omega_a", "omega_b", "omega_c"]].to_numpy()) / CD
     f_driven = ws[np.arange(len(obs)), mus.argmax(axis=1)]
@@ -442,11 +459,11 @@ def fig_mu():
 
     fig, ax = plt.subplots(figsize=(6.4, 4.2))
     ax.scatter(f_driven, A, s=3, color=BLUE, alpha=0.25, lw=0, rasterized=True)
-    ax.axhspan(2e-12, 8e-12, color=ORANGE, alpha=0.25, lw=0)
+    ax.axhspan(2e-12, 8e-12, color=YELLOW, alpha=0.25, lw=0)
     ax.text(30, 1.2e-13, "ordinary combination\nfrequencies ($\\mu \\approx 4$)",
-            fontsize=9, color=VERM)
+            fontsize=9, color=RED)
     ax.annotate("", xy=(52, 4e-12), xytext=(48, 3e-13),
-                arrowprops=dict(arrowstyle="->", color=VERM, lw=1))
+                arrowprops=dict(arrowstyle="->", color=RED, lw=1))
     ax.set(yscale="log", xlabel="driven-mode frequency (c/d)", xlim=(0, 85),
            ylabel=r"$A_x = \mu\, A_a A_b$   (at $A_{a,b} = 10^{-6}$)",
            title=r"Predicted three-mode amplitudes, all 71142 triplets")
@@ -455,17 +472,16 @@ def fig_mu():
 
 # ------------------------------------------------------------ E_th histogram
 def fig_eth():
-    obs = pd.read_csv(OUT / f"observables_{TAG}.csv",
-                      usecols=["gamma_a", "E_th_over_E_star"])
+    obs = _read_observables(["gamma_a", "E_th_over_E_star"])
     eth = obs.E_th_over_E_star[(obs.gamma_a < 0) & (obs.E_th_over_E_star > 0)]
     fig, ax = plt.subplots(figsize=(6.4, 4.0))
     ax.hist(np.log10(eth), bins=60, color=BLUE, alpha=0.85)
-    # ax.axvline(np.log10(eth.min()), color=VERM, ls="--", lw=1.4)
+    # ax.axvline(np.log10(eth.min()), color=RED, ls="--", lw=1.4)
     # ax.text(np.log10(eth.min()) + 0.15, ax.get_ylim()[1] * 0.85,
-    #         f"min $= {eth.min():.2g}$", color=VERM, fontsize=9)
-    # ax.axvline(-12, color=GREEN, ls="--", lw=1.4)
+    #         f"min $= {eth.min():.2g}$", color=RED, fontsize=9)
+    # ax.axvline(-12, color=CYAN, ls="--", lw=1.4)
     # ax.text(-11.7, ax.get_ylim()[1] * 0.45,
-    #         "observed parent\nenergies $\\sim 10^{-12}$", color=GREEN, fontsize=9)
+    #         "observed parent\nenergies $\\sim 10^{-12}$", color=CYAN, fontsize=9)
     # ax.set(xlabel=r"$\log_{10} (E_{\rm th}/E_\star)$", ylabel="triplets",
     #        title="Parametric thresholds, driven parents: floor sits "
     #              r"$1660\times$ above observed")
@@ -498,10 +514,12 @@ def fig_eth_pg():
 
 # ------------------------------------------------------ coupling channels
 # (colour, alpha, legend label). fig_detuning reads the colour only.
+# (colour, alpha, marker, label). The marker is not decoration: it carries the
+# class on its own, so a reader who misses the hue still separates the series.
 CHANNEL_STYLE = {
-    "direct-diff": (VERM, 0.5, "difference: $\\omega_a - \\omega_x$ drives a damped daughter"),
-    "direct-sum": (BLUE, 0.5, "sum: two driven daughters drive the parent"),
-    "parametric": (GREEN, 0.5, "parametric: driven parent decays into two daughters"),
+    "direct-diff": (RED, 0.5, "o", "difference: $\\omega_a - \\omega_x$ drives a damped daughter"),
+    "direct-sum": (BLUE, 0.5, "s", "sum: two driven daughters drive the parent"),
+    "parametric": (BLACK, 0.5, "^", "parametric: driven parent decays into two daughters"),
 }
 
 
@@ -542,13 +560,15 @@ def _pg_comp(ns):
 
 
 # Role-free counterpart of PG_TYPE_STYLE, same colour for the same make-up.
-# BLUE has no analogue: it marks mixed *parents* there, which needs roles.
+# These feed a stacked histogram, which has no marker channel, so the classes
+# stay on the four widely separated hues and the f-mode class -- the small one,
+# and the only one not defined by its p/g make-up -- takes a neutral grey.
 PG_COMP_STYLE = {
-    "ppp": ("0.55", "three $p$-modes"),
-    "ppg": (GREEN, "two $p$-modes, one $g$-mode"),
-    "pgg": (VERM, "one $p$-mode, two $g$-modes"),
-    "ggg": ("0.05", "three $g$-modes"),
-    "f": (SKY, "contains an $f$-mode ($n_{pg} = 0$)"),
+    "ppp": (YELLOW, "three $p$-modes"),
+    "ppg": (BLUE, "two $p$-modes, one $g$-mode"),
+    "pgg": (RED, "one $p$-mode, two $g$-modes"),
+    "ggg": (BLACK, "three $g$-modes"),
+    "f": ("0.6", "contains an $f$-mode ($n_{pg} = 0$)"),
 }
 
 
@@ -585,12 +605,12 @@ def _pg_bars(ax, sub, cls, style, title):
 
 # Compact class names for the census; the scatter figures carry the long ones.
 PG_DIRECT_CENSUS = {
-    "ppp": ("0.55", "$pp$ parents $\\to$ $p$"),
-    "ppg": (GREEN, "$pp$ parents $\\to$ $g$"),
-    "ggp": (VERM, "$gg$ parents $\\to$ $p$"),
-    "ggg": ("0.05", "$gg$ parents $\\to$ $g$"),
+    "ppp": (YELLOW, "$pp$ parents $\\to$ $p$"),
+    "ppg": (CYAN, "$pp$ parents $\\to$ $g$"),
+    "ggp": (RED, "$gg$ parents $\\to$ $p$"),
+    "ggg": (BLACK, "$gg$ parents $\\to$ $g$"),
     "mixed": (BLUE, "$pg$ parents $\\to$ either"),
-    "f": (SKY, "$f$-mode in triplet"),
+    "f": ("0.6", "$f$-mode in triplet"),
 }
 
 
@@ -633,14 +653,35 @@ def _daughter_slot(obs):
     return idx, np.where(idx >= 0, np.maximum(idx, 0), 1 + mus[:, 1:].argmax(axis=1))
 
 
+def _read_observables(usecols=None):
+    """The coupling table SOURCE names, truncated at L_MAX_CUT.
+
+    Every figure that plots triplets must come through here, or a ladder rung
+    silently renders the narrow net instead of its own -- which is exactly what
+    fig_eth and fig_mu used to do, reading the CSV path themselves.
+    """
+    path = (OUT / "lconv" / f"observables_{TAG}.csv" if SOURCE == "lconv"
+            else OUT / f"observables_{TAG}.csv")
+    need = None if usecols is None else sorted(set(usecols) | {"l_b", "l_c"})
+    obs = pd.read_csv(path, usecols=need)
+    if L_MAX_CUT is not None:
+        obs = obs[obs[["l_b", "l_c"]].max(axis=1) <= L_MAX_CUT].reset_index(drop=True)
+    return obs
+
+
 @functools.cache
 def _channel_table():
     """Ranked table plus the channel each triplet can run and the mode it
     drives, carried in the `_t` columns: the single daughter for the direct
     classes, the more strongly responding of the two for the parametric one.
     Channels with no daughter at all -- all-driven, all-damped, inactive --
-    fall back to the stronger of slots b, c, which has no physical reading."""
-    obs, _ = _drop_nonfinite(pd.read_csv(OUT / f"observables_{TAG}.csv"))
+    fall back to the stronger of slots b, c, which has no physical reading.
+
+    SOURCE picks the table: "narrow" is the l <= 3 net, "lconv" the wide
+    parent-restricted sweep, which is the only one carrying l > 3. L_MAX_CUT
+    then truncates it on the daughter slots, which is how one sweep stands in
+    for a whole ladder of nets."""
+    obs, _ = _drop_nonfinite(_read_observables())
     idx, j = _daughter_slot(obs)
     mus = obs[["mu_a", "mu_b", "mu_c"]].to_numpy()
     w = obs[["omega_a", "omega_b", "omega_c"]].abs().to_numpy()
@@ -679,10 +720,11 @@ def _mu_panels(key, style, bg_label, title, name, sub="c"):
         first = col == "abs_kappa"
         ax.scatter(df[col][idle], df.mu_t[idle], s=2, color="0.85", lw=0, rasterized=True,
                    label=f"{bg_label}  [{int(idle.sum())}]" if first else None)
-        for val, (color, alpha, lbl) in style.items():
+        for val, (color, alpha, marker, lbl) in style.items():
             m = (df[key] == val).to_numpy()
-            ax.scatter(df[col][m], df.mu_t[m], s=4, color=color, lw=0, alpha=alpha,
-                       rasterized=True, label=f"{lbl}  [{int(m.sum())}]" if first else None)
+            ax.scatter(df[col][m], df.mu_t[m], s=5, color=color, lw=0, alpha=alpha,
+                       marker=marker, rasterized=True,
+                       label=f"{lbl}  [{int(m.sum())}]" if first else None)
         ax.set(xscale="log", yscale="log", xlabel=xlabel)
         ax.axhline(1e3, color="0.3", ls="--", lw=1.2,
                    label=r"$\mu > 10^3$ cut" if first else None)
@@ -708,12 +750,12 @@ def _n_channels(df):
 # channels and the daughter in others; the subscript is "dau" because MW23's
 # daughter letter c collides with our slot c, and d is the granddaughter.
 CHANNEL_STYLE_ROLES = {
-    "direct-diff": (VERM, 0.5, "direct, difference: two parents "
-                               "$\\to$ daughter at $|\\omega_a| - \\omega_x$"),
-    "direct-sum": (BLUE, 0.5, "direct, sum: two parents "
-                              "$\\to$ daughter at $\\omega_b + \\omega_c$"),
-    "parametric": (GREEN, 0.5, "parametric: one parent $\\to$ two daughters "
-                               "(stronger one plotted)"),
+    "direct-diff": (RED, 0.5, "o", "direct, difference: two parents "
+                                   "$\\to$ daughter at $|\\omega_a| - \\omega_x$"),
+    "direct-sum": (BLUE, 0.5, "s", "direct, sum: two parents "
+                                   "$\\to$ daughter at $\\omega_b + \\omega_c$"),
+    "parametric": (BLACK, 0.5, "^", "parametric: one parent $\\to$ two daughters "
+                                    "(stronger one plotted)"),
 }
 
 
@@ -733,14 +775,15 @@ def fig_channels():
 
 
 # MW23 Fig. 5's gray/black/green/red/blue, in Okabe-Ito. The two grays carry
-# their own alpha: at 0.5 over white "0.05" renders as ~0.5 and stops being
-# distinguishable from "0.55".
+# their own alpha. The two were greys, "0.05" and "0.55", which at alpha 0.5
+# over white collapsed onto each other; they are hues now, so the alphas only
+# control overplotting density.
 PG_TYPE_STYLE = {
-    "ppp": ("0.55", 0.9, "three $p$-modes"),
-    "ggg": ("0.05", 0.9, "three $g$-modes"),
-    "ppg": (GREEN, 0.5, "two $p$-mode parents $\\to$ $g$-mode daughter"),
-    "ggp": (VERM, 0.5, "two $g$-mode parents $\\to$ $p$-mode daughter"),
-    "mixed": (BLUE, 0.5, "one $p$-mode and one $g$-mode parent (daughter either)"),
+    "ppp": (YELLOW, 0.9, "s", "three $p$-modes"),
+    "ggg": (BLACK, 0.9, "^", "three $g$-modes"),
+    "ppg": (BLUE, 0.5, "o", "two $p$-mode parents $\\to$ $g$-mode daughter"),
+    "ggp": (CYAN, 0.5, "v", "two $g$-mode parents $\\to$ $p$-mode daughter"),
+    "mixed": (RED, 0.5, "D", "one $p$-mode and one $g$-mode parent (daughter either)"),
 }
 
 
@@ -765,7 +808,7 @@ def fig_detuning():
     x = np.log10(df.frac_detuning.to_numpy())
     order = ["direct-diff", "direct-sum", "parametric", "all-driven", "inactive", "all-damped"]
     colors = {**{k: v[0] for k, v in CHANNEL_STYLE.items()},
-              "all-driven": ORANGE, "inactive": SKY, "all-damped": "0.7"}
+              "all-driven": YELLOW, "inactive": CYAN, "all-damped": "0.7"}
     bins = np.linspace(x.min(), x.max(), 46)
 
     fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.2))
@@ -786,7 +829,7 @@ def fig_detuning():
     w_a = np.abs(df.omega_a.to_numpy()) / CD
     ax.scatter(w_a, df.frac_detuning, s=3, color="0.6", lw=0, rasterized=True)
     grid = np.linspace(w_a.min(), w_a.max(), 200)
-    ax.plot(grid, DETUNING_CUT * bg.omega_dyn / (grid * CD), color=VERM, lw=1.6,
+    ax.plot(grid, DETUNING_CUT * bg.omega_dyn / (grid * CD), color=RED, lw=1.6,
             label=r"enumeration cut, $|\Delta| = 0.15\sqrt{GM/R^3}$")
     ax.set(yscale="log", xlabel=r"sum-mode frequency $\omega_a$ (c/d)",
            ylabel=r"$|\Delta_{abc}| / \omega_a$",
@@ -873,21 +916,21 @@ def fig_lowfreq():
     fig, axes = plt.subplots(2, 1, figsize=(6.8, 6.2), sharex=True,
                              gridspec_kw=dict(hspace=0.1))
     ax = axes[0]
-    ax.scatter(best.f, best.mu * 1e-12, s=26, color=VERM, lw=0)
-    ax.axhspan(2e-12, 8e-12, color=ORANGE, alpha=0.25, lw=0)
+    ax.scatter(best.f, best.mu * 1e-12, s=26, color=RED, lw=0)
+    ax.axhspan(2e-12, 8e-12, color=YELLOW, alpha=0.25, lw=0)
     ax.text(0.02 * f_hi, 3e-12, r"ordinary combination frequencies ($\mu \approx 4$)",
-            ha="left", fontsize=8, color=VERM)
+            ha="left", fontsize=8, color=RED)
     ax.set(yscale="log", ylabel=r"$A_x = \mu A_a A_b$  (at $A_{a,b} = 10^{-6}$)",
            title=f"(a) direct, difference branch: {len(best)} damped modes reachable")
 
     ax = axes[1]
-    ax.scatter(floor.f, floor.E_th, s=26, color=GREEN, lw=0)
+    ax.scatter(floor.f, floor.E_th, s=26, color=BLACK, lw=0)
     ax.axhline(1e-12, color=BLUE, ls="--", lw=1.4)
     ax.text(0.98 * f_hi, 1.4e-12, "observed parent energies", ha="right",
             fontsize=8, color=BLUE)
-    ax.axhline(floor.E_th.min(), color=VERM, ls=":", lw=1.2)
+    ax.axhline(floor.E_th.min(), color=RED, ls=":", lw=1.2)
     ax.text(0.98 * f_hi, floor.E_th.min() * 1.4,
-            f"floor $= {_sci(floor.E_th.min())}$", ha="right", fontsize=8, color=VERM)
+            f"floor $= {_sci(floor.E_th.min())}$", ha="right", fontsize=8, color=RED)
     n_below = int((floor.E_th < 1e-12).sum())
     ax.set(yscale="log", xlabel="mode frequency (c/d)", xlim=(0, f_hi),
            ylabel=r"$\min\, E_{\rm th} / E_\star$",
@@ -908,10 +951,10 @@ def fig_fourmode():
     stats = pd.DataFrame({"max": grp.max(), "median": grp.median()})
     fig, ax = plt.subplots(figsize=(6.4, 4.0))
     ax.plot(stats.index, stats["max"], "o-", color=BLUE, label="best per $l_d$")
-    ax.plot(stats.index, stats["median"], "s--", color=ORANGE, lw=1.2,
+    ax.plot(stats.index, stats["median"], "s--", color=YELLOW, lw=1.2,
             markersize=4, label="median per $l_d$")
-    ax.axhline(1.0, color=VERM, ls="--", lw=1.4)
-    ax.text(16.6, 1.6, "instability threshold", color=VERM, fontsize=9)
+    ax.axhline(1.0, color=RED, ls="--", lw=1.4)
+    ax.text(16.6, 1.6, "instability threshold", color=RED, fontsize=9)
     ax.set(yscale="log", xlabel="granddaughter degree $l_d$",
            ylabel=r"$E_c / E_{\rm th}$  at  $q_{a,b} = 10^{-6}$",
            title="Four-mode systems, full net (2.2M candidates): "
@@ -920,23 +963,343 @@ def fig_fourmode():
     save(fig, "fig_fourmode")
 
 
-# ------------------------------------------------------------------- M6
-def fig_m6():
-    df = pd.read_csv(OUT / f"m6_network_{TAG}.csv"
-                     if (OUT / f"m6_network_{TAG}.csv").exists()
-                     else OUT / "m6_network.csv")
+# ----------------------------------------------------- mixed-network run
+# Slot letter -> (colour, linestyle, role). mixed_network names its modes
+# "<slot>(l,n)", so the plot needs no knowledge of how many there are.
+_SLOT = {"a": (BLUE, "-", "parent"), "b": (CYAN, "--", "parent"),
+         "c": (YELLOW, "-", "daughter, direct"),
+         "d": (RED, "-", "daughter, parametric"),
+         "e": (BLACK, "--", "daughter, parametric"),
+         "P": (BLUE, "-", "parent"), "Q": (CYAN, "--", "parent")}
+
+
+def fig_limit_cycle():
+    """Energy against time for the mixed direct/parametric network.
+
+    The x axis is a fraction of the run, not years: t_end is set by the slowest
+    rate of whichever system each model ranked first, which spans tens to
+    thousands of years across the ladder, and years would make the panels
+    incomparable. The span is in the title.
+    """
+    src = OUT / f"mixed_network_{TAG}.csv"
+    df = pd.read_csv(src if src.exists() else OUT / "mixed_network.csv")
+    cols = [c for c in df.columns if c.startswith("E_")]
     fig, ax = plt.subplots(figsize=(6.4, 4.2))
-    for name, color, ls, lbl in (("E_P", BLUE, "-", "$E_P$ (parent, pumped)"),
-                                 ("E_Q", SKY, "--", "$E_Q$ (parent, pumped)"),
-                                 ("E_c", ORANGE, "-", "$E_c$ (daughter, direct)"),
-                                 ("E_d", VERM, "-", "$E_d$ (granddaughter, parametric)")):
-        ax.plot(df.t_yr, df[name], color=color, ls=ls, lw=1.2, label=lbl)
-    ax.set(yscale="log", xlabel="time (yr)", ylabel=r"$E/E_\star$",
-           ylim=(1e-18, 1e-4),
-           title="Four-mode system driven at $3\\times$ threshold: "
-                 "bounded limit cycle")
+    for c in cols:
+        color, ls, role = _SLOT.get(c[2], ("0.5", ":", "mode"))
+        ax.plot(df.t_yr / df.t_yr.iloc[-1], df[c], color=color, ls=ls, lw=1.2,
+                label=f"${c[2]}$ = {c[2:]} ({role})")
+    lo = max(min(df[c].replace(0.0, np.nan).min() for c in cols), 1e-24)
+    ax.set(yscale="log", xlabel=f"time / {df.t_yr.iloc[-1]:.3g} yr",
+           ylabel=r"$E/E_\star$", ylim=(lo, None),
+           title=f"Mixed direct/parametric network, {len(cols)} modes, "
+                 f"{df.t_yr.iloc[-1]:.3g} yr")
     ax.legend(loc="lower right", framealpha=0.9, fontsize=8)
-    save(fig, "fig_m6")
+    save(fig, "fig_limit_cycle")
+
+
+# ------------------------------------------------------- l convergence
+@functools.cache
+def _lconv_table():
+    """The wide-net sweep: parent-headed triplets out to l = 25, kappa at
+    m = (0, 0, 0), gamma = gamma_rad + gamma_turb.
+
+    Lives under out/lconv/ rather than beside the narrow tables so that
+    _cross_models' observables_*.csv glob does not read it as another model.
+    Adds `l_d`, the larger of the two daughter degrees: a triplet enters the
+    net at l_max = l_d, so this column is what the cumulative slices key on.
+    """
+    df = pd.read_csv(OUT / "lconv" / f"observables_{TAG}.csv")
+    df = df[classify_frame(df) == "parametric"].copy()
+    if L_MAX_CUT is not None:
+        df = df[df[["l_b", "l_c"]].max(axis=1) <= L_MAX_CUT]
+    df["l_d"] = df[["l_b", "l_c"]].max(axis=1)
+    df["abs_kappa"] = df.kappa.abs()
+    # Routh-Hurwitz needs a_1 > 0, i.e. the triplet must dissipate on net. Where
+    # the parent outruns its daughters, eq. A7's fixed point still exists but
+    # nothing settles onto it, and its energy dips below E_th -- which would be
+    # nonsense read as an equilibrium.
+    df["settles"] = (df.gamma_a + df.gamma_b + df.gamma_c) > 0.0
+    return df
+
+
+def _lconv_bands(df, col, ls, pcts=(1, 10, 50)):
+    """Percentiles of `col` over every triplet with l_d <= l_max, for each
+    l_max in `ls`. Cumulative, because the question is what a net truncated
+    here would give -- and percentiles, because the extremum is one triplet and
+    moves on luck."""
+    v = df[np.isfinite(df[col]) & (df[col] > 0)]
+    out = np.full((len(pcts), len(ls)), np.nan)
+    for i, lm in enumerate(ls):
+        sub = v[col][v.l_d <= lm]
+        if len(sub) > 10:
+            out[:, i] = np.percentile(sub, pcts)
+    return out
+
+
+def fig_lconv():
+    """Does the daughter net need l = 25? Read (a) and (b) together: the
+    parametric threshold saturates while mu is still climbing, and they are
+    answering different questions -- how hard the parent must be driven, versus
+    how strongly one daughter responds once it is."""
+    df = _lconv_table()
+    l_top = int(df.l_d.max())
+    ls = np.arange(0, l_top + 1)
+    fig, axes = plt.subplots(2, 2, figsize=(11.0, 7.4), sharex=True,
+                             layout="constrained")
+
+    # (a) required parent amplitude, as a band
+    q = df.assign(q_th=np.sqrt(df.E_th_over_E_star.clip(lower=0)))
+    p1, p10, med = _lconv_bands(q, "q_th", ls)
+    ax = axes[0, 0]
+    ax.fill_between(ls, p1, med, color=BLUE, alpha=0.18, lw=0,
+                    label="p1 to median of the net")
+    ax.plot(ls, med, "o-", color=BLUE, label="median")
+    ax.plot(ls, p10, "s--", color=BLUE, lw=1.2, markersize=3.5, label="p10")
+    ax.plot(ls, p1, "-", color=BLUE, lw=1.0)
+    best = float(np.sqrt(df.E_th_over_E_star[df.E_th_over_E_star > 0].min()))
+    ax.axhline(best, color=RED, ls=":", lw=1.2)
+    ax.text(0.98, best * 1.25, f"best in the whole net, ${_sci(best)}$",
+            transform=ax.get_yaxis_transform(), ha="right", fontsize=8, color=RED)
+    ax.axhline(A_PARENT, color="0.3", ls="--", lw=1.2)
+    ax.text(0.98, A_PARENT * 1.25, r"MW23 reference parent, $10^{-6}$",
+            transform=ax.get_yaxis_transform(), ha="right", fontsize=8, color="0.3")
+    ax.set(yscale="log", ylabel=r"$q_{\rm th} = (E_{\rm th}/E_\star)^{1/2}$",
+           title="(a) parent amplitude needed to excite a pair")
+    ax.legend(loc="center left", fontsize=8, framealpha=0.9)
+
+    # (b) mu: max and median
+    ax = axes[0, 1]
+    mx, md = np.full(len(ls), np.nan), np.full(len(ls), np.nan)
+    for i, lm in enumerate(ls):
+        sub = df.mu_max[df.l_d <= lm]
+        if len(sub) > 10:
+            mx[i], md[i] = sub.max(), sub.median()
+    ax.plot(ls, mx, "o-", color=YELLOW, label=r"$\max \mu$")
+    ax.plot(ls, md, "s--", color=YELLOW, lw=1.2, markersize=3.5, label=r"median $\mu$")
+    ax.set(yscale="log", ylabel=r"$\mu$", title="(b) coupling strength")
+
+    # (c) can anything settle? Routh-Hurwitz needs net dissipation.
+    ax = axes[1, 0]
+    frac = np.array([df.settles[df.l_d <= lm].mean() if (df.l_d <= lm).sum() > 10
+                     else np.nan for lm in ls])
+    ax.plot(ls, 100 * frac, "o-", color=CYAN,
+            label="strongly damped daughters supply the dissipation")
+    ax.set(ylabel=r"per cent with $\sum\gamma > 0$",
+           title="(c) triplets that can reach an equilibrium at all")
+
+    # (d) supply
+    ax = axes[1, 1]
+    ax.plot(ls, [(df.l_d <= l).sum() for l in ls], "o-", color=RED,
+            label="parametric triplets")
+    ax.plot(ls, [(df.settles & (df.l_d <= l)).sum() for l in ls], "s--",
+            color=BLACK, lw=1.2, markersize=4, label=r"of those, net damped")
+    ax.set(yscale="log", ylabel="radial triplets in the net",
+           title="(d) supply of resonant triplets")
+
+    for a in axes.flat:
+        a.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        if a is not axes[0, 0]:  # (a) placed its own, clear of the captions
+            a.legend(loc="best", fontsize=8, framealpha=0.9)
+    for a in axes[1]:  # sharex: only the bottom row carries tick labels
+        a.set_xlabel(r"net truncated at $l_{\rm max}$")
+    fig.suptitle(rf"Truncating the daughter net: {len(df)} parametric triplets, "
+                 rf"$\gamma_{{\rm rad}}+\gamma_{{\rm turb}}$")
+    save(fig, "fig_lconv")
+
+
+def fig_l_ingredients():
+    """Why the threshold has an l optimum. E_th goes as
+    gamma_b gamma_c (1 + Delta^2/gamma^2) / kappa^2, and the three ingredients
+    pull against each other. Reference slopes are the Dziembowski scalings
+    quoted in the notes, not fits."""
+    df = _lconv_table()
+    gam = np.concatenate([df.gamma_b.to_numpy(), df.gamma_c.to_numpy()])
+    l_of_gam = np.concatenate([df.l_b.to_numpy(), df.l_c.to_numpy()])
+    ls = np.arange(0, int(df.l_d.max()) + 1)
+
+    def shell(v, l_key, how):
+        return np.array([getattr(v[l_key == l], how)() if (l_key == l).sum() > 10
+                         else np.nan for l in ls])
+
+    fig, axes = plt.subplots(1, 3, figsize=(13.0, 4.2), layout="constrained")
+
+    # (a) detuning. The median is useless here -- it just reports half the
+    # enumeration window -- so this shows the resonant tail and draws the cut.
+    ax = axes[0]
+    d = pd.Series(df.delta.abs().to_numpy())
+    ld = df.l_d.to_numpy()
+    p1 = np.array([np.percentile(d[ld == l], 1) if (ld == l).sum() > 10 else np.nan
+                   for l in ls])
+    p10 = np.array([np.percentile(d[ld == l], 10) if (ld == l).sum() > 10 else np.nan
+                    for l in ls])
+    ax.plot(ls, p10, "o-", color=BLUE, label="p10 in shell")
+    ax.plot(ls, p1, "s--", color="0.55", lw=1.1, markersize=3.5, label="p1 in shell")
+    cut = DETUNING_CUT * bg.omega_dyn
+    ax.axhline(cut, color=RED, ls="--", lw=1.4)
+    ax.text(0.98, cut * 0.6, r"enumeration cut $0.15\sqrt{GM/R^3}$",
+            transform=ax.get_yaxis_transform(), ha="right", fontsize=8, color=RED)
+    m = np.isfinite(p10) & (ls > 0)
+    if m.any():
+        l0, y0 = ls[m][len(ls[m]) // 2], p10[m][len(ls[m]) // 2]
+        ax.plot(ls[m], y0 * (ls[m] / l0) ** -2.0, ":", color="0.3", lw=1.2,
+                label=r"$l^{-2}$")
+    ax.set(xlabel=r"daughter degree $l$", yscale="log",
+           ylabel=r"$|\Delta_{abc}|$  $[\mathrm{rad\,s^{-1}}]$",
+           title="(a) achievable detuning")
+
+    for ax, (y_best, y_med, lbl, ttl, slope, color, best_lbl) in zip(axes[1:], (
+        (shell(pd.Series(gam), l_of_gam, "min"),
+         shell(pd.Series(gam), l_of_gam, "median"),
+         r"$\gamma_{\rm rad}+\gamma_{\rm turb}$  $[\mathrm{s^{-1}}]$",
+         r"(b) daughter damping", 2.0, RED, "least damped"),
+        (shell(df.abs_kappa, df.l_d.to_numpy(), "max"),
+         shell(df.abs_kappa, df.l_d.to_numpy(), "median"),
+         r"$|\kappa_{abc}|$", r"(c) coupling strength", None, BLACK,
+         "most strongly coupled"),
+    )):
+        ax.plot(ls, y_med, "o-", color=color, label="median in shell")
+        ax.plot(ls, y_best, "s--", color="0.55", lw=1.1, markersize=3.5,
+                label=best_lbl)
+        if slope is not None:
+            m = np.isfinite(y_med) & (ls > 0)
+            if m.any():
+                l0, y0 = ls[m][len(ls[m]) // 2], y_med[m][len(ls[m]) // 2]
+                ax.plot(ls[m], y0 * (ls[m] / l0) ** slope, ":", color="0.3", lw=1.2,
+                        label=rf"$l^{{{slope:+.0f}}}$")
+        ax.set(xlabel=r"daughter degree $l$", ylabel=lbl, yscale="log", title=ttl)
+        _core_gnet_boundary(ax)
+
+    for ax in axes:
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax.legend(loc="best", fontsize=8, framealpha=0.9)
+    save(fig, "fig_l_ingredients")
+
+
+def _core_gnet_boundary(ax, y=0.03):
+    """l <= 6 carries make_inlists' `core` family (|n_pg| <= 20, so p-modes and
+    low-order g-modes) on top of the g-mode net; l >= 7 is g-net only, where
+    every daughter is a high-order g-mode with |n| in the hundreds. Every break
+    at this l is that change of mode character, not a property of l itself."""
+    ax.axvline(6.5, color="0.45", ls="-.", lw=1)
+    ax.text(6.8, y, "core net ends\n($p$-modes drop out)", transform=
+            ax.get_xaxis_transform(), fontsize=7, color="0.45", va="bottom")
+
+
+# Daughter degree bands for the amplitude figures. Coarse on purpose: per-l
+# curves at 25 values are unreadable, and the question is which range matters.
+# Ordered as well as separated: lightness falls monotonically with l, so a
+# deeper band reads darker even where the hue is missed.
+L_BANDS = ((0, 3, CYAN), (4, 6, YELLOW), (7, 10, RED),
+           (11, 15, BLUE), (16, 25, BLACK))
+
+
+def fig_amplitude_sweep():
+    """How hard must a parent be driven before anything happens, and which l
+    answers first. The parametric panel is empty below q ~ 4e-6: that is the
+    result, not a rendering fault."""
+    df = _lconv_table()
+    e = df[df.E_th_over_E_star > 0]
+    q = np.logspace(-6.5, -2.5, 120)
+
+    ct = _channel_table()
+    dr = ct[ct.channel.str.startswith("direct")]
+    l_dr = dr[["l_b", "l_c"]].max(axis=1).to_numpy()
+
+    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.4), layout="constrained")
+
+    ax = axes[0]
+    for lo, hi, color in L_BANDS:
+        m = (e.l_d >= lo) & (e.l_d <= hi)
+        if not m.any():
+            continue
+        eth = e.E_th_over_E_star[m].to_numpy()
+        n = [(eth < qi**2).sum() for qi in q]
+        ax.plot(q, n, color=color, label=rf"${lo} \leq l_d \leq {hi}$  [{int(m.sum())}]")
+    ax.axvline(A_PARENT, color="0.3", ls="--", lw=1.2)
+    ax.text(A_PARENT * 1.1, 0.5, r"MW23 parent $10^{-6}$", rotation=90,
+            transform=ax.get_xaxis_transform(), fontsize=8, color="0.3")
+    best = float(np.sqrt(e.E_th_over_E_star.min()))
+    ax.axvline(best, color=RED, ls=":", lw=1.2)
+    ax.text(best * 1.1, 0.5, f"first pair, ${_sci(best)}$", rotation=90,
+            transform=ax.get_xaxis_transform(), fontsize=8, color=RED)
+    ax.set(xscale="log", yscale="log", xlabel=r"parent amplitude $q_a$",
+           ylabel="daughter pairs above threshold",
+           title=r"(a) parametric: nothing is excitable until "
+                 r"$q_a \sim 4 \times 10^{-6}$")
+    ax.legend(loc="upper left", fontsize=7, framealpha=0.9)
+
+    ax = axes[1]
+    for lo, hi, color in L_BANDS:
+        m = (l_dr >= lo) & (l_dr <= hi)
+        if m.sum() < 10:
+            continue
+        mu = dr.mu_t.to_numpy()[m]
+        ax.plot(q, mu.max() * q**2, color=color,
+                label=rf"${lo} \leq l_d \leq {hi}$  [{int(m.sum())}]")
+        ax.plot(q, np.median(mu) * q**2, color=color, ls=":", lw=1.0)
+    ax.plot(q, q, color="0.3", ls="--", lw=1.2)
+    ax.text(0.98, 0.02, r"$A_x = q_a$: daughter matches its parents",
+            transform=ax.transAxes, ha="right", fontsize=8, color="0.3")
+    ax.set(xscale="log", yscale="log", xlabel=r"parent amplitude $q_a$",
+           ylabel=r"$A_x = \mu\, A_a A_b$",
+           title=r"(b) direct: solid = best in band, dotted = median")
+    ax.legend(loc="upper left", fontsize=7, framealpha=0.9)
+    save(fig, "fig_amplitude_sweep")
+
+
+def fig_daughter_energy():
+    """The two ways to make a daughter, on one scale. Direct daughters are
+    driven at the beat frequency and can approach their parents' amplitude;
+    parametric daughters grow to the eq. A7 fixed point, where
+    E_i / E_a = (omega_i/gamma_i)/(omega_a/gamma_a), i.e. roughly the parent's
+    driving rate over the daughter's damping rate. Two decades separate them."""
+    ct = _channel_table()
+    dr = ct[ct.channel.str.startswith("direct")]
+    l_dr = dr[["l_b", "l_c"]].max(axis=1).to_numpy()
+    # A_x / A_a = mu A_b, so at equal parent amplitudes the ratio is mu q.
+    ratio_dr = dr.mu_t.to_numpy() * A_PARENT
+
+    par = _lconv_table()
+    par = par[par.settles]
+    r_a = par.omega_a / par.gamma_a
+    ratio_par = np.sqrt(np.maximum(
+        pd.concat([(par[f"omega_{s}"] / par[f"gamma_{s}"]) / r_a for s in "bc"]), 0))
+    l_par = np.concatenate([par.l_b.to_numpy(), par.l_c.to_numpy()])
+
+    ls = np.arange(0, 26)
+    fig, axes = plt.subplots(1, 2, figsize=(11.6, 4.4), sharey=True,
+                             layout="constrained")
+    for ax, (v, lk, ttl, color, note) in zip(axes, (
+        (ratio_dr, l_dr, r"(a) direct: $A_x/A_a = \mu A_b$", RED,
+         "stops at $l_d = 12$: driven parents end at $l = 6$,\n"
+         r"and the triangle rule caps $l_d \leq 2 l_{\rm parent}$"),
+        (np.asarray(ratio_par), l_par,
+         r"(b) parametric: $A_{\rm dau}/A_a$ at the eq.~A7 fixed point", BLUE,
+         "median sits near $10^{-2}$, set by\n"
+         r"$\gamma_{\rm parent}/\gamma_{\rm daughter}$"),
+    )):
+        v = np.asarray(v)
+        ok = np.isfinite(v) & (v > 0)
+        mx = np.array([v[ok & (lk == l)].max() if (ok & (lk == l)).sum() > 10
+                       else np.nan for l in ls])
+        md = np.array([np.median(v[ok & (lk == l)]) if (ok & (lk == l)).sum() > 10
+                       else np.nan for l in ls])
+        ax.plot(ls, md, "o-", color=color, label="median in shell")
+        ax.plot(ls, mx, "s--", color="0.55", lw=1.1, markersize=3.5,
+                label="best in shell")
+        ax.axhline(1.0, color="0.3", ls="--", lw=1.2)
+        ax.text(0.98, 1.3, "daughter matches parent", transform=ax.get_yaxis_transform(),
+                ha="right", fontsize=8, color="0.3")
+        ax.text(0.03, 0.90, note, transform=ax.transAxes, fontsize=7.5,
+                va="top", color="0.35")
+        ax.set(yscale="log", xlabel=r"daughter degree $l$", title=ttl)
+        _core_gnet_boundary(ax)
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
+        ax.legend(loc="lower left", fontsize=8, framealpha=0.9)
+    axes[0].set_ylabel(r"daughter amplitude / parent amplitude")
+    fig.suptitle(rf"Two routes to a daughter, at parent amplitude $10^{{-6}}$")
+    save(fig, "fig_daughter_energy")
 
 
 A_PARENT = 1e-6  # MW23 Fig. 6: every parent pinned here, arbitrary but chosen
@@ -971,7 +1334,7 @@ def fig_spectrum():
     for m, alpha, lw, tag in ((~real, 0.25, 0.5, "no damped daughter"),
                               (real, 0.9, 0.7, r"damped daughter ($\gamma > 0$)")):
         sub = hi[m]
-        ax.vlines(sub.f_t, 1e-13, sub.mu_t * 1e-12, color=VERM, lw=lw,
+        ax.vlines(sub.f_t, 1e-13, sub.mu_t * 1e-12, color=RED, lw=lw,
                   alpha=alpha, rasterized=True,
                   label=f"daughters, {tag}  [{len(sub)}]")
 
@@ -980,7 +1343,7 @@ def fig_spectrum():
         ax.axvline(f, color="0.25", ls=":", lw=1.2, label=None if i else
                    f"$f$-modes, {f_f[0]:.1f}-{f_f[-1]:.1f} c/d (MW23 text: $\\approx$15)")
     w_dyn = bg.omega_dyn / CD
-    ax.axvline(w_dyn, color=GREEN, ls="--", lw=1.4,
+    ax.axvline(w_dyn, color=BLACK, ls="--", lw=1.4,
                label=f"$\\sqrt{{GM/R^3}} = {w_dyn:.2f}$ c/d (MW23 caption)")
 
     ax.set(yscale="log", xlim=(0, 85), ylim=(3e-13, 4e-6),
@@ -993,7 +1356,7 @@ def fig_spectrum():
 
 
 # MW23 Fig. 7's mass colours, in Okabe-Ito.
-MASS_COLOR = {2.2: VERM, 2.0: ORANGE, 1.85: BLUE, 1.7: PURPLE}
+MASS_COLOR = {2.2: RED, 2.0: YELLOW, 1.85: BLUE, 1.7: BLACK}
 M_SUN = 1.989e33
 
 
@@ -1120,7 +1483,10 @@ ALL = {
     "detuning": fig_detuning, "lowfreq": fig_lowfreq,
     "eth_pg": fig_eth_pg, "detuning_pg": fig_detuning_pg,
     "pg_census": fig_pg_census, "spectrum": fig_spectrum,
-    "fourmode": fig_fourmode, "m6": fig_m6,
+    "fourmode": fig_fourmode, "limit_cycle": fig_limit_cycle,
+    "lconv": fig_lconv, "l_ingredients": fig_l_ingredients,
+    "amplitude_sweep": fig_amplitude_sweep,
+    "daughter_energy": fig_daughter_energy,
 }
 # Cross-model: one output for the whole grid, so these run once, not per tag.
 CROSS = {"rank": fig_rank, "daughter": fig_daughter}
@@ -1129,13 +1495,16 @@ CROSS = {"rank": fig_rank, "daughter": fig_daughter}
 MODEL_ONLY = ("propagation", "gamma", "gamma_panels")
 
 
-def _run(model, tag, out, figs, names) -> None:
-    global MODEL, TAG, OUT, FIGS, bg, efs
+def _run(model, tag, out, figs, names, source="narrow", l_max_cut=None) -> None:
+    global MODEL, TAG, OUT, FIGS, bg, efs, SOURCE, L_MAX_CUT
 
     MODEL, TAG, OUT, FIGS = model, tag, out, figs
-    # The tables are cached per tag, so a multi-tag run must drop them.
+    SOURCE, L_MAX_CUT = source, l_max_cut
+    # The tables are cached per tag, so a multi-tag run must drop them --
+    # and so must a ladder run, where only L_MAX_CUT changes between passes.
     _kappa_table.cache_clear()
     _channel_table.cache_clear()
+    _lconv_table.cache_clear()
     FIGS.mkdir(parents=True, exist_ok=True)
 
     print(f"model {MODEL}  tag {TAG}  -> {FIGS}")
@@ -1188,6 +1557,12 @@ def main() -> int:
     ap.add_argument("--only", nargs="*", choices=sorted(ALL) + sorted(CROSS),
                     default=None,
                     help="subset of figures; default is all that have inputs")
+    ap.add_argument("--source", choices=("narrow", "lconv"), default="narrow",
+                    help="which coupling table to plot: the l <= 3 net, or the "
+                         "wide parent-restricted sweep under out/lconv/")
+    ap.add_argument("--l-max-cut", type=int, default=None,
+                    help="truncate the net at this daughter degree, so one "
+                         "sweep stands in for a ladder of nets")
     ap.add_argument("--model-only", action="store_true",
                     help="shorthand for the figures that need no coupling "
                          f"table: --only {' '.join(MODEL_ONLY)}")
@@ -1203,8 +1578,8 @@ def main() -> int:
 
     if not args.all_tags:
         tag = args.tag or args.model.name
-        _run(args.model, tag, args.out,
-             args.figs or root / tag, per_tag)
+        _run(args.model, tag, args.out, args.figs or root / tag, per_tag,
+             source=args.source, l_max_cut=args.l_max_cut)
         _run_cross(args.out, root, cross)
         return 0
 
@@ -1214,7 +1589,8 @@ def main() -> int:
         return 1
     print(f"{len(models)} tags: {' '.join(m.name for m in models)}\n")
     for model in models:
-        _run(model, model.name, args.out, root / model.name, per_tag)
+        _run(model, model.name, args.out, root / model.name, per_tag,
+             source=args.source, l_max_cut=args.l_max_cut)
         print()
     _run_cross(args.out, root, cross)
     return 0
