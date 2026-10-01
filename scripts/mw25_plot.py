@@ -124,8 +124,8 @@ def _mixed(ax, name, panel, window, ylim):
     t, E = load(name)
     draw(ax, t, E, order=("a", "b", "c", "d"))
     for lbl, v in lines_for(panel).items():
-        ax.axhline(v, color="0.3", ls="--" if lbl == "E_th" else ":", lw=1.1,
-                   label="parametric threshold" if lbl == "E_th" else r"$E_{d,\rm eq}$ (Eq. 6)")
+        ax.axhline(v, color="0.3", ls="--" if lbl == "E_a_th" else ":", lw=1.1,
+                   label="parametric threshold" if lbl == "E_a_th" else r"$E_{a,\rm eq}$ (Eq. A7)")
     ax.set(yscale="log", xlim=window, ylim=ylim, xlabel="Time")
     ax.legend(fontsize=7, framealpha=0.9, loc="lower left", ncols=2)
 

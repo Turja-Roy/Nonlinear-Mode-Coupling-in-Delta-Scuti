@@ -21,7 +21,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-JOBS=4
+JOBS=8
 TARGETS=()
 RUN_TESTS=0
 CLEAN=0
@@ -55,7 +55,6 @@ need_pkg() {   # name, pkg-config name, hint
 
 say "dependencies:"
 say "  Eigen:    third_party/eigen3 (vendored)"
-say "  Boost:    third_party/boost (vendored, odeint subset)"
 say "  CLI11:    third_party/CLI (vendored)"
 say "  HighFive: third_party/highfive (vendored)"
 
@@ -67,8 +66,31 @@ elif command -v gsl-config >/dev/null 2>&1; then
     say "  GSL:      $(gsl-config --version) (via gsl-config)"
 else
     die "GSL not found. On a cluster try:  module load gsl
-       Only gsl_sf_coupling_3j is used, in src/angular.cpp."
+       Used for gsl_sf_coupling_3j (src/angular.cpp) and the optional GSL integrator (src/amplitude.cpp)."
 fi
+
+# SUNDIALS >= 7 (SUNContext API): the ODE integrator in src/amplitude.cpp.
+SUN_C=""; SUN_L=""
+if [[ -n ${SUNDIALS_DIR:-} && -f $SUNDIALS_DIR/include/cvode/cvode.h ]]; then
+    SUN_C="-I$SUNDIALS_DIR/include"; SUN_L="-L$SUNDIALS_DIR/lib -L$SUNDIALS_DIR/lib64 -Wl,-rpath,$SUNDIALS_DIR/lib64 -Wl,-rpath,$SUNDIALS_DIR/lib"
+    SUN_H=$SUNDIALS_DIR/include/sundials/sundials_config.h
+elif [[ -f /usr/include/cvode/cvode.h ]]; then
+    SUN_H=/usr/include/sundials/sundials_config.h
+else
+    die "SUNDIALS not found. On a cluster try:  module load sundials   (needs >= 7)
+       or set SUNDIALS_DIR to its install prefix."
+fi
+SUN_V=$(sed -n 's/^#define SUNDIALS_VERSION "\(.*\)"/\1/p' "$SUN_H")
+[[ ${SUN_V%%.*} -ge 7 ]] || die "SUNDIALS $SUN_V found, >= 7 needed"
+say "  SUNDIALS: $SUN_V"
+# A SUNDIALS built with MPI types SUN_COMM_NULL as MPI_COMM_NULL, so even a
+# serial caller has to link MPI: compile through the MPI wrapper.
+if grep -q '^#define SUNDIALS_MPI_ENABLED 1' "$SUN_H"; then
+    command -v mpicxx >/dev/null 2>&1 || die "SUNDIALS $SUN_V was built with MPI; load an MPI module (mpicxx)"
+    [[ $CXX == *mpi* ]] || { OMPI_CXX=$CXX MPICH_CXX=$CXX; export OMPI_CXX MPICH_CXX; CXX=mpicxx; }
+    say "            built with MPI -> compiling with $CXX"
+fi
+SUN_L="$SUN_L -lsundials_cvode -lsundials_arkode -lsundials_nvecopenmp -lsundials_sunlinsolspgmr -lsundials_sunnonlinsolfixedpoint -lsundials_core"
 
 HDF5_C=""; HDF5_L="-lhdf5"; HDF5_FOUND=0
 for p in hdf5 hdf5-serial; do
@@ -102,13 +124,13 @@ else
 fi
 
 # ---------------------------------------------------------------------- build
-INC="-Isrc -Ithird_party -Ithird_party/eigen3 $GSL_C $HDF5_C"
+INC="-Isrc -Ithird_party -Ithird_party/eigen3 $GSL_C $SUN_C $HDF5_C"
 CXXFLAGS=${CXXFLAGS:--O2}   # -march=native is opt-in: see the note in --help
 FLAGS="-std=c++17 $CXXFLAGS -Wall -Wextra $OMP $INC"
-LIBS="$GSL_L $HDF5_L $OMP -lm"
+LIBS="$SUN_L $GSL_L $HDF5_L $OMP -lm"
 
 LIB_SRC=(numeric angular model kappa triplets amplitude stability csv)
-APPS=(three_mode_search channels four_mode_search mixed_network make_inlists mw25)
+APPS=(three_mode_search channels four_mode_search mixed_network make_inlists mw25 network_run network_build)
 TESTS=(numeric kappa amplitude)
 
 compile_one() {   # src, obj, extra

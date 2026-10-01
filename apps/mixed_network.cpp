@@ -44,7 +44,10 @@ double cell(const csv::Table& df, const std::string& c, size_t i) {
     return df.numbers(c)[i];
 }
 
-// Modes for the (l, n) columns named by `labels`, frequencies in c/d.
+// Modes for the (l, n) columns named by `labels`, frequencies in c/d. omega
+// is signed by this mode's own gamma (negative = self-excited), which the
+// amplitude equations need and the CSV's plain-magnitude f_* columns don't
+// carry -- see the note in amp::from_triplets.
 std::vector<amp::Mode> modes_of(const csv::Table& df, size_t i, const std::string& labels) {
     std::vector<amp::Mode> out;
     for (char s : labels) {
@@ -52,19 +55,17 @@ std::vector<amp::Mode> modes_of(const csv::Table& df, size_t i, const std::strin
         char buf[64];
         std::snprintf(buf, sizeof buf, "%c(%d,%+d)", s,
                       int(cell(df, "l_" + t, i)), int(cell(df, "n_" + t, i)));
-        out.push_back(amp::Mode{buf, cell(df, "f_" + t, i) * CD, cell(df, "gamma_" + t, i)});
+        const double gamma = cell(df, "gamma_" + t, i);
+        const double omega = (gamma < 0.0 ? -1.0 : 1.0) * std::abs(cell(df, "f_" + t, i) * CD);
+        out.push_back(amp::Mode{buf, omega, gamma});
     }
     return out;
 }
 
-/* a + b -> c. The sum branch puts c in the sum slot, the difference branch the
-   higher-frequency parent, which is the assignment four_mode_search made when
-   it chose the kappa integral. */
+// a + b -> c. The triplet's 3 slots are symmetric now (no sum-slot role), so
+// which one holds which mode no longer matters to the equations.
 Triplet direct_leg(const csv::Table& df, size_t i) {
-    const double k = cell(df, "kappa_direct", i);
-    if (df.text("comb")[i] == "sum") return Triplet{2, 0, 1, k};
-    const int hi = cell(df, "f_a", i) > cell(df, "f_b", i) ? 0 : 1;
-    return Triplet{hi, 1 - hi, 2, k};
+    return Triplet{2, 0, 1, cell(df, "kappa_direct", i)};
 }
 
 struct Built { std::vector<amp::Mode> modes; std::vector<Triplet> cps;

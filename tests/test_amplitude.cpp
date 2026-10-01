@@ -33,21 +33,21 @@ int main () {
     const double W[3] = {2.0e-3, 1.1e-3, 0.9e-3}, G[3] = {-4e-9, 3e-9, 5e-9};
     const double KAPPA = 417.3, T = 1234.5;
 
-    /* --- the in-place overloads odeint uses agree with the returning ones --- */
+    /* --- the in-place overloads integrate() uses agree with the returning ones --- */
     {
         amp::Network n = amp::three_mode({W[0], W[1], W[2]}, {G[0], G[1], G[2]}, KAPPA);
         State buf(3);
         n.dq_dt(T, y, buf);        same_state(buf, n.dq_dt(T, y), "in-place dq_dt");
         n.dA_dt(T, y, buf);        same_state(buf, n.dA_dt(T, y), "in-place dA_dt");
-        close(n.detuning(n.triplets()[0]), W[1] + W[2] - W[0], 1e-14, "detuning");
+        close(n.detuning(n.triplets()[0]), W[0] + W[1] + W[2], 1e-14, "detuning");
     }
 
     /* --- Manley-Rowe: the check that catches a wrong sign or factor.
-       Undamped and on resonance, one triplet moves f quanta out of the sum
-       mode and f into each pair mode. --- */
+       Undamped and on resonance (Delta = w_a+w_b+w_c = 0, so a's signed omega
+       is minus the sum of the other two), N_x = |q_x|^2/w_x moves together. --- */
     {
         const double wb = 1.1e-3, wc = 0.9e-3;
-        amp::Network n = amp::three_mode({wb + wc, wb, wc}, {0.0, 0.0, 0.0}, KAPPA);
+        amp::Network n = amp::three_mode({-(wb + wc), wb, wc}, {0.0, 0.0, 0.0}, KAPPA);
         amp::Options o;
         o.n_out = 64;
         const auto sol = n.integrate({1e-6, 2e-7, 3e-7}, 2.0e7, o);
@@ -57,9 +57,8 @@ int main () {
         double swing = 0.0;
         for (const State& s : sol.y) {
             const eig::ArrayXd N = n.action(s), E = n.energy(s);
-            close(N[0] + N[1], N0[0] + N0[1], 1e-9, "N_a + N_b");
-            close(N[0] + N[2], N0[0] + N0[2], 1e-9, "N_a + N_c");
-            close(N[1] - N[2], N0[1] - N0[2], 1e-9, "N_b - N_c");
+            close(N[0] - N0[0], N[1] - N0[1], 1e-9, "N_a - N_b");
+            close(N[0] - N0[0], N[2] - N0[2], 1e-9, "N_a - N_c");
             close(E.sum(), E0.sum(), 1e-9, "energy conserved on resonance");
             swing = std::max(swing, std::abs(E[0] - E0[0]));
         }
@@ -67,14 +66,14 @@ int main () {
     }
     {   // repeated mode: two quanta into d for every one out of a, which is
         // where a naive loop over the three slots double counts the d equation
-        amp::Network n = amp::self_coupled(2.0e-3, 1.0e-3, 0.0, 0.0, 300.0);
+        amp::Network n = amp::self_coupled(-2.0e-3, 1.0e-3, 0.0, 0.0, 300.0);
         amp::Options o;
         o.n_out = 64;
         const auto sol = n.integrate({1e-6, 2e-7}, 2.0e7, o);
         const eig::ArrayXd N0 = n.action(sol.y.front());
         for (const State& s : sol.y) {
             const eig::ArrayXd N = n.action(s);
-            close(2.0 * N[0] + N[1], 2.0 * N0[0] + N0[1], 1e-9, "2 N_a + N_d");
+            close(N[1] - N0[1], 2.0 * (N[0] - N0[0]), 1e-9, "N_d - 2 N_a");
         }
     }
 
@@ -170,6 +169,23 @@ int main () {
         // a lone parent in a pair slot drives daughters outside this triplet
         assert(stab::channel(1, -1, 1) == stab::Channel::inactive);
         assert(std::string(stab::channel_name(stab::Channel::parametric)) == "parametric");
+    }
+
+    /* --- the smallest network: a parent and one damped pair settle on MW25 A7.
+       Strongly damped pair, so the fixed point is stable rather than the centre
+       of a limit cycle. --- */
+    {
+        const double d = 1e-5, wb = 1.1e-3, wc = 0.9e-3, wa = -(wb + wc) + d;
+        const double g[3] = {-1e-7, 1e-6, 1.5e-6};
+        amp::Network n = amp::three_mode({wa, wb, wc}, {g[0], g[1], g[2]}, KAPPA);
+        const auto ee = stab::equilibrium_energies(KAPPA, {wa, wb, wc}, {g[0], g[1], g[2]}, d);
+        amp::Options o;
+        o.n_out = 4;
+        o.rtol = 1e-10;
+        const double q = std::sqrt(ee[0]);
+        const eig::ArrayXd E = n.energy(n.integrate({0.3 * q, 1e-3 * q, 1e-3 * q},
+                                                    100.0 / -g[0], o).y.back());
+        for (int i=0 ; i<3 ; i++) close(E[i] / ee[i], 1.0, 1e-4, "A7 fixed point");
     }
 
     /* --- csv.cpp round-trips, and writes the pandas spellings --- */

@@ -10,6 +10,7 @@ endif()
 add_compile_options(-Wall -Wextra)
 
 find_package(GSL REQUIRED)
+find_package(SUNDIALS 7 REQUIRED)
 find_package(HDF5 REQUIRED COMPONENTS C)
 find_package(OpenMP)
 
@@ -20,12 +21,14 @@ add_library(coupling STATIC
     src/triplets.cpp src/amplitude.cpp src/stability.cpp src/csv.cpp)
 # Vendored, so the build does not depend on the cluster's Eigen or Boost.
 target_include_directories(coupling PUBLIC src third_party third_party/eigen3 ${HDF5_INCLUDE_DIRS})
-target_link_libraries(coupling PUBLIC GSL::gsl ${HDF5_C_LIBRARIES})
+target_link_libraries(coupling PUBLIC GSL::gsl ${HDF5_C_LIBRARIES}
+    SUNDIALS::cvode SUNDIALS::arkode SUNDIALS::nvecopenmp
+    SUNDIALS::sunlinsolspgmr SUNDIALS::sunnonlinsolfixedpoint SUNDIALS::core)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(coupling PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
-foreach(app three_mode_search channels four_mode_search mixed_network make_inlists mw25)
+foreach(app three_mode_search channels four_mode_search mixed_network make_inlists mw25 network_run network_build)
     add_executable(${app} apps/${app}.cpp)
     target_link_libraries(${app} PRIVATE coupling)
 endforeach()
