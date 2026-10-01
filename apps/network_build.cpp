@@ -7,8 +7,9 @@
    load is minutes, a network is milliseconds.
 
    Candidates are the triplets a parent heads, parent -> b + c with both
-   daughters damped and |Delta| < cut. `rule` ranks them and pairs are taken in
-   order until N daughters are in (one more if the last pair brings two):
+   daughters damped, gamma_b + gamma_c > |gamma_parent| and |Delta| < cut.
+   `rule` ranks them and pairs are taken in order until N daughters are in
+   (one more if the last pair brings two):
 
        eth      E_th ascending -- kappa, gamma and Delta together
        delta    |Delta| ascending
@@ -101,7 +102,7 @@ int main (int argc, char** argv) {
     std::vector<double> cuts = {DETUNING_CUT_DIMLESS};
     std::vector<int> ns = {2};
     double closure_dimless = -1.0;
-    int l_max = 25, jobs = 4;
+    int l_max = 25, jobs = 4, n_parents = 1;
     unsigned seed = 1;
     bool closure = true;
     app.add_option("--model", model);
@@ -109,7 +110,8 @@ int main (int argc, char** argv) {
     app.add_option("--inlist", inlist);
     app.add_option("--nad", nad)->expected(-1);
     app.add_option("--gamma", gamma_mode)->check(CLI::IsMember({"rad", "tot"}));
-    app.add_option("--parent", parent_s, "l,n of a parent; one or two")->required();
+    app.add_option("--parent", parent_s, "l,n of a parent; one or two");
+    app.add_option("--n-parents", n_parents, "without --parent: the l <= 2 modes of lowest E_th");
     app.add_option("--rule", rules)->check(CLI::IsMember({"eth", "delta", "dgamma", "random"}));
     app.add_option("-N", ns, "daughter counts");
     app.add_option("--cut", cuts, "candidate |Delta| cuts, units of sqrt(GM/R^3)");
@@ -121,7 +123,10 @@ int main (int argc, char** argv) {
     app.add_option("-j,--jobs", jobs);
     app.add_option("--out", out, "directory");
     CLI11_PARSE(app, argc, argv);
-    if (parent_s.size() > 2) { std::fprintf(stderr, "one or two parents\n"); return 1; }
+    if (parent_s.size() > 2 || n_parents < 1 || n_parents > 2) {
+        std::fprintf(stderr, "one or two parents\n");
+        return 1;
+    }
 
     Model m = load_model(model, detail_dir, inlist, nad);
     ModeMap efs;
@@ -131,6 +136,56 @@ int main (int argc, char** argv) {
         for (auto& [k, e] : efs) e.gamma += gamma_turb(e);
     const double wdyn = m.star->omega_dyn();
 
+    stab::KappaCache kap = stab::load_kappa_cache(cache);
+    auto legs_of = [](const std::vector<RadialTriplet>& ts) {
+        std::vector<Leg> out;
+        for (const auto& t : ts) { const auto k = t.keys(); out.push_back(stab::leg_of(k[0], k[1], k[2])); }
+        return out;
+    };
+    // Parent-headed, both daughters damped, at the widest cut; narrower cuts are subsets.
+    const double cut_max = *std::max_element(cuts.begin(), cuts.end()) * wdyn;
+    auto pairs_of = [&](const std::set<Key>& heads) {
+        std::vector<RadialTriplet> out;
+        for (const auto& t : enumerate_triplets(efs, cut_max, l_max, &heads))
+        {
+            // A pair damping slower than its parent grows has no bounded state
+            // (E_eq diverges as the three gammas cancel): it cannot saturate it.
+            const double gb = efs.at(t.pair[0]).gamma, gc = efs.at(t.pair[1]).gamma;
+            if (gb > 0.0 && gc > 0.0 && gb + gc > -efs.at(t.sum_mode).gamma) out.push_back(t);
+        }
+        return out;
+    };
+
+    /* No --parent: the driven l <= 2 modes easiest to destabilise, i.e. lowest
+       min E_th over their damped pairs. Not the most driven: a fast-growing
+       high overtone puts its daughters at f/2, inside the driven band, and has
+       no damped pair at all. */
+    std::vector<RadialTriplet> all;
+    if (parent_s.empty()) {
+        std::set<Key> driven;
+        for (const auto& [k, e] : efs) if (e.gamma < 0.0 && k.first <= 2) driven.insert(k);
+        all = pairs_of(driven);
+        stab::kappa_m000(legs_of(all), efs, cache, kap, jobs);
+        std::map<Key, std::pair<double, long>> best;           // min E_th, pair count
+        for (Key k : driven) best[k] = {std::numeric_limits<double>::infinity(), 0};
+        for (const auto& t : all) {
+            auto& [e, n] = best[t.sum_mode];
+            e = std::min(e, e_th(efs, t, kappa_of(kap, t)));
+            ++n;
+        }
+        std::vector<Key> order(driven.begin(), driven.end());
+        std::sort(order.begin(), order.end(),
+                  [&](Key a, Key b) { return best[a].first < best[b].first; });
+        std::printf("driven l <= 2 modes by min E_th over damped pairs:\n");
+        for (Key k : order)
+            std::printf("  (%d,%+3d)  f %8.4f c/d  gamma %+.3e  %6ld pairs  min E_th %.3e\n",
+                        k.first, k.second, efs.at(k).omega / CD, efs.at(k).gamma,
+                        best[k].second, best[k].first);
+        for (int i = 0; i < n_parents && i < int(order.size()); ++i)
+            if (best[order[size_t(i)]].second)
+                parent_s.push_back(std::to_string(order[size_t(i)].first) + ","
+                                   + std::to_string(order[size_t(i)].second));
+    }
     std::set<Key> parents;
     for (const auto& s : parent_s) {
         const Key k = parse_key(s);
@@ -140,23 +195,19 @@ int main (int argc, char** argv) {
             return 1;
         }
         parents.insert(k);
+        std::printf("parent (%d,%+d)  f %.4f c/d  gamma %+.3e s^-1\n",
+                    k.first, k.second, efs.at(k).omega / CD, efs.at(k).gamma);
     }
-
-    // Enumerated once at the widest cut; every narrower one is a subset.
-    std::vector<RadialTriplet> all;
-    const double cut_max = *std::max_element(cuts.begin(), cuts.end()) * wdyn;
-    for (const auto& t : enumerate_triplets(efs, cut_max, l_max, &parents))
-        if (efs.at(t.pair[0]).gamma > 0.0 && efs.at(t.pair[1]).gamma > 0.0) all.push_back(t);
+    if (all.empty()) all = pairs_of(parents);
+    all.erase(std::remove_if(all.begin(), all.end(),
+                             [&](const RadialTriplet& t) { return !parents.count(t.sum_mode); }),
+              all.end());
     std::printf("%zu modes, %zu parents, %zu candidate pairs at cut %.3g c/d\n",
                 efs.size(), parents.size(), all.size(), cut_max / CD);
-    if (all.empty()) return 1;
-
-    stab::KappaCache kap = stab::load_kappa_cache(cache);
-    auto legs_of = [](const std::vector<RadialTriplet>& ts) {
-        std::vector<Leg> out;
-        for (const auto& t : ts) { const auto k = t.keys(); out.push_back(stab::leg_of(k[0], k[1], k[2])); }
-        return out;
-    };
+    if (all.empty()) {
+        std::fprintf(stderr, "no damped pair: the daughters near f/2 are themselves driven\n");
+        return 1;
+    }
     if (std::count(rules.begin(), rules.end(), "eth"))
         stab::kappa_m000(legs_of(all), efs, cache, kap, jobs);
     std::filesystem::create_directories(out);
