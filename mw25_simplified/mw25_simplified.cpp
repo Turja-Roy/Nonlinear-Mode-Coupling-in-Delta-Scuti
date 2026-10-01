@@ -23,7 +23,8 @@ struct Mode {
     double gamma;
 };
 
-// Three distinct indices into the mode list.
+// Indices into the mode list. b == c means a -> b + b, one mode literally
+// repeated (not two modes that merely share omega/gamma).
 struct Triplet {
     int a, b, c;
     double kappa;
@@ -57,13 +58,23 @@ int dq_dt (double t, const double y[], double dydt[], void* params) {
     //                               = - (i omega + gamma) q
     for (int m=0 ; m<n ; m++) out[m] = -(I * modes[m].omega + modes[m].gamma) * q[m];
 
-    // Nonlinear term: 2 i omega kappa conj(q_j) conj(q_k)
-    // The nonlinear term adds contributions from all triplets (e.g., cases when there are 
-    // 2, 10, 50 or more daughters), and hence the loop. Once we have the linear term
-    // computed, we can add the nonlinear contributions from each of the triplets.
-    // For self-coupled case, we're just adding two identical modes, so the equations stay same
+    // Nonlinear term: 2 i omega kappa conj(q_j) conj(q_k), added once per
+    // triplet the mode is in (e.g. 2, 10, 50 or more daughters -> that many
+    // triplets, hence the loop).
+    //
+    // b == c (a -> b + b, one mode literally repeated) is not the general
+    // case with the same index written twice: MW25's own worked example
+    // (mw25-reading.tex eq:mw25four) shows the repeated mode's own equation
+    // keeps the factor 2, but the *other* mode's equation drops to 1 -- there
+    // is only one way to pick "both partners = b" instead of two orderings.
+    // Silently using 2 for both would overcount mode a's driving by 2x.
     for (const Triplet& tr : triplets) {
         const int a=tr.a , b=tr.b , c=tr.c;
+        if (b == c) {
+            out[a] +=       I * modes[a].omega * tr.kappa * std::conj(q[b]) * std::conj(q[b]);
+            out[b] += 2.0 * I * modes[b].omega * tr.kappa * std::conj(q[a]) * std::conj(q[b]);
+            continue;
+        }
         //     += 2 i omega kappa conj(q_j) conj(q_k)
         out[a] += 2.0 * I * modes[a].omega * tr.kappa * std::conj(q[b]) * std::conj(q[c]);
         out[b] += 2.0 * I * modes[b].omega * tr.kappa * std::conj(q[a]) * std::conj(q[c]);
@@ -138,8 +149,12 @@ void run_panel (const std::string& name, const std::vector<Mode>& modes,
     // The GSL ODE driver: onws the stepper and current state
     // Algorithm: Prince-Dormand 8(9), Runge-Kutta with adaptive step size, 8th order with 9th order error estimate.
     // Initial step: t_end / (10*n_out), Tolerances: atol (absolute) and rtol (relative)
+    // gsl_odeiv2_driver* drv = gsl_odeiv2_driver_alloc_y_new(
+    //     &sys, gsl_odeiv2_step_rk8pd, t_end / (10.0 * n_out), atol, rtol);
+    // gsl_odeiv2_driver* drv = gsl_odeiv2_driver_alloc_y_new(
+    //     &sys, gsl_odeiv2_step_rk4imp, t_end / (10.0 * n_out), atol, rtol);
     gsl_odeiv2_driver* drv = gsl_odeiv2_driver_alloc_y_new(
-        &sys, gsl_odeiv2_step_rk8pd, t_end / (10.0 * n_out), atol, rtol);
+        &sys, gsl_odeiv2_step_msadams, t_end / (10.0 * n_out), atol, rtol);
 
     // GSL works with raw doubles, y[2n] = {Re(q0[0]), Im(q0[0]), Re(q0[1]), Im(q0[1]), ...}
     std::vector<double> y(size_t(2*n));
@@ -252,26 +267,29 @@ void fig2 () {
     }
 }
 
-/* Parents a, b. Direct daughter c (a + b -> c).
-   Parametric daughters d1, d2 (a -> d1 + d2 and b -> d1 + d2),
-   d1 and d2 are two modes with the same omega and gamma. */
-const double omega[4] = {-1.000, -1.001, 2.0, 0.5};         // a, b, c, d=d1=d2
-const double GAMMA_DEFAULT[4] = {-0.01, -0.01, 0.1, 0.1};   // a, b, c, d=d1=d2
+/* Parents a, b. Direct daughter c (a + b -> c). Self-coupled parametric
+   daughter d (a -> d + d and b -> d + d), one mode literally repeated in each
+   parametric triplet -- MW25's own four-mode network (mw25-reading.tex
+   eq:mw25four), not two modes that merely share omega/gamma. */
+const double omega[4] = {-1.000, -1.001, 2.0, 0.5};         // a, b, c, d
+const double GAMMA_DEFAULT[4] = {-0.01, -0.01, 0.1, 0.1};   // a, b, c, d
 
 void mixed (double k_direct, double k_param, const double g[4], std::vector<Mode>& modes,
             std::vector<Triplet>& triplets) {
     modes = {{"a", omega[0], g[0]}, {"b", omega[1], g[1]}, {"c", omega[2], g[2]},
-             {"d1", omega[3], g[3]}, {"d2", omega[3], g[3]}};
+             {"d", omega[3], g[3]}};
     triplets = {{2, 0, 1, k_direct},         // a + b -> c
-                {0, 3, 4, k_param},          // a -> d1 + d2
-                {1, 3, 4, k_param}};         // b -> d1 + d2
+                {0, 3, 3, k_param},          // a -> d + d
+                {1, 3, 3, k_param}};         // b -> d + d
 }
 
+// E_a_th/E_a_eq: MW25 Eq. (6)/A7 for the parent a, pumped by its self-coupled
+// daughter pair (d, d) -- not the daughter's own threshold, the parent's.
 void mixed_lines (const std::string& tag, const std::vector<Mode>& modes,
                   const std::vector<Triplet>& triplets, double k_param, const double g[4]) {
     const double Delta = detuning(modes, triplets[1]);
-    line(tag, "E_th", threshold_energy(k_param, omega[3], omega[3], g[3], g[3], Delta));
-    line(tag, "E_d_eq", equilibrium_energy(k_param, omega[3], omega[3], g[0], g[3], g[3], Delta));
+    line(tag, "E_a_th", threshold_energy(k_param, omega[3], omega[3], g[3], g[3], Delta));
+    line(tag, "E_a_eq", equilibrium_energy(k_param, omega[3], omega[3], g[0], g[3], g[3], Delta));
 }
 
 void fig3 () {
@@ -279,7 +297,7 @@ void fig3 () {
     std::vector<Triplet> triplets;
     mixed(1.0, 1.0, GAMMA_DEFAULT, modes, triplets);
     mixed_lines("3", modes, triplets, 1.0, GAMMA_DEFAULT);
-    run_panel("fig3", modes, triplets, {1e-3, 1e-3, 1e-3, 1e-3, 1e-3}, 2000.0, 20000, 1e-11);
+    run_panel("fig3", modes, triplets, {1e-3, 1e-3, 1e-3, 1e-3}, 2000.0, 20000, 1e-11);
 }
 
 void fig4 () {
@@ -289,7 +307,7 @@ void fig4 () {
         std::vector<Triplet> triplets;
         mixed(1.0, 100.0, GAMMA_DEFAULT, modes, triplets);
         mixed_lines("4a", modes, triplets, 100.0, GAMMA_DEFAULT);
-        run_panel("fig4a", modes, triplets, {3e-7, 3e-7, 3e-10, 3e-7, 3e-7}, 5000.0, 20000, 1e-11);
+        run_panel("fig4a", modes, triplets, {3e-7, 3e-7, 3e-10, 3e-7}, 5000.0, 20000, 1e-11);
     }
     // (b) every linear rate 100x smaller: the cycle stretches out
     {
@@ -299,7 +317,7 @@ void fig4 () {
         std::vector<Triplet> triplets;
         mixed(0.5, 1.0, g, modes, triplets);
         mixed_lines("4b", modes, triplets, 1.0, g);
-        run_panel("fig4b", modes, triplets, {3e-7, 3e-7, 3e-10, 3e-7, 3e-7}, 800000.0, 800000, 1e-11);
+        run_panel("fig4b", modes, triplets, {3e-7, 3e-7, 3e-10, 3e-7}, 800000.0, 800000, 1e-11);
     }
 }
 
@@ -310,7 +328,7 @@ void fig5 () {
         std::vector<Triplet> triplets;
         mixed(1.0, 1.0, GAMMA_DEFAULT, modes, triplets);
         line("5a", "mu", mu_of(1.0, omega[2], detuning(modes, triplets[0]), GAMMA_DEFAULT[2]));
-        run_panel("fig5a", modes, triplets, {1e-3, 1e-3, 1e-3, 1e-3, 1e-3}, 2000.0, 20000, 1e-11);
+        run_panel("fig5a", modes, triplets, {1e-3, 1e-3, 1e-3, 1e-3}, 2000.0, 20000, 1e-11);
     }
     // (a) Same functions but with 30% of the driving/damping rates for the parents
     {
@@ -319,8 +337,47 @@ void fig5 () {
         std::vector<Triplet> triplets;
         mixed(1.0, 1.0, g, modes, triplets);
         line("5b", "mu", mu_of(1.0, omega[2], detuning(modes, triplets[0]), GAMMA_DEFAULT[2]));
-        run_panel("fig5b", modes, triplets, {1e-2, 1e-2, 1e-2, 1e-2, 1e-2}, 40000.0, 95000, 1e-11);
+        run_panel("fig5b", modes, triplets, {1e-2, 1e-2, 1e-2, 1e-2}, 40000.0, 95000, 1e-11);
     }
+}
+
+void fig6() {
+    constexpr double W_A = 1.17e-3, G_A = -4.8e-9, G_B = -1.1e-8;
+    constexpr double W_D1 = 1.09e-3;
+    constexpr double KP[2] = {0.85, 3.85}, DP[2] = {9.8e-8, 1.0e-4};
+    (void)W_D1; (void)KP;     // fig6b scaffolding; re-enable when 5-mode panel returns
+    const double KD = 6.3, DD = 7.6e-5, G_C = 2.8e-5;
+    // const double KD  = v == 3 ? 63.0 : 6.3;
+    // const double DD  = v == 1 || v == 2 ? 7.6e-6 : 7.6e-5;
+    // const double G_C = v == 2 ? 2.8e-6 : 2.8e-5;
+
+    // Magnitudes only; W_A here plays the same role as |omega_a| always did,
+    // Delta = w_b+w_d1+w_d2 (say) reducing to the same arithmetic whether
+    // omega_a is carried as a signed value or as a magnitude subtracted off.
+    const double w_d2 = W_A + DP[0] - W_D1;
+    const double w_b  = W_D1 + w_d2 + DP[1];
+    const double w_c  = W_A + w_b - DD;
+
+    // a, b are the self-excited parents (gamma < 0): signed negative here,
+    // same magnitudes as above. c, d1, d2 are damped daughters: positive.
+    // Seeded below the direct-coupling saddle (E ~ 5e-9) so the parent with
+    // the larger omega and driving, b, is the one that runs away (MW25 fn. 1).
+    run_panel("fig6a", {{"a", -W_A, G_A}, {"b", -w_b, G_B}, {"c", w_c, G_C}},
+              {Triplet{2, 0, 1, KD}}, {1e-4, 1e-4, 3e-6}, 1e10, 3000, 1e-10, 1e0);
+    // panel("fig6a", Network({{"a", -W_A, G_A}, {"b", -w_b, G_B}, {"c", w_c, G_C}},
+    //                        {Triplet{2, 0, 1, KD}}),
+          // State{1e-4, 1e-4, 3e-6}, t_end, 3000, 1e-10, 1e0, {}, DAY);
+
+    // const Network net({{"a", -W_A, G_A}, {"b", -w_b, G_B}, {"c", w_c, G_C},
+    //                    {"d1", W_D1, G_D1}, {"d2", w_d2, G_D2}},
+    //                   {Triplet{2, 0, 1, KD},
+    //                    Triplet{0, 3, 4, KP[0]},
+    //                    Triplet{1, 3, 4, KP[1]}});
+    // for (int i = 0; i < 2; ++i)
+    //     line("6b", i ? "E_th_b" : "E_th_a",
+    //          stab::threshold_energy(KP[i], W_D1, w_d2, G_D1, G_D2, DP[i]));
+    // panel("fig6b", net, State{1e-4, 1e-4, 3e-6, 1e-5, 1e-5}, t_end, 4000, 1e-8, 1e0, {}, DAY);
+    // std::printf("  variant %d: mu = %.0f\n", v, stab::mu(KD, w_c, DD, G_C));
 }
 
 
@@ -334,6 +391,7 @@ int main (int argc, char** argv) {
     fig3();
     fig4();
     fig5();
+    fig6();
 
     std::sort(LINES.begin(), LINES.end());
     std::FILE* f = std::fopen((OUT / "lines.csv").c_str(), "w");

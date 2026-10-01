@@ -38,8 +38,6 @@ plt.rcParams.update({
 STYLE = {
     "a":  (BLUE,   r"Parent $a$"),        "b":  (RED,    r"Parent $b$"),
     "c":  (BLACK,  r"Daughter $c$"),      "d":  (GREY,   r"Parametric daughter $d$"),
-    "d1": (GREY,   r"Parametric daughter $d_1$"),
-    "d2": (YELLOW, r"Parametric daughter $d_2$"),
 }
 DATA = FIGS = None
 LINES: pd.DataFrame | None = None
@@ -60,7 +58,7 @@ def lines_for(panel):
 def draw(ax, t, E, order=None, lw=1.4):
     for name in (order or E):
         col, lbl = STYLE.get(name, (GREY, name))
-        ax.plot(t, E[name], color=col, lw=lw, label=lbl, ls="--" if name == "d2" else "-")
+        ax.plot(t, E[name], color=col, lw=lw, label=lbl)
 
 
 def save(fig, name):
@@ -121,10 +119,10 @@ def fig2():
 
 def _mixed(ax, name, panel, window, ylim):
     t, E = load(name)
-    draw(ax, t, E, order=("a", "b", "c", "d1", "d2"))
+    draw(ax, t, E, order=("a", "b", "c", "d"))
     for lbl, v in lines_for(panel).items():
-        ax.axhline(v, color="0.3", ls="--" if lbl == "E_th" else ":", lw=1.1,
-                   label="parametric threshold" if lbl == "E_th" else r"$E_{d,\rm eq}$ (Eq. 6)")
+        ax.axhline(v, color="0.3", ls="--" if lbl == "E_a_th" else ":", lw=1.1,
+                   label="parametric threshold" if lbl == "E_a_th" else r"$E_{a,\rm eq}$ (Eq. A7)")
     ax.set(yscale="log", xlim=window, ylim=ylim, xlabel="Time")
     ax.legend(fontsize=7, framealpha=0.9, loc="lower left", ncols=2)
 
@@ -178,8 +176,27 @@ def fig5():
     save(fig, "mw25_fig5")
 
 
+def fig6():
+    fig, axes = plt.subplots(1, 2, figsize=(12.2, 4.8), layout="constrained")
+    t, E = load("fig6a")
+    draw(axes[0], t*86400, E, order=("a", "b", "c"))
+    axes[0].set_title("(a) direct triplet only: unstable")
 
-ALL = {"1": fig1, "2": fig2, "3": fig3, "4": fig4, "5": fig5}
+    t, E = load("fig6b")
+    draw(axes[1], t, E, order=("a", "b", "c", "d1", "d2"), lw=1.1)
+    for lbl, v in lines_for("6b").items():
+        axes[1].axhline(v, color="0.3", ls="--" if lbl.endswith("a") else ":", lw=1.1,
+                        label=f"threshold, parent ${lbl[-1]}$")
+    axes[1].set_title("(b) five-mode mixed network")
+    for ax in axes:
+        ax.set(yscale="log", xlim=(0,1e11), ylim=(1e-40, 1e1), xlabel="Time  [days]",
+               ylabel=r"Mode Energy  $[E_\star]$")
+        ax.legend(fontsize=7, framealpha=0.9, loc="lower right")
+    fig.suptitle(r"MW25 Figure 6 -- 2.0 $M_\odot$ $\delta$ Sct parameters", fontsize=11)
+    save(fig, "mw25_fig6")
+
+
+ALL = {"1": fig1, "2": fig2, "3": fig3, "4": fig4, "5": fig5, "6": fig6}
 
 
 def main() -> int:
