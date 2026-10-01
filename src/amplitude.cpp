@@ -268,8 +268,16 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
     // (4) GSL, Prince-Dormand 8(9): explicit adaptive Runge-Kutta, non-stiff.
     //     Initial step t_end / (10 n_out).
     gsl_odeiv2_system sys{rhs_gsl, nullptr, size_t(2 * n), &params};
+    /* First trial step well inside the fastest rate. Too large a step overflows
+       to NaN, every error comparison against NaN is false, and the driver then
+       accepts it and runs on to t_end on garbage. */
+    double rate = 0.0;
+    for (int i=0 ; i<n ; i++) rate = std::max(rate, std::abs(gamma_[i]));
+    for (double d : delta_) rate = std::max(rate, std::abs(d));
+    const double h0 = rate > 0.0 ? std::min(t_end / (10.0 * opt.n_out), 0.01 / rate)
+                                 : t_end / (10.0 * opt.n_out);
     gsl_odeiv2_driver* drv = gsl_odeiv2_driver_alloc_y_new(
-        &sys, gsl_odeiv2_step_rk8pd, t_end / (10.0 * opt.n_out), opt.atol, opt.rtol);
+        &sys, gsl_odeiv2_step_rk8pd, h0, opt.atol, opt.rtol);
 
     // The integration loop: n_out outputs evenly spaced over [0, t_end].
     Solution sol;
@@ -288,9 +296,10 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
         if (flag < 0) break;
 
         std::copy_n(as_complex(yd), n, out.begin());
+        double e = 0.0;
+        for (const auto& z : out) e += std::norm(z);
+        if (!std::isfinite(e)) break;
         if (opt.e_max > 0.0) {
-            double e = 0.0;
-            for (const auto& z : out) e += std::norm(z);
             if (e_prev >= 0.0 && e_prev <= opt.e_max && e > opt.e_max) break;
             e_prev = e;
         }

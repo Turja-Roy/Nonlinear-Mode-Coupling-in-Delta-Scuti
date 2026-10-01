@@ -154,14 +154,16 @@ int main (int argc, char** argv) {
     for (int i = 0; i < net.size(); ++i)
         active += net.modes()[i].gamma >= 0.0 && mean[i] > 1e-3 * top_d;
     const auto mm = std::minmax_element(E_par.begin(), E_par.end());
-    const bool runaway = sol.t.back() < t_end;
+    // Stopped early: energy cap crossed, or the amplitudes overflowed.
+    const bool runaway = sol.t.back() < t_end * (1.0 - 0.5 / (n_out - 1));
+    const std::string stop = runaway ? "runaway" : "end";
     const double swing = (*mm.second - *mm.first) / par;
-    std::printf("  <E_parents> %.3e E_star, swing %.3f, D/P %.3f, %ld active daughters%s\n",
-                par, swing, D / P, active, runaway ? ", RUNAWAY" : "");
+    std::printf("  <E_parents> %.3e E_star, swing %.3f, D/P %.3f, %ld active daughters, "
+                "stop: %s at t %.3e\n", par, swing, D / P, active, stop.c_str(), sol.t.back());
     csv::Writer s(std::filesystem::path(out) / "summary.csv",
                   {"file", "n_modes", "n_triplets", "t_end", "q0", "q0_daughter", "seed",
-                   "runaway", "E_parents", "swing", "driving", "dissipation", "n_active"});
+                   "runaway", "stop", "E_parents", "swing", "driving", "dissipation", "n_active"});
     s.row(src, long(net.size()), long(net.triplets().size()), sol.t.back(), q0, q0_d,
-          long(seed), runaway, par, swing, P, D, active);
+          long(seed), runaway, stop, par, swing, P, D, active);
     return 0;
 }

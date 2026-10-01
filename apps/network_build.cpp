@@ -7,9 +7,10 @@
    load is minutes, a network is milliseconds.
 
    Candidates are the triplets a parent heads, parent -> b + c with both
-   daughters damped, gamma_b + gamma_c > |gamma_parent| and |Delta| < cut.
-   `rule` ranks them and pairs are taken in order until N daughters are in
-   (one more if the last pair brings two):
+   daughters damped and |Delta| < cut. `rule` ranks them and pairs are taken
+   in order until N daughters are in (one more if the last pair brings two).
+   Net-growing triplets (gamma_b + gamma_c < |gamma_parent|) are kept on
+   purpose: whether added modes bring their runaway down is the question.
 
        eth      E_th ascending -- kappa, gamma and Delta together
        delta    |Delta| ascending
@@ -147,12 +148,7 @@ int main (int argc, char** argv) {
     auto pairs_of = [&](const std::set<Key>& heads) {
         std::vector<RadialTriplet> out;
         for (const auto& t : enumerate_triplets(efs, cut_max, l_max, &heads))
-        {
-            // A pair damping slower than its parent grows has no bounded state
-            // (E_eq diverges as the three gammas cancel): it cannot saturate it.
-            const double gb = efs.at(t.pair[0]).gamma, gc = efs.at(t.pair[1]).gamma;
-            if (gb > 0.0 && gc > 0.0 && gb + gc > -efs.at(t.sum_mode).gamma) out.push_back(t);
-        }
+            if (efs.at(t.pair[0]).gamma > 0.0 && efs.at(t.pair[1]).gamma > 0.0) out.push_back(t);
         return out;
     };
 
