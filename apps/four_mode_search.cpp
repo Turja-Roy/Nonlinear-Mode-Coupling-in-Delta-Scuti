@@ -23,44 +23,13 @@
 
 #include <chrono>
 #include <cstdio>
-#include <fstream>
 #include <limits>
 #include <set>
 
 namespace {
 
 constexpr double Q_PARENT = 1e-6;                // MW23 Fig. 6 reference parent amplitude
-using Leg = std::array<Key, 3>;                  // sorted (l, n) triple
-
-std::string cache_key(const Leg& k) {
-    std::string s;
-    for (int i = 0; i < 3; ++i)
-        s += (i ? ";" : "") + std::to_string(k[i].first) + "," + std::to_string(k[i].second);
-    return s;
-}
-
-// kappa integrals already done by a previous (possibly crashed) run.
-std::map<Leg, std::pair<double, int>> load_cache(const std::filesystem::path& p) {
-    std::map<Leg, std::pair<double, int>> out;
-    std::ifstream f(p);
-    if (!f) return out;
-    std::string line;
-    std::getline(f, line);                       // header
-    while (std::getline(f, line)) {
-        const size_t t1 = line.find('\t'), t2 = line.find('\t', t1 + 1);
-        if (t1 == std::string::npos || t2 == std::string::npos) continue;
-        Leg k{};
-        const std::string ks = line.substr(0, t1);
-        size_t at = 0;
-        for (int i = 0; i < 3; ++i) {
-            const size_t comma = ks.find(',', at), semi = ks.find(';', at);
-            k[i] = {std::stoi(ks.substr(at, comma - at)), std::stoi(ks.substr(comma + 1))};
-            at = semi == std::string::npos ? ks.size() : semi + 1;
-        }
-        out[k] = {std::stod(line.substr(t1 + 1, t2 - t1 - 1)), std::stoi(line.substr(t2 + 1))};
-    }
-    return out;
-}
+using stab::Leg;
 
 }  // namespace
 
@@ -156,11 +125,7 @@ int main(int argc, char** argv) {
         return RadialTriplet{keys[sum_slot], {keys[p0], keys[p1]},
                              {-w[sum_slot], w[p0], w[p1]}, w[p0] + w[p1] - w[sum_slot]};
     };
-    auto leg_of = [&](int i, int j, int k) {
-        Leg l{keys[i], keys[j], keys[k]};
-        std::sort(l.begin(), l.end());
-        return l;
-    };
+    auto leg_of = [&](int i, int j, int k) { return stab::leg_of(keys[i], keys[j], keys[k]); };
 
     /* The sign assignment does not enter kappa (only omega^2 does), so one
        kappa per unordered (l, n) triple serves every candidate that uses it. */
@@ -183,35 +148,12 @@ int main(int argc, char** argv) {
     const std::filesystem::path outp(out);
     std::filesystem::path cache_path = outp;
     cache_path.replace_extension(".kappa_cache.tsv");
-    auto kap = load_cache(cache_path);
-    std::vector<std::pair<Leg, const RadialTriplet*>> items;
-    for (const auto& [k, t] : legs) if (!kap.count(k)) items.push_back({k, &t});
+    stab::KappaCache kap = stab::load_kappa_cache(cache_path);
+    std::vector<Leg> todo;
+    for (const auto& [k, t] : legs) if (!kap.count(k)) todo.push_back(k);
     if (!kap.empty())
-        std::printf("resuming: %zu triplets cached, %zu to go\n", kap.size(), items.size());
-
-    std::filesystem::create_directories(cache_path.parent_path());
-    {
-        const bool fresh = !std::filesystem::exists(cache_path)
-                        || std::filesystem::file_size(cache_path) == 0;
-        std::ofstream fh(cache_path, std::ios::app);
-        if (fresh) fh << "key\tkappa\trefine\n";
-        /* Threads share the eigenfunctions outright -- no fork, no pickling.
-           The checkpoint write is serialised and flushed, so a crash loses at
-           most the integrals in flight. */
-#pragma omp parallel for schedule(dynamic, 8) num_threads(jobs) if (jobs > 1)
-        for (long i = 0; i < long(items.size()); ++i) {
-            const RadialTriplet& t = *items[size_t(i)].second;
-            const auto ks = t.keys();
-            KappaResult r = kappa_abc(efs.at(ks[0]), efs.at(ks[1]), efs.at(ks[2]), {0, 0, 0});
-#pragma omp critical
-            {
-                kap[items[size_t(i)].first] = {r.kappa, r.refine};
-                fh << cache_key(items[size_t(i)].first) << '\t' << csv::fmt(r.kappa)
-                   << '\t' << r.refine << '\n';
-                fh.flush();
-            }
-        }
-    }
+        std::printf("resuming: %zu triplets cached, %zu to go\n", kap.size(), todo.size());
+    stab::kappa_m000(todo, efs, cache_path, kap, jobs);
     std::printf("kappa done, %zu triplets on %d thread(s) [%.0f s]\n", kap.size(), jobs,
                 std::chrono::duration<double>(std::chrono::steady_clock::now() - t1).count());
 

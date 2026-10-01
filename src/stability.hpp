@@ -135,6 +135,18 @@ struct Row {
 std::vector<Row> build_rows (const std::vector<RadialTriplet>& triplets, const ModeMap& efs,
                              const Star& s, bool m000 = false, int jobs = 1);
 
+/* kappa at m = (0, 0, 0) per unordered (l, n) triple. The sign assignment
+   does not enter kappa (only omega^2 does), so one value serves every channel
+   that uses the triple. Legs missing from `kap` are integrated on `jobs`
+   threads and appended to the TSV `cache` as they finish, so a crash loses
+   only the integrals in flight. Delete the cache if the GYRE details change. */
+using Leg = std::array<Key, 3>;                  // sorted
+using KappaCache = std::map<Leg, std::pair<double, int>>;    // kappa, refine
+Leg leg_of (Key a, Key b, Key c);
+KappaCache load_kappa_cache (const std::filesystem::path& p);
+void kappa_m000 (const std::vector<Leg>& legs, const ModeMap& efs,
+                 const std::filesystem::path& cache, KappaCache& kap, int jobs);
+
 // Column names and the values that go under them, kept side by side so they
 // cannot drift apart. Use these rather than writing the row by hand.
 extern const std::array<const char*, 26> ROW_COLUMNS;

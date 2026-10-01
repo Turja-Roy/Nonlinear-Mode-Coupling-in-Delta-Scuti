@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <limits>
 
 namespace stab {
@@ -198,6 +199,70 @@ void write_rows (const std::filesystem::path& p, const std::vector<Row>& rows, b
               r.delta, r.kappa, r.mu_a, r.mu_b, r.mu_c, r.mu_max,
               r.E_th_over_E_star, r.E_eq_over_E_star, r.E_th_ceiling_over_E_star,
               r.detuning_dominated, r.refine);
+}
+
+Leg leg_of (Key a, Key b, Key c) {
+    Leg l{a, b, c};
+    std::sort(l.begin(), l.end());
+    return l;
+}
+
+namespace {
+
+std::string cache_key (const Leg& k) {
+    std::string s;
+    for (int i = 0; i < 3; ++i)
+        s += (i ? ";" : "") + std::to_string(k[i].first) + "," + std::to_string(k[i].second);
+    return s;
+}
+
+}  // namespace
+
+KappaCache load_kappa_cache (const std::filesystem::path& p) {
+    KappaCache out;
+    std::ifstream f(p);
+    if (!f) return out;
+    std::string line;
+    std::getline(f, line);                       // header
+    while (std::getline(f, line)) {
+        const size_t t1 = line.find('\t'), t2 = line.find('\t', t1 + 1);
+        if (t1 == std::string::npos || t2 == std::string::npos) continue;
+        Leg k{};
+        const std::string ks = line.substr(0, t1);
+        size_t at = 0;
+        for (int i = 0; i < 3; ++i) {
+            const size_t comma = ks.find(',', at), semi = ks.find(';', at);
+            k[i] = {std::stoi(ks.substr(at, comma - at)), std::stoi(ks.substr(comma + 1))};
+            at = semi == std::string::npos ? ks.size() : semi + 1;
+        }
+        out[k] = {std::stod(line.substr(t1 + 1, t2 - t1 - 1)), std::stoi(line.substr(t2 + 1))};
+    }
+    return out;
+}
+
+void kappa_m000 (const std::vector<Leg>& legs, const ModeMap& efs,
+                 const std::filesystem::path& cache, KappaCache& kap, int jobs) {
+    std::vector<Leg> todo;
+    for (const Leg& l : legs) if (!kap.count(l)) todo.push_back(l);
+    std::sort(todo.begin(), todo.end());
+    todo.erase(std::unique(todo.begin(), todo.end()), todo.end());
+    if (todo.empty()) return;
+
+    if (cache.has_parent_path()) std::filesystem::create_directories(cache.parent_path());
+    const bool fresh = !std::filesystem::exists(cache) || std::filesystem::file_size(cache) == 0;
+    std::ofstream fh(cache, std::ios::app);
+    if (fresh) fh << "key\tkappa\trefine\n";
+#pragma omp parallel for schedule(dynamic, 8) num_threads(jobs) if (jobs > 1)
+    for (long i = 0; i < long(todo.size()); ++i) {
+        const Leg& k = todo[size_t(i)];
+        const KappaResult r = kappa_abc(efs.at(k[0]), efs.at(k[1]), efs.at(k[2]), {0, 0, 0});
+#pragma omp critical
+        {
+            kap[k] = {r.kappa, r.refine};
+            fh << cache_key(k) << '\t' << csv::fmt(r.kappa) << '\t' << r.refine << '\n';
+            fh.flush();
+        }
+    }
 }
 
 }  // namespace stab
