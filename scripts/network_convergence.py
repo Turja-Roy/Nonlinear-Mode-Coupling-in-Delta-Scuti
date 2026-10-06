@@ -68,6 +68,8 @@ def main() -> int:
             ax.plot(bad[x], bad[col], "x", color="k", ms=8)
     for ax, (_, ylabel, logy) in zip(axes.flat, PANELS):
         ax.set(xscale="log", ylabel=ylabel, yscale="log" if logy else "linear")
+        ax.set_xticks(sorted(df[x].unique()), [f"{v:g}" for v in sorted(df[x].unique())])
+        ax.xaxis.set_minor_locator(plt.NullLocator())
     for ax in axes[1]:
         ax.set_xlabel("daughters N" if x == "N" else r"detuning cut $[\sqrt{GM/R^3}]$")
     axes[0, 0].axhline(1e-12, color="0.3", lw=1, ls=":")

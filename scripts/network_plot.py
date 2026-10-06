@@ -33,6 +33,9 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", type=pathlib.Path, default=pathlib.Path("out/network_run"))
     ap.add_argument("--out", type=pathlib.Path, default=None)
+    ap.add_argument("--parents", type=int, default=0,
+                    help="highlight the first k modes (network_build writes parents first)")
+    ap.add_argument("--title", default=None)
     a = ap.parse_args()
     out = a.out or a.data
 
@@ -47,11 +50,18 @@ def main() -> int:
         ax.legend(fontsize=8, framealpha=0.9)
         ax.set_title(f"{a.data}", fontsize=10)
     else:
-        for name in names:
+        for name in names[a.parents:]:
             ax.plot(t, df[f"E_{name}"], color="0.4", lw=0.4, alpha=0.5)
         ax.set_title(f"{a.data}  ({len(names)} modes)", fontsize=10)
+    for name, col in zip(names[:a.parents], PALETTE[:2] if len(names) > MANY else []):
+        ax.plot(t, df[f"E_{name}"], color=col, lw=1.6, label=f"parent {name}")
+    if a.parents and len(names) > MANY:
+        ax.plot([], [], color="0.4", lw=0.8, label="daughters")
+        ax.legend(fontsize=8, framealpha=0.9)
+    if a.title:
+        ax.set_title(a.title, fontsize=10)
 
-    ax.set(yscale="log", xlabel="Time", ylim=(1e-34,1e-1), ylabel=r"Mode Energy  $[E_\star]$")
+    ax.set(yscale="log", xlabel="Time [s]", ylim=(1e-34,1e-1), ylabel=r"Mode Energy  $[E_\star]$")
     out.mkdir(parents=True, exist_ok=True)
     for ext in ("png", "pdf"):
         fig.savefig(out / f"network_run.{ext}")

@@ -5,9 +5,10 @@
 #SBATCH --output=logs/network_sweep_%j.log
 # Network growth ladder on one model (Plans/mode-networks.md, sec. 3-4).
 #
-#   sbatch scripts/network_sweep.sh                  # parents: l <= 2 GYRE modes of lowest E_th
-#   PARENTS="6,3 6,4" sbatch scripts/network_sweep.sh
-#   WALL=10 CLOSURE=0.15 sbatch scripts/network_sweep.sh    # tighter cap, full closure
+#   sbatch shell-scripts/network_sweep.sh            # parents: l <= 2 GYRE modes of lowest E_th
+#   PARENTS="6,3 6,4" sbatch shell-scripts/network_sweep.sh
+#   PARENT_LMAX=4 sbatch shell-scripts/network_sweep.sh   # let l <= 4 modes compete as parents
+#   WALL=10 CLOSURE=0.15 sbatch shell-scripts/network_sweep.sh   # tighter cap, full closure
 #
 # Builds every network first (one model load per parent set), then integrates
 # them in parallel. Run from the repo root after ./compile.sh.
@@ -28,7 +29,7 @@ CLOSURE=${CLOSURE:-0.005}
 RUN_ARGS=${RUN_ARGS:-"--q0 1e-6 --q0-daughter 1e-9 --seed 1 --e-max 1e-2 --t-end 1e13"}
 export OMP_NUM_THREADS=1
 
-# Parents: PARENTS="l,n l,n" if given, else the builder picks the driven l <= 2
+# Parents: PARENTS="l,n l,n" if given, else the builder picks the driven l <= PARENT_LMAX (default 2)
 # GYRE modes of lowest parametric threshold (one for the one-parent runs, two for the two-parent runs).
 read -r P1 P2 <<< "${PARENTS:-}"
 ONE=${P1:+--parent $P1}; ONE=${ONE:---n-parents 1}
@@ -37,7 +38,8 @@ TWO=${P2:+--parent $P1 --parent $P2}; TWO=${TWO:---n-parents 2}
 build() {   # out-dir, build args...
     local d=$1; shift
     ./build/network_build --model "$MODEL" --kappa-cache "out/four_mode_${TAG}.kappa_cache.tsv" \
-        -j "$JOBS" --out "data/networks/$d" ${CLOSURE:+--closure-cut $CLOSURE} "$@"
+        -j "$JOBS" --out "data/networks/$d" ${CLOSURE:+--closure-cut $CLOSURE} \
+        ${PARENT_LMAX:+--parent-l-max $PARENT_LMAX} "$@"
 }
 
 # one parent: rules x N at the search cut, closure on and off; then the cut sweep
