@@ -201,15 +201,15 @@ void write_rows (const std::filesystem::path& p, const std::vector<Row>& rows, b
               r.detuning_dominated, r.refine);
 }
 
-Leg leg_of (Key a, Key b, Key c) {
-    Leg l{a, b, c};
+TripletKey triplet_key (Key a, Key b, Key c) {
+    TripletKey l{a, b, c};
     std::sort(l.begin(), l.end());
     return l;
 }
 
 namespace {
 
-std::string cache_key (const Leg& k) {
+std::string cache_key (const TripletKey& k) {
     std::string s;
     for (int i = 0; i < 3; ++i)
         s += (i ? ";" : "") + std::to_string(k[i].first) + "," + std::to_string(k[i].second);
@@ -227,7 +227,7 @@ KappaCache load_kappa_cache (const std::filesystem::path& p) {
     while (std::getline(f, line)) {
         const size_t t1 = line.find('\t'), t2 = line.find('\t', t1 + 1);
         if (t1 == std::string::npos || t2 == std::string::npos) continue;
-        Leg k{};
+        TripletKey k{};
         const std::string ks = line.substr(0, t1);
         size_t at = 0;
         for (int i = 0; i < 3; ++i) {
@@ -240,10 +240,10 @@ KappaCache load_kappa_cache (const std::filesystem::path& p) {
     return out;
 }
 
-void kappa_m000 (const std::vector<Leg>& legs, const ModeMap& efs,
+void kappa_m000 (const std::vector<TripletKey>& keys, const ModeMap& efs,
                  const std::filesystem::path& cache, KappaCache& kap, int jobs) {
-    std::vector<Leg> todo;
-    for (const Leg& l : legs) if (!kap.count(l)) todo.push_back(l);
+    std::vector<TripletKey> todo;
+    for (const TripletKey& k : keys) if (!kap.count(k)) todo.push_back(k);
     std::sort(todo.begin(), todo.end());
     todo.erase(std::unique(todo.begin(), todo.end()), todo.end());
     if (todo.empty()) return;
@@ -254,7 +254,7 @@ void kappa_m000 (const std::vector<Leg>& legs, const ModeMap& efs,
     if (fresh) fh << "key\tkappa\trefine\n";
 #pragma omp parallel for schedule(dynamic, 8) num_threads(jobs) if (jobs > 1)
     for (long i = 0; i < long(todo.size()); ++i) {
-        const Leg& k = todo[size_t(i)];
+        const TripletKey& k = todo[size_t(i)];
         const KappaResult r = kappa_abc(efs.at(k[0]), efs.at(k[1]), efs.at(k[2]), {0, 0, 0});
 #pragma omp critical
         {

@@ -32,7 +32,7 @@
 #include <numeric>
 #include <random>
 
-using stab::Leg;
+using stab::TripletKey;
 
 namespace {
 
@@ -44,7 +44,7 @@ Key parse_key (const std::string& s) {
 
 double kappa_of (const stab::KappaCache& kap, const RadialTriplet& t) {
     const auto k = t.keys();
-    return kap.at(stab::leg_of(k[0], k[1], k[2])).first;
+    return kap.at(stab::triplet_key(k[0], k[1], k[2])).first;
 }
 
 double e_th (const ModeMap& efs, const RadialTriplet& t, double kappa) {
@@ -138,9 +138,9 @@ int main (int argc, char** argv) {
     const double wdyn = m.star->omega_dyn();
 
     stab::KappaCache kap = stab::load_kappa_cache(cache);
-    auto legs_of = [](const std::vector<RadialTriplet>& ts) {
-        std::vector<Leg> out;
-        for (const auto& t : ts) { const auto k = t.keys(); out.push_back(stab::leg_of(k[0], k[1], k[2])); }
+    auto keys_of = [](const std::vector<RadialTriplet>& ts) {
+        std::vector<TripletKey> out;
+        for (const auto& t : ts) { const auto k = t.keys(); out.push_back(stab::triplet_key(k[0], k[1], k[2])); }
         return out;
     };
     // Parent-headed, both daughters damped, at the widest cut; narrower cuts are subsets.
@@ -152,16 +152,16 @@ int main (int argc, char** argv) {
         return out;
     };
 
-    /* No --parent: the driven l <= 2 modes easiest to destabilise, i.e. lowest
+    /* No --parent: the driven l <= parent_l_max modes easiest to destabilise, i.e. lowest
        min E_th over their damped pairs. Not the most driven: a fast-growing
        high overtone puts its daughters at f/2, inside the driven band, and has
        no damped pair at all. */
     std::vector<RadialTriplet> all;
     if (parent_s.empty()) {
         std::set<Key> driven;
-        for (const auto& [k, e] : efs) if (e.gamma < 0.0 && k.first <= 2) driven.insert(k);
+        for (const auto& [k, e] : efs) if (e.gamma < 0.0 && k.first <= parent_l_max) driven.insert(k);
         all = pairs_of(driven);
-        stab::kappa_m000(legs_of(all), efs, cache, kap, jobs);
+        stab::kappa_m000(keys_of(all), efs, cache, kap, jobs);
         std::map<Key, std::pair<double, long>> best;           // min E_th, pair count
         for (Key k : driven) best[k] = {std::numeric_limits<double>::infinity(), 0};
         for (const auto& t : all) {
@@ -172,7 +172,7 @@ int main (int argc, char** argv) {
         std::vector<Key> order(driven.begin(), driven.end());
         std::sort(order.begin(), order.end(),
                   [&](Key a, Key b) { return best[a].first < best[b].first; });
-        std::printf("driven l <= 2 modes by min E_th over damped pairs:\n");
+        std::printf("driven l <= %d modes by min E_th over damped pairs:\n", parent_l_max);
         for (Key k : order)
             std::printf("  (%d,%+3d)  f %8.4f c/d  gamma %+.3e  %6ld pairs  min E_th %.3e\n",
                         k.first, k.second, efs.at(k).omega / CD, efs.at(k).gamma,
@@ -205,7 +205,7 @@ int main (int argc, char** argv) {
         return 1;
     }
     if (std::count(rules.begin(), rules.end(), "eth"))
-        stab::kappa_m000(legs_of(all), efs, cache, kap, jobs);
+        stab::kappa_m000(keys_of(all), efs, cache, kap, jobs);
     std::filesystem::create_directories(out);
 
     for (double cut_dimless : cuts) {
@@ -248,12 +248,12 @@ int main (int argc, char** argv) {
                     for (Key k : parents) sub.emplace(k, efs.at(k));
                     for (Key k : daughters) sub.emplace(k, efs.at(k));
                     net = enumerate_triplets(sub, closure_cut, l_max);
-                    const auto have = legs_of(net);
-                    const std::set<Leg> in(have.begin(), have.end());
+                    const auto have = keys_of(net);
+                    const std::set<TripletKey> in(have.begin(), have.end());
                     for (const auto& t : chosen)         // a closure cut below the cut
-                        if (!in.count(legs_of({t})[0])) net.push_back(t);
+                        if (!in.count(keys_of({t})[0])) net.push_back(t);
                 }
-                stab::kappa_m000(legs_of(net), efs, cache, kap, jobs);
+                stab::kappa_m000(keys_of(net), efs, cache, kap, jobs);
                 net.erase(std::remove_if(net.begin(), net.end(), [&](const RadialTriplet& t) {
                               return kappa_of(kap, t) == 0.0; }),
                           net.end());

@@ -29,7 +29,7 @@
 namespace {
 
 constexpr double Q_PARENT = 1e-6;                // MW23 Fig. 6 reference parent amplitude
-using stab::Leg;
+using stab::TripletKey;
 
 }  // namespace
 
@@ -125,23 +125,23 @@ int main(int argc, char** argv) {
         return RadialTriplet{keys[sum_slot], {keys[p0], keys[p1]},
                              {-w[sum_slot], w[p0], w[p1]}, w[p0] + w[p1] - w[sum_slot]};
     };
-    auto leg_of = [&](int i, int j, int k) { return stab::leg_of(keys[i], keys[j], keys[k]); };
+    auto key_of = [&](int i, int j, int k) { return stab::triplet_key(keys[i], keys[j], keys[k]); };
 
     /* The sign assignment does not enter kappa (only omega^2 does), so one
        kappa per unordered (l, n) triple serves every candidate that uses it. */
-    std::map<Leg, RadialTriplet> legs;
+    std::map<TripletKey, RadialTriplet> legs;
     for (const Tri& t : direct) {
         int s, p0, p1;
         if (t.sgn > 0)            { s = t.ic; p0 = t.ia; p1 = t.ib; }
         else if (w[t.ia] > w[t.ib]) { s = t.ia; p0 = t.ib; p1 = t.ic; }
         else                        { s = t.ib; p0 = t.ia; p1 = t.ic; }
-        legs.emplace(leg_of(t.ia, t.ib, t.ic), triplet(s, p0, p1));
+        legs.emplace(key_of(t.ia, t.ib, t.ic), triplet(s, p0, p1));
     }
     for (const Quad& q : quads)
-        legs.emplace(leg_of(q.ic, q.id, q.id), triplet(q.ic, q.id, q.id));
+        legs.emplace(key_of(q.ic, q.id, q.id), triplet(q.ic, q.id, q.id));
     for (const Quad& q : par_quads)
         for (int ip : {q.ia, q.ib})
-            legs.emplace(leg_of(ip, q.id, q.id), triplet(ip, q.id, q.id));
+            legs.emplace(key_of(ip, q.id, q.id), triplet(ip, q.id, q.id));
     std::printf("%zu distinct radial triplets to integrate\n", legs.size());
 
     const auto t1 = std::chrono::steady_clock::now();
@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
     std::filesystem::path cache_path = outp;
     cache_path.replace_extension(".kappa_cache.tsv");
     stab::KappaCache kap = stab::load_kappa_cache(cache_path);
-    std::vector<Leg> todo;
+    std::vector<TripletKey> todo;
     for (const auto& [k, t] : legs) if (!kap.count(k)) todo.push_back(k);
     if (!kap.empty())
         std::printf("resuming: %zu triplets cached, %zu to go\n", kap.size(), todo.size());
@@ -161,8 +161,8 @@ int main(int argc, char** argv) {
     struct DRow { Quad q; double kd, kp; int rd, rp; double dd, dp, q_c, gpar, eth; };
     std::vector<DRow> rows;
     for (const Quad& q : quads) {
-        const auto [kd, rd] = kap.at(leg_of(q.ia, q.ib, q.ic));
-        const auto [kp, rp] = kap.at(leg_of(q.ic, q.id, q.id));
+        const auto [kd, rd] = kap.at(key_of(q.ia, q.ib, q.ic));
+        const auto [kp, rp] = kap.at(key_of(q.ic, q.id, q.id));
         const double wa = w[q.ia], wb = w[q.ib], wc = w[q.ic], wd = w[q.id];
         // The sum slot carries the negative sign: the sum branch puts c there,
         // the difference branch the higher-frequency of a, b.
@@ -182,9 +182,9 @@ int main(int argc, char** argv) {
                   eth_a, eth_b; };
     std::vector<PRow> par_rows;
     for (const Quad& q : par_quads) {
-        const auto [kd, rd] = kap.at(leg_of(q.ia, q.ib, q.ic));
-        const auto [ka, ra] = kap.at(leg_of(q.ia, q.id, q.id));
-        const auto [kb, rb] = kap.at(leg_of(q.ib, q.id, q.id));
+        const auto [kd, rd] = kap.at(key_of(q.ia, q.ib, q.ic));
+        const auto [ka, ra] = kap.at(key_of(q.ia, q.id, q.id));
+        const auto [kb, rb] = kap.at(key_of(q.ib, q.id, q.id));
         const double wa = w[q.ia], wb = w[q.ib], wc = w[q.ic], wd = w[q.id];
         const double dd = q.sgn > 0 ? wa + wb - wc
                                     : std::min(wa, wb) + wc - std::max(wa, wb);
@@ -277,7 +277,7 @@ int main(int argc, char** argv) {
     for (const DRow& r : rows) {
         const std::pair<Key, Key> key{keys[r.q.ic], keys[r.q.id]};
         if (!seen.insert(key).second) continue;
-        const RadialTriplet& t = legs.at(leg_of(r.q.ic, r.q.id, r.q.id));
+        const RadialTriplet& t = legs.at(key_of(r.q.ic, r.q.id, r.q.id));
         const auto tk = t.keys();
         const auto ms = t.m_combinations();
         const auto [ks, refine] = kappa_all_m(efs.at(tk[0]), efs.at(tk[1]), efs.at(tk[2]), ms);

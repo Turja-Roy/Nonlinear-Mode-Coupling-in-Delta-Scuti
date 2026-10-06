@@ -140,11 +140,11 @@ std::vector<Row> build_rows (const std::vector<RadialTriplet>& triplets, const M
    that uses the triple. Legs missing from `kap` are integrated on `jobs`
    threads and appended to the TSV `cache` as they finish, so a crash loses
    only the integrals in flight. Delete the cache if the GYRE details change. */
-using Leg = std::array<Key, 3>;                  // sorted
-using KappaCache = std::map<Leg, std::pair<double, int>>;    // kappa, refine
-Leg leg_of (Key a, Key b, Key c);
+using TripletKey = std::array<Key, 3>;                  // sorted
+using KappaCache = std::map<TripletKey, std::pair<double, int>>;    // kappa, refine
+TripletKey triplet_key (Key a, Key b, Key c);
 KappaCache load_kappa_cache (const std::filesystem::path& p);
-void kappa_m000 (const std::vector<Leg>& legs, const ModeMap& efs,
+void kappa_m000 (const std::vector<TripletKey>& keys, const ModeMap& efs,
                  const std::filesystem::path& cache, KappaCache& kap, int jobs);
 
 // Column names and the values that go under them, kept side by side so they
