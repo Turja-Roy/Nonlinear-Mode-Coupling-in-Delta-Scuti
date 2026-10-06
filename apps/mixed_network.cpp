@@ -47,7 +47,8 @@ double cell(const csv::Table& df, const std::string& c, size_t i) {
 // Modes for the (l, n) columns named by `labels`, frequencies in c/d. omega
 // is signed by this mode's own gamma (negative = self-excited), which the
 // amplitude equations need and the CSV's plain-magnitude f_* columns don't
-// carry -- see the note in amp::from_triplets.
+// carry. Right here because every leg is direct-sum or parametric, where the
+// gamma-odd mode is the sum mode -- see amplitude.hpp.
 std::vector<amp::Mode> modes_of(const csv::Table& df, size_t i, const std::string& labels) {
     std::vector<amp::Mode> out;
     for (char s : labels) {

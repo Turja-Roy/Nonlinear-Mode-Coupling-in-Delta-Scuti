@@ -16,11 +16,16 @@
        dq_a/dt = -(i w_a + g_a) q_a +   i w_a kappa conj(q_b)^2          (b == c,
        dq_b/dt = -(i w_b + g_b) q_b + 2 i w_b kappa conj(q_a) conj(q_b)   "a -> b + b")
 
-   Signed frequencies, no sum-slot: w_x < 0 for a self-excited (parent) mode,
-   w_x > 0 for a damped (daughter) mode. Which mode is which is decided by
-   gamma's sign alone (see stab::channel()), never by a mode's position in the
-   triplet -- so the same three fields (a, b, c) work for every channel
-   (parametric, direct-sum, direct-diff, ...) without relabelling.
+   Signed frequencies, no sum-slot: the triplet resonates when its three
+   signed omegas sum to ~0, so exactly one of them (the sum mode, or its
+   negation) carries the odd sign. A real mode x is two variables, x+ at +|w|
+   and x- at -|w| with q_x- = conj(q_x+) (Schenk et al. 2002), and every
+   resonance appears twice, (s-, p+, q+) and its mirror (s+, p-, q-); each
+   variable is pushed by one of the two, so nothing is counted twice. Signing
+   each mode once by its gamma, as MW25's examples do, works only for
+   parametric and direct-sum triplets; a closure triplet d1 -> d2 + d3 then
+   has |Delta| ~ 2w and does nothing. network_build writes the doubled set.
+   The same three fields (a, b, c) work for every channel without relabelling.
 
    kappa is the bare coupling integral kappa_abc() returns. The explicit 2
    above is MW25's own combinatorial factor -- there are two orderings of two
@@ -67,7 +72,7 @@ using State = std::vector<std::complex<double>>;
 
 struct Mode {
     std::string name;
-    double omega;                                // signed: < 0 self-excited, > 0 damped
+    double omega;                                // signed, see above; not tied to gamma
     double gamma;                                // < 0 self-excited, > 0 damped
 };
 
@@ -143,16 +148,5 @@ Network three_mode (std::array<double, 3> omega, std::array<double, 3> gamma, do
 // Mode a decaying into two copies of one mode d: a -> d + d
 Network self_coupled (double omega_a, double omega_d, double gamma_a, double gamma_d,
                       double kappa);
-
-/* Network over the union of several RadialTriplets. A mode shared between
-   triplets is one node whatever role it plays in each. RadialTriplet's own
-   omega is signed for its own purpose (the sum mode is first and negative,
-   a resonance-search bookkeeping device, see triplets.hpp); the omega each
-   Mode gets here is resigned from scratch, negative iff its gamma is, which
-   is the convention the amplitude equations above actually need.
-   ms_list empty picks, per triplet, the m combination of largest |kappa|. */
-Network from_triplets (const std::vector<RadialTriplet>& triplets, const ModeMap& efs,
-                       const std::vector<std::array<int, 3>>& ms_list = {},
-                       const std::map<Key, double>& gamma_override = {});
 
 }  // namespace amp

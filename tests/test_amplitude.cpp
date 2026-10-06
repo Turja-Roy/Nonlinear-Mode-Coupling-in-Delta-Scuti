@@ -77,6 +77,33 @@ int main () {
         }
     }
 
+    /* --- each mode as +-omega copies: a resonance whose sum mode is not the
+       gamma-odd one (closure d1 -> d2 + d3, all damped) runs, and q- stays
+       conj(q+). Signed once by gamma it is all-positive, Delta ~ 2 w1, inert. --- */
+    {
+        const double wb = 1.1e-3, wc = 0.9e-3, wa = wb + wc;
+        amp::Network n({{"a+", wa, 0.0}, {"b+", wb, 0.0}, {"c+", wc, 0.0},
+                        {"a-", -wa, 0.0}, {"b-", -wb, 0.0}, {"c-", -wc, 0.0}},
+                       {{3, 1, 2, KAPPA}, {0, 4, 5, KAPPA}});
+        amp::Network old = amp::three_mode({wa, wb, wc}, {0.0, 0.0, 0.0}, KAPPA);
+        amp::Options o;
+        o.n_out = 64;
+        const State p0 = {{1e-6, 2e-7}, {2e-7, -1e-7}, {3e-7, 5e-8}};
+        State y0 = p0;
+        for (const auto& z : p0) y0.push_back(std::conj(z));
+        const auto sol = n.integrate(y0, 2.0e7, o), sol_old = old.integrate(p0, 2.0e7, o);
+        const double E0 = std::norm(p0[0]);
+        double swing = 0.0, swing_old = 0.0;
+        for (size_t j=0 ; j<sol.y.size() ; j++) {
+            for (int i=0 ; i<3 ; i++)
+                assert(std::abs(sol.y[j][i + 3] - std::conj(sol.y[j][i])) < 1e-6 * std::abs(p0[0]));
+            swing = std::max(swing, std::abs(std::norm(sol.y[j][0]) - E0));
+            swing_old = std::max(swing_old, std::abs(std::norm(sol_old.y[j][0]) - E0));
+        }
+        assert(swing > 0.1 * E0);
+        assert(swing_old < 1e-2 * E0);
+    }
+
     /* --- damping alone decays each energy at exactly 2 gamma --- */
     {
         const double g[3] = {4e-7, 3e-7, 5e-7}, t_end = 2.0e7;
