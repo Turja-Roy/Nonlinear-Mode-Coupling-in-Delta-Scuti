@@ -10,7 +10,8 @@
    daughters damped and |Delta| < cut; b == c (a -> d + d) included.
    `rule` ranks each parent's pairs, and the parents take turns, best pair
    first, until N daughters are in (one more if the last pair brings two);
-   every parent gets at least one pair. Net-growing triplets
+   every parent gets at least one pair. An N that brings no new pair (N = 2
+   after N = 1) is not written again. Net-growing triplets
    (gamma_b + gamma_c < |gamma_parent|) are kept unless --min-gamma-ratio
    drops them: whether added modes bring their runaway down is the question.
 
@@ -285,7 +286,11 @@ int main (int argc, char** argv) {
                 std::stable_sort(o.begin(), o.end(),
                                  [&](size_t a, size_t b) { return score[a] < score[b]; });
 
-            for (int n_daughters : ns) {
+            std::vector<int> ns_up(ns);
+            std::sort(ns_up.begin(), ns_up.end());
+            std::set<TripletKey> prev;                   // pairs of the last file written
+            int prev_n = 0;
+            for (int n_daughters : ns_up) {
                 std::vector<Key> daughters;
                 std::vector<RadialTriplet> chosen;
                 std::set<size_t> taken;
@@ -312,6 +317,17 @@ int main (int argc, char** argv) {
                     for (size_t i : o)
                         if (n < n_self && self_coupled(cand[i])) { take(i); ++n; }
                 }
+
+                /* Pairs come whole, so a larger N can give the same pairs (N = 1
+                   and 2 always do). Write each network once, at its smallest N. */
+                const auto ck = keys_of(chosen);
+                std::set<TripletKey> now(ck.begin(), ck.end());
+                if (now == prev) {
+                    std::printf("  N %d: same pairs as N %d, not written\n", n_daughters, prev_n);
+                    continue;
+                }
+                prev = std::move(now);
+                prev_n = n_daughters;
 
                 std::vector<RadialTriplet> net = chosen;
                 if (closure) {

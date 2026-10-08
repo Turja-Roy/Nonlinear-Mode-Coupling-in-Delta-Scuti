@@ -123,7 +123,7 @@ public:
     State to_q (double t, const State& A) const;             // put the phase back
 
     /* e_max stops the run on the way up only, so a runaway shows as
-       t.back() < t_end; a network with no damped mode has no bounded state and
+       t.back() < t_end, the last output being the first past e_max; a network with no damped mode has no bounded state and
        without the cap the integrator just grinds against the blow-up.
        Freezing is only meaningful for the A equations. */
     Solution integrate (State y0, double t_end, Options opt = Options{}) const;

@@ -13,15 +13,19 @@
 #   WALL=10 CLOSURE=0.15 sbatch shell-scripts/network_sweep.sh   # tighter cap, full closure
 #   sbatch --array=2 shell-scripts/network_sweep.sh             # MODELS[2] only
 #
-# Builds every network first (one model load per parent set), then integrates
-# them in parallel, plotting each run as it finishes. Run from the repo root
-# after ./compile.sh. Output: data/networks/<model>/<set>/, out/networks/<model>/<set>/<run>/.
+# Compiles network_build/network_run first (array tasks take turns on a lock;
+# up-to-date objects are skipped), rebuilds every network from scratch (one
+# model load per parent set), then integrates them in parallel, plotting each
+# run as it finishes. A run is redone when its network file changed.
+# Output: data/networks/<model>/<set>/, out/networks/<model>/<set>/<run>/.
 
 set -euo pipefail
 source shell-scripts/config.sh
 setup_python
+mkdir -p build
+flock build/.compile.lock ./compile.sh -j "${SLURM_CPUS_PER_TASK:-4}" network_build network_run
 MODEL=${MODEL:-models/$(cut -d: -f1 <<< "${MODELS[${SLURM_ARRAY_TASK_ID:-0}]}")}
-echo "=== $MODEL (array task ${SLURM_ARRAY_TASK_ID:-none})" 
+echo "=== $MODEL (array task ${SLURM_ARRAY_TASK_ID:-none})"
 TAG=$(basename "$MODEL")
 JOBS=${SLURM_CPUS_PER_TASK:-4}
 OUT=${OUT:-out/networks}
@@ -43,6 +47,7 @@ read -r P1 P2 <<< "${PARENTS:-}"
 ONE=${P1:+--parent $P1}; ONE=${ONE:---n-parents 1}
 TWO=${P2:+--parent $P1 --parent $P2}; TWO=${TWO:---n-parents 2}
 
+rm -rf "data/networks/$TAG"          # stale files from older builds would be run too
 build() {   # out-dir, build args...
     local d=$1; shift
     ./build/network_build --model "$MODEL" --kappa-cache "out/four_mode_${TAG}.kappa_cache.tsv" \
@@ -70,8 +75,8 @@ run() {   # network file
     grp=$(basename "$(dirname "$f")")
     d=$OUT/$TAG/$grp/$(basename "$f" .data)
     [[ $grp == two_parents* ]] && p=2
-    [[ -f $d/summary.csv ]] && return 0
-    mkdir -p "$d"
+    [[ -f $d/summary.csv ]] && cmp -s "$f" "$d/network.data" && return 0
+    rm -rf "$d"; mkdir -p "$d"; cp "$f" "$d/network.data"
     timeout "${WALL}m" ./build/network_run "$f" --out "$d" $RUN_ARGS > "$d/log.txt" 2>&1
     case $? in
         0) python scripts/network_plot.py --data "$d" --parents $p --copies --title "$TAG $(basename "$d")" \

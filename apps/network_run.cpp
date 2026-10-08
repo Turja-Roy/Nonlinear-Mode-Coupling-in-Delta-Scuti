@@ -149,7 +149,15 @@ int main (int argc, char** argv) {
                                    seed ? phase(rng) : 0.0);
         if (nf.mirror[size_t(i)] >= 0) y0[size_t(nf.mirror[size_t(i)])] = std::conj(y0[size_t(i)]);
     }
-    const amp::Solution sol = net.integrate(y0, t_end, opt);
+    amp::Solution sol = net.integrate(y0, t_end, opt);
+    // Stopped early: energy cap crossed, or the amplitudes overflowed.
+    const bool runaway = sol.t.back() < t_end * (1.0 - 0.5 / (n_out - 1));
+    /* A fast parent can cross the cap within a few outputs, leaving a plot of
+       two points; integrate again up to the crossing to resolve the growth. */
+    if (runaway && sol.t.size() < size_t(n_out / 4) && sol.t.back() > 0.0) {
+        t_end = sol.t.back();
+        sol = net.integrate(y0, t_end, opt);
+    }
 
     std::filesystem::create_directories(out);
     std::vector<std::string> hdr = {"t"};
@@ -199,8 +207,6 @@ int main (int argc, char** argv) {
     for (int i : nf.shown)
         active += net.modes()[size_t(i)].gamma >= 0.0 && mean[i] > 1e-3 * top_d;
     const auto mm = std::minmax_element(E_par.begin(), E_par.end());
-    // Stopped early: energy cap crossed, or the amplitudes overflowed.
-    const bool runaway = sol.t.back() < t_end * (1.0 - 0.5 / (n_out - 1));
     const std::string stop = runaway ? "runaway" : "end";
     const double swing = (*mm.second - *mm.first) / par;
     std::printf("  <E_parents> %.3e E_star, swing %.3f, D/P %.3f, %ld active daughters, "

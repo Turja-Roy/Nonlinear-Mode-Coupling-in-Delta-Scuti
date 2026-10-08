@@ -279,32 +279,47 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
     gsl_odeiv2_driver* drv = gsl_odeiv2_driver_alloc_y_new(
         &sys, gsl_odeiv2_step_rk8pd, h0, opt.atol, opt.rtol);
 
-    // The integration loop: n_out outputs evenly spaced over [0, t_end].
+    /* The integration loop: n_out outputs evenly spaced over [0, t_end]. With
+       a cap, energy is also checked every e-folding of the fastest driven mode,
+       so a runaway stops near the crossing instead of overflowing inside one
+       long output interval; the crossing state is then the last output. */
+    double grow = 0.0;
+    for (int i=0 ; i<n ; i++) grow = std::max(grow, -2.0 * gamma_[i]);
+    const double check = opt.e_max > 0.0 && grow > 0.0 ? 1.0 / grow : t_end;
     Solution sol;
     State out(static_cast<size_t>(n));
     double t = 0.0, e_prev = -1.0;
-    for (int step=0 ; step<opt.n_out ; step++) {
+    auto energy_now = [&] {
+        std::copy_n(as_complex(yd), n, out.begin());
+        double e = 0.0;
+        for (const auto& z : out) e += std::norm(z);
+        return e;
+    };
+    auto crossed = [&](double e) {
+        const bool c = opt.e_max > 0.0 && e_prev >= 0.0 && e_prev <= opt.e_max && e > opt.e_max;
+        if (opt.e_max > 0.0) e_prev = e;
+        return c;
+    };
+    bool done = false;
+    for (int step=0 ; step<opt.n_out && !done ; step++) {
         const double t_target = t_end * step / (opt.n_out - 1);
 
         // advance from t to t_target, updating t and y in place; flag < 0 is a failure
         int flag = 0;
-        if (t_target > t) {
-            // flag = CVode(mem, t_target, y, &t, CV_NORMAL);                     // (1), (2)
-            // flag = ARKodeEvolve(mem, t_target, y, &t, ARK_NORMAL);          // (3)
-            flag = gsl_odeiv2_driver_apply(drv, &t, t_target, yd) == GSL_SUCCESS ? 0 : -1;  // (4)
+        double e = energy_now();
+        while (t < t_target && flag == 0) {
+            const double t_next = std::min(t_target, t + check);
+            // flag = CVode(mem, t_next, y, &t, CV_NORMAL);                     // (1), (2)
+            // flag = ARKodeEvolve(mem, t_next, y, &t, ARK_NORMAL);          // (3)
+            flag = gsl_odeiv2_driver_apply(drv, &t, t_next, yd) == GSL_SUCCESS ? 0 : -1;  // (4)
+            e = energy_now();
+            if (!std::isfinite(e)) { flag = -1; break; }
+            if (t < t_target && crossed(e)) { done = true; break; }
         }
         if (flag < 0) break;
-
-        std::copy_n(as_complex(yd), n, out.begin());
-        double e = 0.0;
-        for (const auto& z : out) e += std::norm(z);
-        if (!std::isfinite(e)) break;
-        if (opt.e_max > 0.0) {
-            if (e_prev >= 0.0 && e_prev <= opt.e_max && e > opt.e_max) break;
-            e_prev = e;
-        }
         sol.t.push_back(t);
         sol.y.push_back(out);
+        if (!done && crossed(e)) done = true;
     }
 
     // SUNLinSolFree(LS);                           // (1), (3)

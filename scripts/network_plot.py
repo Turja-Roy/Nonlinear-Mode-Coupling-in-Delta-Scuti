@@ -52,6 +52,9 @@ def read_network(path: pathlib.Path):
 
 
 def copies(a, out: pathlib.Path) -> None:
+    if not (a.data / "energies_all.csv").exists():
+        print(f"   no {a.data}/energies_all.csv (network not doubled, or an old network_run): no copies plot")
+        return
     df = pd.read_csv(a.data / "energies_all.csv")
     t = df["t"].to_numpy()
     net = pd.read_csv(a.data / "summary.csv")["file"].iloc[0]
@@ -71,9 +74,9 @@ def copies(a, out: pathlib.Path) -> None:
         for i in dau:
             ax.plot(t, df[f"E_{i}"], color="0.4", lw=0.5, alpha=0.6)
         for i, k, s, col in zip(sel, keys, signs, PALETTE):
-            ax.plot(t, df[f"E_{i}"], color=col, lw=1.6, label=f"({k[0]},{k[1]}) {'+' if s > 0 else '-'}omega, id {i}")
+            ax.plot(t, df[f"E_{i}"], color=col, lw=1.6, label=f"({k[0]},{k[1]:+d}) {'+' if s > 0 else '-'}omega, id {i}")
         ax.plot([], [], color="0.4", lw=0.8, label=f"{len(dau)} daughter copies coupled")
-        ax.set_title(", ".join(f"({k[0]},{k[1]}) {'+' if s > 0 else '-'}w" for k, s in zip(keys, signs)))
+        ax.set_title(", ".join(f"({k[0]},{k[1]:+d}) {'+' if s > 0 else '-'}omega" for k, s in zip(keys, signs)))
         ax.set(yscale="log", ylim=(1e-34, 1e-1))
         ax.legend(fontsize=7, framealpha=0.9)
     for ax in axes[-1]:
@@ -81,7 +84,7 @@ def copies(a, out: pathlib.Path) -> None:
     for ax in axes[:, 0]:
         ax.set_ylabel(r"Mode Energy  $[E_\star]$")
     if a.title:
-        fig.suptitle(a.title + "  (omega copies)", fontsize=10)
+        fig.suptitle(a.title + "  (+-omega copies)", fontsize=10)
     for ext in ("png", "pdf"):
         fig.savefig(out / f"network_copies.{ext}")
     plt.close(fig)
@@ -104,23 +107,30 @@ def main() -> int:
     t = df["t"].to_numpy()
     names = [c[2:] for c in df.columns if c != "t"]
 
+    # (l, n) and role of each mode from the network file, when summary.csv names one
+    modes = {}
+    if (a.data / "summary.csv").exists():
+        net = pathlib.Path(pd.read_csv(a.data / "summary.csv")["file"].iloc[0])
+        if net.exists():
+            modes = read_network(net)[0]
+    lab = {n: f"({modes[int(n)]['l']},{modes[int(n)]['n']:+d})" if int(n) in modes else f"mode {n}" for n in names}
+    par = [n for n in names if modes.get(int(n), {}).get("gen") == 0] if modes else names[:a.parents]
+    dau = [n for n in names if n not in par]
+
     fig, ax = plt.subplots(figsize=(8, 5), layout="constrained")
     if len(names) <= MANY:
-        for name, col in zip(names, PALETTE):
-            ax.plot(t, df[f"E_{name}"], color=col, lw=1.4, label=f"mode {name}")
-        ax.legend(fontsize=8, framealpha=0.9)
-        ax.set_title(f"{a.data}", fontsize=10)
+        for name, col in zip(par + dau, PALETTE):
+            ax.plot(t, df[f"E_{name}"], color=col, lw=1.6 if name in par else 1.2,
+                    label=("parent " if name in par else "") + lab[name])
     else:
-        for name in names[a.parents:]:
+        for name in dau:
             ax.plot(t, df[f"E_{name}"], color="0.4", lw=0.4, alpha=0.5)
-        ax.set_title(f"{a.data}  ({len(names)} modes)", fontsize=10)
-    for name, col in zip(names[:a.parents], PALETTE[:2] if len(names) > MANY else []):
-        ax.plot(t, df[f"E_{name}"], color=col, lw=1.6, label=f"parent {name}")
-    if a.parents and len(names) > MANY:
-        ax.plot([], [], color="0.4", lw=0.8, label="daughters")
-        ax.legend(fontsize=8, framealpha=0.9)
-    if a.title:
-        ax.set_title(a.title, fontsize=10)
+        for name, col in zip(par, PALETTE):
+            ax.plot(t, df[f"E_{name}"], color=col, lw=1.6, label="parent " + lab[name])
+        ax.plot([], [], color="0.4", lw=0.8, label=f"{len(dau)} daughters")
+    ax.legend(fontsize=8, framealpha=0.9)
+    head = a.title or str(a.data)
+    ax.set_title(f"{head}\nparents {', '.join(lab[n] for n in par)};  {len(dau)} daughters", fontsize=10)
 
     ax.set(yscale="log", xlabel="Time [s]", ylim=(1e-34,1e-1), ylabel=r"Mode Energy  $[E_\star]$")
     out.mkdir(parents=True, exist_ok=True)
