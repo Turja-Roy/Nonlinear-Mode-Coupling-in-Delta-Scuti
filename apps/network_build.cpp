@@ -7,15 +7,26 @@
    load is minutes, a network is milliseconds.
 
    Candidates are the triplets a parent heads, parent -> b + c with both
-   daughters damped and |Delta| < cut. `rule` ranks them and pairs are taken
-   in order until N daughters are in (one more if the last pair brings two).
-   Net-growing triplets (gamma_b + gamma_c < |gamma_parent|) are kept on
-   purpose: whether added modes bring their runaway down is the question.
+   daughters damped and |Delta| < cut; b == c (a -> d + d) included.
+   `rule` ranks each parent's pairs, and the parents take turns, best pair
+   first, until N daughters are in (one more if the last pair brings two);
+   every parent gets at least one pair. Net-growing triplets
+   (gamma_b + gamma_c < |gamma_parent|) are kept unless --min-gamma-ratio
+   drops them: whether added modes bring their runaway down is the question.
 
        eth      E_th ascending -- kappa, gamma and Delta together
+       eeq      larger daughter energy at the MW25 A7 fixed point ascending;
+                infinite for a net-growing triplet. Punishes a weakly damped
+                daughter, which must hold ~ |gamma_p|/gamma_d x E_parent there
        delta    |Delta| ascending
        dgamma   |Delta| / (gamma_b + gamma_c) ascending, E_th without kappa
        random   uniform; the control for how much the ranking matters
+
+   --min-gamma-ratio r keeps a pair only if min(gamma_b, gamma_c) >= r |gamma_p|.
+   --self-coupled k adds each parent's k best a -> d + d pairs on top of N;
+   they are rare (one mode at omega/2, not any pair summing to omega) and
+   rank low, so without it they are seldom picked. None exists for odd l_a:
+   l_a + 2 l_d must be even.
 
    Closure then adds every triplet among the chosen modes with |Delta| below
    the closure cut, whichever leg selected them: the equations do not know why
@@ -27,6 +38,7 @@
 #include <CLI/CLI.hpp>
 
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <limits>
 #include <numeric>
@@ -53,7 +65,19 @@ double e_th (const ModeMap& efs, const RadialTriplet& t, double kappa) {
     return stab::threshold_energy(kappa, b.omega, c.omega, b.gamma, c.gamma, t.delta);
 }
 
+double e_eq (const ModeMap& efs, const RadialTriplet& t, double kappa) {
+    const double inf = std::numeric_limits<double>::infinity();
+    const std::array<double, 3> g = {efs.at(t.sum_mode).gamma, efs.at(t.pair[0]).gamma,
+                                     efs.at(t.pair[1]).gamma};
+    if (kappa == 0.0 || g[0] + g[1] + g[2] <= 0.0) return inf;
+    const auto E = stab::equilibrium_energies(kappa, t.omega, g, t.delta);
+    const double e = std::max(E[1], E[2]);
+    return std::isfinite(e) ? e : inf;
+}
+
 double frac_detuning (const RadialTriplet& t) { return t.delta / -t.omega[0]; }
+
+bool self_coupled (const RadialTriplet& t) { return t.pair[0] == t.pair[1]; }
 
 /* Each mode twice, id i at +omega and i + M at -omega, and each triplet as
    (s-, p+, q+) and its mirror (s+, p-, q-): see amplitude.hpp. */
@@ -111,8 +135,8 @@ int main (int argc, char** argv) {
     std::vector<std::string> parent_s, rules = {"eth"};
     std::vector<double> cuts = {DETUNING_CUT_DIMLESS};
     std::vector<int> ns = {2};
-    double closure_dimless = -1.0;
-    int l_max = 25, jobs = 4, n_parents = 1, parent_l_max = 2;
+    double closure_dimless = -1.0, min_gamma_ratio = 0.0;
+    int l_max = 25, jobs = 4, n_parents = 1, parent_l_max = 2, n_self = 0;
     unsigned seed = 1;
     bool closure = true;
     app.add_option("--model", model);
@@ -123,7 +147,10 @@ int main (int argc, char** argv) {
     app.add_option("--parent", parent_s, "l,n of a parent; one or two");
     app.add_option("--n-parents", n_parents, "without --parent: the modes of lowest E_th");
     app.add_option("--parent-l-max", parent_l_max, "without --parent: largest l a parent may have");
-    app.add_option("--rule", rules)->check(CLI::IsMember({"eth", "delta", "dgamma", "random"}));
+    app.add_option("--rule", rules)->check(CLI::IsMember({"eth", "eeq", "delta", "dgamma", "random"}));
+    app.add_option("--min-gamma-ratio", min_gamma_ratio,
+                   "keep pairs with min(gamma_b, gamma_c) >= r |gamma_parent|");
+    app.add_option("--self-coupled", n_self, "add each parent's k best a -> d + d pairs");
     app.add_option("-N", ns, "daughter counts");
     app.add_option("--cut", cuts, "candidate |Delta| cuts, units of sqrt(GM/R^3)");
     app.add_option("--closure-cut", closure_dimless, "closure |Delta|; default each --cut");
@@ -157,8 +184,10 @@ int main (int argc, char** argv) {
     const double cut_max = *std::max_element(cuts.begin(), cuts.end()) * wdyn;
     auto pairs_of = [&](const std::set<Key>& heads) {
         std::vector<RadialTriplet> out;
-        for (const auto& t : enumerate_triplets(efs, cut_max, l_max, &heads))
-            if (efs.at(t.pair[0]).gamma > 0.0 && efs.at(t.pair[1]).gamma > 0.0) out.push_back(t);
+        for (const auto& t : enumerate_triplets(efs, cut_max, l_max, &heads)) {
+            const double gmin = std::min(efs.at(t.pair[0]).gamma, efs.at(t.pair[1]).gamma);
+            if (gmin > 0.0 && gmin >= -min_gamma_ratio * efs.at(t.sum_mode).gamma) out.push_back(t);
+        }
         return out;
     };
 
@@ -210,11 +239,23 @@ int main (int argc, char** argv) {
               all.end());
     std::printf("%zu modes, %zu parents, %zu candidate pairs at cut %.3g c/d\n",
                 efs.size(), parents.size(), all.size(), cut_max / CD);
+    for (Key k : parents) {
+        long n = 0, n_sc = 0;
+        double best_sc = std::numeric_limits<double>::infinity();
+        for (const auto& t : all) {
+            if (t.sum_mode != k) continue;
+            ++n;
+            if (self_coupled(t)) { ++n_sc; best_sc = std::min(best_sc, std::abs(frac_detuning(t))); }
+        }
+        std::printf("  (%d,%+d): %ld pairs with min gamma_d >= %g |gamma_p|, %ld of them a -> d + d"
+                    " (best |Delta|/omega %.2e)\n", k.first, k.second, n, min_gamma_ratio, n_sc, best_sc);
+    }
     if (all.empty()) {
-        std::fprintf(stderr, "no damped pair: the daughters near f/2 are themselves driven\n");
+        std::fprintf(stderr, "no damped pair passes: the daughters near f/2 are driven, "
+                             "or --min-gamma-ratio leaves none\n");
         return 1;
     }
-    if (std::count(rules.begin(), rules.end(), "eth"))
+    if (std::count(rules.begin(), rules.end(), "eth") || std::count(rules.begin(), rules.end(), "eeq"))
         stab::kappa_m000(keys_of(all), efs, cache, kap, jobs);
     std::filesystem::create_directories(out);
 
@@ -231,25 +272,45 @@ int main (int argc, char** argv) {
                 const RadialTriplet& t = cand[i];
                 const double gsum = efs.at(t.pair[0]).gamma + efs.at(t.pair[1]).gamma;
                 score[i] = rule == "eth"    ? e_th(efs, t, kappa_of(kap, t))
+                         : rule == "eeq"    ? e_eq(efs, t, kappa_of(kap, t))
                          : rule == "delta"  ? std::abs(t.delta)
                          : rule == "dgamma" ? std::abs(t.delta) / gsum
                                             : u(rng);
             }
-            std::vector<size_t> order(cand.size());
-            std::iota(order.begin(), order.end(), size_t(0));
-            std::stable_sort(order.begin(), order.end(),
-                             [&](size_t a, size_t b) { return score[a] < score[b]; });
+            // Per parent, best first; unusable (infinite score) pairs dropped.
+            std::map<Key, std::vector<size_t>> order;
+            for (size_t i = 0; i < cand.size(); ++i)
+                if (std::isfinite(score[i])) order[cand[i].sum_mode].push_back(i);
+            for (auto& [k, o] : order)
+                std::stable_sort(o.begin(), o.end(),
+                                 [&](size_t a, size_t b) { return score[a] < score[b]; });
 
             for (int n_daughters : ns) {
                 std::vector<Key> daughters;
                 std::vector<RadialTriplet> chosen;
-                for (size_t i : order) {
-                    if (int(daughters.size()) >= n_daughters) break;
-                    if (rule == "eth" && !std::isfinite(score[i])) break;
+                std::set<size_t> taken;
+                auto take = [&](size_t i) {
+                    if (!taken.insert(i).second) return;
                     chosen.push_back(cand[i]);
                     for (Key k : cand[i].pair)
                         if (std::find(daughters.begin(), daughters.end(), k) == daughters.end())
                             daughters.push_back(k);
+                };
+                // Parents take turns; round 0 runs to the end so each has a pair.
+                for (size_t r = 0;; ++r) {
+                    bool any = false;
+                    for (const auto& [k, o] : order) {
+                        if (r >= o.size()) continue;
+                        if (r > 0 && int(daughters.size()) >= n_daughters) break;
+                        take(o[r]);
+                        any = true;
+                    }
+                    if (!any || int(daughters.size()) >= n_daughters) break;
+                }
+                for (const auto& [k, o] : order) {
+                    int n = 0;
+                    for (size_t i : o)
+                        if (n < n_self && self_coupled(cand[i])) { take(i); ++n; }
                 }
 
                 std::vector<RadialTriplet> net = chosen;
@@ -270,13 +331,19 @@ int main (int argc, char** argv) {
 
                 std::vector<Key> by_id(parents.begin(), parents.end());
                 by_id.insert(by_id.end(), daughters.begin(), daughters.end());
-                char name[96], header[400];
-                std::snprintf(name, sizeof name, "%s_cut%g_N%d%s.data", rule.c_str(),
-                              cut_dimless, n_daughters, closure ? "" : "_open");
+                char name[128], header[400], tags[48] = "";
+                if (min_gamma_ratio > 0.0)
+                    std::snprintf(tags, sizeof tags, "_g%g", min_gamma_ratio);
+                if (n_self > 0)
+                    std::snprintf(tags + std::strlen(tags), sizeof tags - std::strlen(tags), "_sc%d", n_self);
+                std::snprintf(name, sizeof name, "%s_cut%g_N%d%s%s.data", rule.c_str(),
+                              cut_dimless, n_daughters, tags, closure ? "" : "_open");
                 std::snprintf(header, sizeof header,
-                              "# network_build %s  gamma_%s  rule %s  N %d  cut %g  closure %s\n",
+                              "# network_build %s  gamma_%s  rule %s  N %d  cut %g  closure %s"
+                              "  min_gamma_ratio %g  self_coupled %d\n",
                               model.c_str(), gamma_mode.c_str(), rule.c_str(), n_daughters,
-                              cut_dimless, closure ? std::to_string(closure_cut / wdyn).c_str() : "off");
+                              cut_dimless, closure ? std::to_string(closure_cut / wdyn).c_str() : "off",
+                              min_gamma_ratio, n_self);
                 const auto p = std::filesystem::path(out) / name;
                 write_network(p, header, chosen, net, by_id, parents, efs, kap);
                 std::vector<double> fd;

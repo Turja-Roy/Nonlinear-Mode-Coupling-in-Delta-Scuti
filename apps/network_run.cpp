@@ -20,7 +20,7 @@
    omega sign: taken from the file. network_build writes each mode twice,
    +omega and -omega (q- = conj(q+), amplitude.hpp), paired here by (n, l, m);
    the - copy starts at the conjugate of the + one and outputs list the +
-   copy only, under its id. A file with no negative omega at all (the old
+   copy only, under its id; energies_all.csv has every copy. A file with no negative omega at all (the old
    data files) is signed the MW25 way instead, negative iff gamma is. */
 
 #include "amplitude.hpp"
@@ -162,6 +162,18 @@ int main (int argc, char** argv) {
         w.row(row);
     }
     std::printf("-> %s/energies.csv (t_end %.3e, %zu rows)\n", out.c_str(), t_end, sol.t.size());
+
+    if (copies == 2) {
+        hdr = {"t"};
+        for (const auto& m : net.modes()) hdr.push_back("E_" + m.name);
+        csv::Writer wa(std::filesystem::path(out) / "energies_all.csv", hdr);
+        for (size_t j=0 ; j<sol.t.size() ; j++) {
+            const eig::ArrayXd E = net.energy(sol.y[j]);
+            std::string row = csv::fmt(sol.t[j]);
+            for (eig::Index i=0 ; i<E.size() ; i++) row += "," + csv::fmt(E[i]);
+            wa.row(row);
+        }
+    }
 
     /* Second-half averages. At a bounded state the parents' kappa-mechanism
        input equals what the damped modes dissipate, so D/P -> 1 is the check
