@@ -2,18 +2,16 @@
 #SBATCH --job-name=network_sweep
 #SBATCH --cpus-per-task=16
 #SBATCH --time=12:00:00
-#SBATCH --output=logs/network_sweep_%j.log
-# Network growth ladder on one model (Plans/mode-networks.md, sec. 3-4).
+#SBATCH --array=0-4
+#SBATCH --output=logs/network_sweep_%A_%a.log
+# Network growth ladder (Plans/mode-networks.md, sec. 3-4), one array task per
+# model in config.sh's MODELS, all five in parallel.
 #
 #   sbatch shell-scripts/network_sweep.sh            # parents: l <= 2 GYRE modes of lowest E_th
-#   PARENTS="6,3 6,4" sbatch shell-scripts/network_sweep.sh
+#   PARENTS="6,3 6,4" sbatch --array=2 shell-scripts/network_sweep.sh   # (l,n) differ per model
 #   PARENT_LMAX=4 sbatch shell-scripts/network_sweep.sh   # let l <= 4 modes compete as parents
 #   WALL=10 CLOSURE=0.15 sbatch shell-scripts/network_sweep.sh   # tighter cap, full closure
-#   MODEL=models/dsct_M2.2_T7888 sbatch shell-scripts/network_sweep.sh
-#
-# All five models, one job each:
-#   for t in dsct_M1.7_T7750 dsct_M1.85_T7555 dsct_M2.0 dsct_M2.0_T7696 dsct_M2.2_T7888; do
-#       MODEL=models/$t sbatch -J net_$t shell-scripts/network_sweep.sh; done
+#   sbatch --array=2 shell-scripts/network_sweep.sh             # MODELS[2] only
 #
 # Builds every network first (one model load per parent set), then integrates
 # them in parallel, plotting each run as it finishes. Run from the repo root
@@ -22,7 +20,8 @@
 set -euo pipefail
 source shell-scripts/config.sh
 setup_python
-MODEL=${MODEL:-models/dsct_M2.0}
+MODEL=${MODEL:-models/$(cut -d: -f1 <<< "${MODELS[${SLURM_ARRAY_TASK_ID:-0}]}")}
+echo "=== $MODEL (array task ${SLURM_ARRAY_TASK_ID:-none})" 
 TAG=$(basename "$MODEL")
 JOBS=${SLURM_CPUS_PER_TASK:-4}
 OUT=${OUT:-out/networks}
