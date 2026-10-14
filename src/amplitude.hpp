@@ -82,7 +82,17 @@ struct Triplet {
     double kappa;
 };
 
+/* rk8pd: GSL Prince-Dormand 8(9), explicit. Fine while every mode stays above
+   atol; a mode below it no longer limits the step, which then grows to the
+   method's stability limit and parks that mode near atol^2 in energy.
+   bdf: CVODE BDF (implicit, order 1-5) with a dense direct linear solver and
+   CVODE's finite-difference Jacobian; no stability limit, so modes below atol
+   keep decaying. adams: CVODE Adams (order 1-12) with fixed-point iteration,
+   explicit-like, as in the ode_integrate_sundial.cpp we were given. */
+enum class Solver { rk8pd, adams, bdf };
+
 struct Options {
+    Solver solver = Solver::rk8pd;
     int n_out = 2000;
     double rtol = 1e-12;
     double atol = 0.0;                           // 0 -> 1e-14 max|y0|, since |q| ~ 1e-6

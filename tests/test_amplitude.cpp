@@ -77,15 +77,31 @@ int main () {
         }
     }
 
-    /* --- damping alone decays each energy at exactly 2 gamma --- */
-    {
+    /* --- damping alone decays each energy at exactly 2 gamma, every solver --- */
+    for (amp::Solver s : {amp::Solver::rk8pd, amp::Solver::adams, amp::Solver::bdf}) {
         const double g[3] = {4e-7, 3e-7, 5e-7}, t_end = 2.0e7;
         amp::Network n = amp::three_mode({W[0], W[1], W[2]}, {g[0], g[1], g[2]}, 0.0);
         amp::Options o;
         o.n_out = 3;
+        o.solver = s;
         const eig::ArrayXd E = n.energy(n.integrate({1e-6, 1e-6, 1e-6}, t_end, o).y.back());
         for (int i=0 ; i<3 ; i++)
             close(E[i], 1e-12 * std::exp(-2.0 * g[i] * t_end), 1e-8, "linear decay");
+    }
+
+    /* --- the three solvers agree on a resonant triplet trading most of its energy --- */
+    {
+        const double wb = 1.1e-3, wc = 0.9e-3;
+        amp::Network n = amp::three_mode({-(wb + wc), wb, wc}, {-1e-8, 2e-8, 3e-8}, KAPPA);
+        std::vector<eig::ArrayXd> E;
+        for (amp::Solver s : {amp::Solver::rk8pd, amp::Solver::adams, amp::Solver::bdf}) {
+            amp::Options o;
+            o.n_out = 2;
+            o.solver = s;
+            E.push_back(n.energy(n.integrate({1e-6, 2e-7, 3e-7}, 2.0e7, o).y.back()));
+        }
+        for (size_t k=1 ; k<E.size() ; k++)
+            for (int i=0 ; i<3 ; i++) close(E[k][i], E[0][i], 1e-6, "solvers agree");
     }
 
     /* --- A and q give the same |amplitude| --- */

@@ -82,7 +82,8 @@ NetworkFile read_network (const std::filesystem::path& p) {
 int main (int argc, char** argv) {
     CLI::App app{"Integrate an arbitrary network read from a plain-text file"};
     std::string src, out = "out/network_run";
-    double q0 = 1e-6, q0_d = 0.0, t_end = 0.0, rtol = 1e-10, e_max = 0.0;
+    double q0 = 1e-6, q0_d = 0.0, t_end = 0.0, rtol = 1e-10, atol = 0.0, e_max = 0.0;
+    amp::Solver solver = amp::Solver::rk8pd;
     int n_out = 4000;
     unsigned seed = 0;
     app.add_option("file", src, "network file, see data/fake_net_101.data")->required();
@@ -94,6 +95,10 @@ int main (int argc, char** argv) {
     app.add_option("--t-end", t_end, "integration length; default 20 / min|gamma|");
     app.add_option("--n-out", n_out);
     app.add_option("--rtol", rtol);
+    app.add_option("--atol", atol, "absolute tolerance on |A|; 0 = 1e-14 max|A(0)|");
+    app.add_option("--solver", solver, "rk8pd, adams or bdf (amplitude.hpp)")
+        ->transform(CLI::CheckedTransformer(std::map<std::string, amp::Solver>{
+            {"rk8pd", amp::Solver::rk8pd}, {"adams", amp::Solver::adams}, {"bdf", amp::Solver::bdf}}));
     CLI11_PARSE(app, argc, argv);
 
     const NetworkFile nf = read_network(src);
@@ -110,6 +115,8 @@ int main (int argc, char** argv) {
     amp::Options opt;
     opt.n_out = n_out;
     opt.rtol = rtol;
+    opt.atol = atol;
+    opt.solver = solver;
     opt.e_max = e_max;
     if (q0_d == 0.0) q0_d = q0;
     std::mt19937 rng(seed);

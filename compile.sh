@@ -90,7 +90,7 @@ if grep -q '^#define SUNDIALS_MPI_ENABLED 1' "$SUN_H"; then
     [[ $CXX == *mpi* ]] || { OMPI_CXX=$CXX MPICH_CXX=$CXX; export OMPI_CXX MPICH_CXX; CXX=mpicxx; }
     say "            built with MPI -> compiling with $CXX"
 fi
-SUN_L="$SUN_L -lsundials_cvode -lsundials_arkode -lsundials_nvecopenmp -lsundials_sunlinsolspgmr -lsundials_sunnonlinsolfixedpoint -lsundials_core"
+SUN_L="$SUN_L -lsundials_cvode -lsundials_nvecopenmp -lsundials_sunlinsoldense -lsundials_sunmatrixdense -lsundials_sunnonlinsolfixedpoint -lsundials_core"
 
 HDF5_C=""; HDF5_L="-lhdf5"; HDF5_FOUND=0
 for p in hdf5 hdf5-serial; do
@@ -133,9 +133,14 @@ LIB_SRC=(numeric angular model kappa triplets amplitude stability csv)
 APPS=(three_mode_search channels four_mode_search mixed_network make_inlists mw25 network_run network_build)
 TESTS=(numeric kappa amplitude)
 
+# Objects are checked against their source and the newest header: a header
+# edit (a struct gaining a field) otherwise leaves objects built against the
+# old layout, which link fine and then misbehave.
+HDR=$(ls -t src/*.hpp | head -1)
+
 compile_one() {   # src, obj, extra
     local s=$1 o=$2
-    if [[ -f $o && $o -nt $s ]]; then return 0; fi
+    if [[ -f $o && $o -nt $s && $o -nt $HDR ]]; then return 0; fi
     $CXX $FLAGS ${3:-} -c "$s" -o "$o" || { printf 'FAILED: %s\n' "$s" >&2; exit 1; }
     printf '  cc %s\n' "$s"
 }
@@ -167,7 +172,7 @@ fi
 # scratch -- 150 s where the link alone is a couple.
 link_one() {   # name, source, extra-flags
     local out="$BUILD/$1" obj="$BUILD/obj/$1.o"
-    if [[ ! -f $obj || $2 -nt $obj ]]; then
+    if [[ ! -f $obj || $2 -nt $obj || $HDR -nt $obj ]]; then
         $CXX $FLAGS ${3:-} -c "$2" -o "$obj" \
             || { printf 'FAILED to compile %s\n' "$2" >&2; exit 1; }
         printf '  cc %s\n' "$2"

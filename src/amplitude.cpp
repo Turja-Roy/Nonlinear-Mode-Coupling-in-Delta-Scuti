@@ -1,9 +1,9 @@
 #include "amplitude.hpp"
 
-#include <arkode/arkode_arkstep.h>
 #include <cvode/cvode.h>
 #include <nvector/nvector_openmp.h>
-#include <sunlinsol/sunlinsol_spgmr.h>
+#include <sunlinsol/sunlinsol_dense.h>
+#include <sunmatrix/sunmatrix_dense.h>
 #include <sunnonlinsol/sunnonlinsol_fixedpoint.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_odeiv2.h>
@@ -172,41 +172,14 @@ void full_rhs (double t, const double* y, double* dydt, SysParams* p) {
     std::copy_n(p->dydt.begin(), n, as_complex(dydt));
 }
 
-// The linear term alone: -g y for A, -(i w + g) y for q.
-std::complex<double> linear_rate (const Mode& m, bool slow) {
-    return slow ? std::complex<double>(-m.gamma) : -(I * m.omega + m.gamma);
-}
-
 // CVODE: the whole right-hand side.
-[[maybe_unused]] int rhs (sunrealtype t, N_Vector y, N_Vector ydot, void* params) {
+int rhs (sunrealtype t, N_Vector y, N_Vector ydot, void* params) {
     full_rhs(t, N_VGetArrayPointer(y), N_VGetArrayPointer(ydot), static_cast<SysParams*>(params));
     return 0;
 }
 
-// ARKODE IMEX, implicit part: the linear (damping) term, where the stiffness is.
-[[maybe_unused]] int rhs_implicit (sunrealtype t, N_Vector y, N_Vector ydot, void* params) {
-    (void)t;
-    const auto* p = static_cast<SysParams*>(params);
-    const std::complex<double>* in = as_complex(N_VGetArrayPointer(y));
-    std::complex<double>* out = as_complex(N_VGetArrayPointer(ydot));
-    for (int i=0 ; i<p->net->size() ; i++) out[i] = linear_rate(p->net->modes()[size_t(i)], p->opt->slow) * in[i];
-    for (int i : p->opt->frozen) out[i] = 0.0;
-    return 0;
-}
-
-// ARKODE IMEX, explicit part: the triplet coupling, i.e. the full rhs minus the linear term.
-[[maybe_unused]] int rhs_explicit (sunrealtype t, N_Vector y, N_Vector ydot, void* params) {
-    auto* p = static_cast<SysParams*>(params);
-    full_rhs(t, N_VGetArrayPointer(y), N_VGetArrayPointer(ydot), p);
-    const std::complex<double>* in = as_complex(N_VGetArrayPointer(y));
-    std::complex<double>* out = as_complex(N_VGetArrayPointer(ydot));
-    for (int i=0 ; i<p->net->size() ; i++) out[i] -= linear_rate(p->net->modes()[size_t(i)], p->opt->slow) * in[i];
-    for (int i : p->opt->frozen) out[i] = 0.0;
-    return 0;
-}
-
 // GSL: the whole right-hand side, GSL's signature.
-[[maybe_unused]] int rhs_gsl (double t, const double y[], double dydt[], void* params) {
+int rhs_gsl (double t, const double y[], double dydt[], void* params) {
     full_rhs(t, y, dydt, static_cast<SysParams*>(params));
     return GSL_SUCCESS;
 }
@@ -233,41 +206,6 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
     double* yd = N_VGetArrayPointer(y);
     std::copy_n(y0.begin(), n, as_complex(yd));
 
-
-    // (1) CVODE, BDF + GMRES: implicit, variable order 1-5, safe when the
-    //     damping rates span orders of magnitude (stiff). GMRES solves the
-    //     Newton systems matrix-free, so no Jacobian is needed.
-    // void* mem = CVodeCreate(CV_BDF, ctx);
-    // CVodeInit(mem, rhs, 0.0, y);
-    // CVodeSStolerances(mem, opt.rtol, opt.atol);
-    // CVodeSetUserData(mem, &params);
-    // CVodeSetMaxNumSteps(mem, -1);                // no cap on steps per output interval
-    // SUNLinearSolver LS = SUNLinSol_SPGMR(y, SUN_PREC_NONE, 0, ctx);
-    // CVodeSetLinearSolver(mem, LS, nullptr);
-
-    // (2) CVODE, Adams + fixed point: multistep, variable order 1-12, no
-    //     linear solves. Non-stiff only; cheapest when the rates are comparable.
-    // void* mem = CVodeCreate(CV_ADAMS, ctx);
-    // CVodeInit(mem, rhs, 0.0, y);
-    // CVodeSStolerances(mem, opt.rtol, opt.atol);
-    // CVodeSetUserData(mem, &params);
-    // CVodeSetMaxNumSteps(mem, -1);
-    // SUNNonlinearSolver NLS = SUNNonlinSol_FixedPoint(y, 0, ctx);
-    // CVodeSetNonlinearSolver(mem, NLS);
-
-    // (3) ARKODE, IMEX additive Runge-Kutta: the damping term (rhs_implicit)
-    //     is treated implicitly, the triplet coupling (rhs_explicit) explicitly.
-    // void* mem = ARKStepCreate(rhs_explicit, rhs_implicit, 0.0, y, ctx);
-    // ARKodeSStolerances(mem, opt.rtol, opt.atol);
-    // ARKodeSetUserData(mem, &params);
-    // ARKodeSetMaxNumSteps(mem, -1);
-    // ARKodeSetLinear(mem, 0);                  // rhs_implicit is linear in y
-    // SUNLinearSolver LS = SUNLinSol_SPGMR(y, SUN_PREC_NONE, 0, ctx);
-    // ARKodeSetLinearSolver(mem, LS, nullptr);
-
-    // (4) GSL, Prince-Dormand 8(9): explicit adaptive Runge-Kutta, non-stiff.
-    //     Initial step t_end / (10 n_out).
-    gsl_odeiv2_system sys{rhs_gsl, nullptr, size_t(2 * n), &params};
     /* First trial step well inside the fastest rate. Too large a step overflows
        to NaN, every error comparison against NaN is false, and the driver then
        accepts it and runs on to t_end on garbage. */
@@ -276,8 +214,32 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
     for (double d : delta_) rate = std::max(rate, std::abs(d));
     const double h0 = rate > 0.0 ? std::min(t_end / (10.0 * opt.n_out), 0.01 / rate)
                                  : t_end / (10.0 * opt.n_out);
-    gsl_odeiv2_driver* drv = gsl_odeiv2_driver_alloc_y_new(
-        &sys, gsl_odeiv2_step_rk8pd, h0, opt.atol, opt.rtol);
+
+    gsl_odeiv2_system sys{rhs_gsl, nullptr, size_t(2 * n), &params};
+    gsl_odeiv2_driver* drv = nullptr;
+    void* mem = nullptr;
+    SUNMatrix J = nullptr;
+    SUNLinearSolver LS = nullptr;
+    SUNNonlinearSolver NLS = nullptr;
+    if (opt.solver == Solver::rk8pd) {
+        drv = gsl_odeiv2_driver_alloc_y_new(&sys, gsl_odeiv2_step_rk8pd, h0, opt.atol, opt.rtol);
+    } else {
+        mem = CVodeCreate(opt.solver == Solver::bdf ? CV_BDF : CV_ADAMS, ctx);
+        CVodeInit(mem, rhs, 0.0, y);
+        CVodeSStolerances(mem, opt.rtol, opt.atol);
+        CVodeSetUserData(mem, &params);
+        CVodeSetInitStep(mem, h0);
+        CVodeSetMaxNumSteps(mem, -1);            // no cap on steps per output interval
+        if (opt.solver == Solver::bdf) {
+            J = SUNDenseMatrix(2 * n, 2 * n, ctx);
+            LS = SUNLinSol_Dense(y, J, ctx);
+            CVodeSetLinearSolver(mem, LS, J);    // no Jacobian given: CVODE differences rhs
+            CVodeSetStabLimDet(mem, SUNTRUE);    // drops order when BDF 3-5 meet an oscillation
+        } else {
+            NLS = SUNNonlinSol_FixedPoint(y, 0, ctx);
+            CVodeSetNonlinearSolver(mem, NLS);
+        }
+    }
 
     /* The integration loop: n_out outputs evenly spaced over [0, t_end]. With
        a cap, energy is also checked every e-folding of the fastest driven mode,
@@ -309,9 +271,8 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
         double e = energy_now();
         while (t < t_target && flag == 0) {
             const double t_next = std::min(t_target, t + check);
-            // flag = CVode(mem, t_next, y, &t, CV_NORMAL);                     // (1), (2)
-            // flag = ARKodeEvolve(mem, t_next, y, &t, ARK_NORMAL);          // (3)
-            flag = gsl_odeiv2_driver_apply(drv, &t, t_next, yd) == GSL_SUCCESS ? 0 : -1;  // (4)
+            flag = drv ? (gsl_odeiv2_driver_apply(drv, &t, t_next, yd) == GSL_SUCCESS ? 0 : -1)
+                       : CVode(mem, t_next, y, &t, CV_NORMAL);
             e = energy_now();
             if (!std::isfinite(e)) { flag = -1; break; }
             if (t < t_target && crossed(e)) { done = true; break; }
@@ -322,11 +283,11 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
         if (!done && crossed(e)) done = true;
     }
 
-    // SUNLinSolFree(LS);                           // (1), (3)
-    // SUNNonlinSolFree(NLS);                    // (2)
-    // CVodeFree(&mem);                             // (1), (2)
-    // ARKodeFree(&mem);                         // (3)
-    gsl_odeiv2_driver_free(drv);              // (4)
+    if (drv) gsl_odeiv2_driver_free(drv);
+    if (mem) CVodeFree(&mem);
+    if (LS) SUNLinSolFree(LS);
+    if (J) SUNMatDestroy(J);
+    if (NLS) SUNNonlinSolFree(NLS);
     N_VDestroy(y);
     SUNContext_Free(&ctx);
     return sol;
