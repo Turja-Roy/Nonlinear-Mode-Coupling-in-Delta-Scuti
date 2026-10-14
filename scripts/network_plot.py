@@ -8,18 +8,11 @@ Reads <data>/energies.csv (t, E_<id>...). A handful of modes get their own
 colour and a legend entry; more than that get thin grey lines with no
 per-mode legend, the same trick mw25_plot.py's Figure 2 uses for its N
 daughters -- a legend with 101 entries is not readable anyway.
-
---copies: each mode is stored twice, +omega and -omega (amplitude.hpp), and
-every triplet once per convention. One panel per choice of parent copies
-(2 for one parent, 2x2 for two), each with the daughter copies those parent
-copies couple to, from <data>/energies_all.csv and the network file that
-summary.csv names. A parent copy with no triplet shows no daughters.
 """
 
 from __future__ import annotations
 
 import argparse
-import itertools
 import pathlib
 
 import matplotlib.pyplot as plt
@@ -51,46 +44,6 @@ def read_network(path: pathlib.Path):
     return modes, trip
 
 
-def copies(a, out: pathlib.Path) -> None:
-    if not (a.data / "energies_all.csv").exists():
-        print(f"   no {a.data}/energies_all.csv (network not doubled, or an old network_run): no copies plot")
-        return
-    df = pd.read_csv(a.data / "energies_all.csv")
-    t = df["t"].to_numpy()
-    net = pd.read_csv(a.data / "summary.csv")["file"].iloc[0]
-    modes, trip = read_network(pathlib.Path(net))
-    par = {}                                        # (l, n) -> {+1: id, -1: id}
-    for i, m in modes.items():
-        if m["gen"] == 0:
-            par.setdefault((m["l"], m["n"]), {})[1 if m["w"] > 0 else -1] = i
-    keys = sorted(par)
-    combos = list(itertools.product((1, -1), repeat=len(keys)))
-    nr = 2 if len(keys) == 2 else 1
-    fig, axes = plt.subplots(nr, len(combos) // nr, figsize=(12, 4.5 * nr), sharex=True,
-                             sharey=True, squeeze=False, layout="constrained")
-    for ax, signs in zip(axes.flat, combos):
-        sel = [par[k][s] for k, s in zip(keys, signs)]
-        dau = sorted({i for tr in trip if tr & set(sel) for i in tr} - {i for p in par.values() for i in p.values()})
-        for i in dau:
-            ax.plot(t, df[f"E_{i}"], color="0.4", lw=0.5, alpha=0.6)
-        for i, k, s, col in zip(sel, keys, signs, PALETTE):
-            ax.plot(t, df[f"E_{i}"], color=col, lw=1.6, label=f"({k[0]},{k[1]:+d}) {'+' if s > 0 else '-'}omega, id {i}")
-        ax.plot([], [], color="0.4", lw=0.8, label=f"{len(dau)} daughter copies coupled")
-        ax.set_title(", ".join(f"({k[0]},{k[1]:+d}) {'+' if s > 0 else '-'}omega" for k, s in zip(keys, signs)))
-        ax.set(yscale="log", ylim=(1e-34, 1e-1))
-        ax.legend(fontsize=7, framealpha=0.9)
-    for ax in axes[-1]:
-        ax.set_xlabel("Time [s]")
-    for ax in axes[:, 0]:
-        ax.set_ylabel(r"Mode Energy  $[E_\star]$")
-    if a.title:
-        fig.suptitle(a.title + "  (+-omega copies)", fontsize=10)
-    for ext in ("png", "pdf"):
-        fig.savefig(out / f"network_copies.{ext}")
-    plt.close(fig)
-    print(f"-> {out}/network_copies.png")
-
-
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -99,7 +52,6 @@ def main() -> int:
     ap.add_argument("--parents", type=int, default=0,
                     help="highlight the first k modes (network_build writes parents first)")
     ap.add_argument("--title", default=None)
-    ap.add_argument("--copies", action="store_true", help="also the +-omega copy panels")
     a = ap.parse_args()
     out = a.out or a.data
 
@@ -138,8 +90,6 @@ def main() -> int:
         fig.savefig(out / f"network_run.{ext}")
     plt.close(fig)
     print(f"-> {out}/network_run.png")
-    if a.copies:
-        copies(a, out)
     return 0
 
 

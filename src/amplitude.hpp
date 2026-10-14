@@ -17,14 +17,13 @@
        dq_b/dt = -(i w_b + g_b) q_b + 2 i w_b kappa conj(q_a) conj(q_b)   "a -> b + b")
 
    Signed frequencies, no sum-slot: the triplet resonates when its three
-   signed omegas sum to ~0, so exactly one of them (the sum mode, or its
-   negation) carries the odd sign. A real mode x is two variables, x+ at +|w|
-   and x- at -|w| with q_x- = conj(q_x+) (Schenk et al. 2002), and every
-   resonance appears twice, (s-, p+, q+) and its mirror (s+, p-, q-); each
-   variable is pushed by one of the two, so nothing is counted twice. Signing
-   each mode once by its gamma, as MW25's examples do, works only for
-   parametric and direct-sum triplets; a closure triplet d1 -> d2 + d3 then
-   has |Delta| ~ 2w and does nothing. network_build writes the doubled set.
+   signed omegas sum to ~0, so the sum mode carries the sign opposite to both
+   pair modes. One sign per mode, by generation (network_run): -|w| for gen
+   0, 2, ..., +|w| for gen 1, 3, ..., so every gen k -> (k+1) + (k+1) triplet
+   resonates. A triplet within one generation (a daughter feeding two other
+   daughters, d1 -> d2 + d3) has |Delta| ~ 2w under it and does nothing; it
+   would need d1 at -|w| here and +|w| in its own parent triplet, which one
+   variable per mode cannot hold, so network_build leaves it out.
    The same three fields (a, b, c) work for every channel without relabelling.
 
    kappa is the bare coupling integral kappa_abc() returns. The explicit 2

@@ -29,9 +29,12 @@
    rank low, so without it they are seldom picked. None exists for odd l_a:
    l_a + 2 l_d must be even.
 
-   Closure then adds every triplet among the chosen modes with |Delta| below
-   the closure cut, whichever leg selected them: the equations do not know why
-   a mode is in the network. --no-closure keeps the selecting pairs only. */
+   Closure then adds every parent-headed triplet among the chosen modes with
+   |Delta| below the closure cut, whichever leg selected them: the equations do
+   not know why a mode is in the network. A daughter -> daughter + daughter
+   triplet is left out (and counted): network_run signs omega by generation
+   (amplitude.hpp), all three daughters +, so it cannot resonate. --no-closure
+   keeps the selecting pairs only. */
 
 #include "csv.hpp"
 #include "stability.hpp"
@@ -80,48 +83,50 @@ double frac_detuning (const RadialTriplet& t) { return t.delta / -t.omega[0]; }
 
 bool self_coupled (const RadialTriplet& t) { return t.pair[0] == t.pair[1]; }
 
-/* Each mode twice, id i at +omega and i + M at -omega, and each triplet as
-   (s-, p+, q+) and its mirror (s+, p-, q-): see amplitude.hpp. */
+// One row per mode, omega a magnitude: network_run signs it by generation.
 void write_network (const std::filesystem::path& p, const std::string& header,
                     const std::vector<RadialTriplet>& chosen, const std::vector<RadialTriplet>& net,
                     const std::vector<Key>& by_id, const std::set<Key>& parents,
                     const ModeMap& efs, const stab::KappaCache& kap) {
     std::map<Key, int> id;
-    const int M = int(by_id.size());
-    for (int i = 0; i < M; ++i) id[by_id[size_t(i)]] = i;
+    for (size_t i = 0; i < by_id.size(); ++i) id[by_id[i]] = int(i);
     std::ofstream f(p);
     const std::string rule_line = "#" + std::string(98, '-') + "\n";
     char buf[200];
     f << rule_line << header
-      << "# selecting pairs (parent -> b + c): Delta [c/d], Delta/omega_parent, kappa, E_th/E_star\n";
+      << "# selecting pairs (parent -> b + c): Delta [c/d], Delta/omega_parent, kappa, E_th/E_star"
+         " (Weinberg+12 eq. 50), E_eq/E_star (MW25 eq. 6;\n"
+      << "#   none: gamma_a + gamma_b + gamma_c <= 0, no stable equilibrium)\n";
     for (const auto& t : chosen) {
-        std::snprintf(buf, sizeof buf, "#   (%d,%+d) -> (%d,%+d) + (%d,%+d)   %+.3e  %+.3e  %+.3e  %.3e\n",
+        const Eigenfunction &a = efs.at(t.sum_mode), &b = efs.at(t.pair[0]), &c = efs.at(t.pair[1]);
+        const double k = kappa_of(kap, t);
+        char eq[16] = "none";
+        if (a.gamma + b.gamma + c.gamma > 0.0)
+            std::snprintf(eq, sizeof eq, "%.3e", stab::equilibrium_energy(k, b.omega, c.omega, a.gamma,
+                                                                          b.gamma, c.gamma, t.delta));
+        std::snprintf(buf, sizeof buf, "#   (%d,%+d) -> (%d,%+d) + (%d,%+d)   %+.3e  %+.3e  %+.3e  %.3e  %s\n",
                       t.sum_mode.first, t.sum_mode.second, t.pair[0].first, t.pair[0].second,
                       t.pair[1].first, t.pair[1].second, t.delta / CD, frac_detuning(t),
-                      kappa_of(kap, t), e_th(efs, t, kappa_of(kap, t)));
+                      k, e_th(efs, t, k), eq);
         f << buf;
     }
     f << rule_line << "  2nd_order\n" << rule_line
       << "#  id,   gen,      n,         l,        m,           omega,             gamma\n"
       << rule_line;
-    for (int s : {+1, -1})
-        for (int i = 0; i < M; ++i) {
-            const Eigenfunction& e = efs.at(by_id[size_t(i)]);
-            std::snprintf(buf, sizeof buf, "%5d %5d %10.1f %9.1f %9.1f %21.10e %17.5e\n",
-                          s > 0 ? i : i + M, parents.count(by_id[size_t(i)]) ? 0 : 1,
-                          double(e.n_pg), double(e.l), 0.0, s * e.omega, e.gamma);
-            f << buf;
-        }
-    f << rule_line << "#  id1,   id2,   id3,        kappa,       Delta/omega_1\n" << rule_line;
-    for (int s : {-1, +1})                       // s: sign of the sum mode's copy
-        for (const auto& t : net) {
-            const auto k = t.keys();
-            const int off_s = s > 0 ? 0 : M, off_p = s > 0 ? M : 0;
-            std::snprintf(buf, sizeof buf, "%6d %6d %6d %20.10e %+15.5e\n",
-                          id.at(k[0]) + off_s, id.at(k[1]) + off_p, id.at(k[2]) + off_p,
-                          kappa_of(kap, t), -s * frac_detuning(t));
-            f << buf;
-        }
+    for (size_t i = 0; i < by_id.size(); ++i) {
+        const Eigenfunction& e = efs.at(by_id[i]);
+        std::snprintf(buf, sizeof buf, "%5zu %5d %10.1f %9.1f %9.1f %21.10e %17.5e\n",
+                      i, parents.count(by_id[i]) ? 0 : 1, double(e.n_pg), double(e.l), 0.0,
+                      e.omega, e.gamma);
+        f << buf;
+    }
+    f << rule_line << "#  id1,   id2,   id3,        kappa,       Delta/|omega_1|\n" << rule_line;
+    for (const auto& t : net) {
+        const auto k = t.keys();
+        std::snprintf(buf, sizeof buf, "%6d %6d %6d %20.10e %+15.5e\n",
+                      id.at(k[0]), id.at(k[1]), id.at(k[2]), kappa_of(kap, t), frac_detuning(t));
+        f << buf;
+    }
     f << rule_line;
 }
 
@@ -340,6 +345,11 @@ int main (int argc, char** argv) {
                     for (const auto& t : chosen)         // a closure cut below the cut
                         if (!in.count(keys_of({t})[0])) net.push_back(t);
                 }
+                const auto same_gen = std::remove_if(net.begin(), net.end(), [&](const RadialTriplet& t) {
+                    return !parents.count(t.sum_mode) || parents.count(t.pair[0])
+                        || parents.count(t.pair[1]); });
+                const long n_same = long(net.end() - same_gen);
+                net.erase(same_gen, net.end());
                 stab::kappa_m000(keys_of(net), efs, cache, kap, jobs);
                 net.erase(std::remove_if(net.begin(), net.end(), [&](const RadialTriplet& t) {
                               return kappa_of(kap, t) == 0.0; }),
@@ -365,9 +375,9 @@ int main (int argc, char** argv) {
                 std::vector<double> fd;
                 for (const auto& t : net) fd.push_back(std::abs(frac_detuning(t)));
                 std::sort(fd.begin(), fd.end());
-                std::printf("  %-28s %3zu daughters, %3zu pairs, %4zu triplets, "
-                            "|Delta|/omega min %.2e median %.2e\n",
-                            name, daughters.size(), chosen.size(), net.size(),
+                std::printf("  %-28s %3zu daughters, %3zu pairs, %4zu triplets (%ld same-generation "
+                            "dropped), |Delta|/omega min %.2e median %.2e\n",
+                            name, daughters.size(), chosen.size(), net.size(), n_same,
                             fd.empty() ? 0.0 : fd.front(), fd.empty() ? 0.0 : fd[fd.size() / 2]);
             }
         }

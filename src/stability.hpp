@@ -26,7 +26,8 @@ double mu (double kappa, double omega, double delta, double gamma);
 //     Gamma = 2 |kappa| sqrt(|w_b w_c|) |q_a|.
 double parametric_growth_rate (double kappa, double omega_b, double omega_c, double q_a);
 
-/* Parent energy at which the daughter pair (b, c) goes parametrically unstable:
+/* Parent energy at which the daughter pair (b, c) goes parametrically unstable
+   (Weinberg et al. 2012 eq. 50; Dziembowski 1982's criterion, notes eq:dziem_crit):
 
        E_th = gamma_b gamma_c / (4 kappa^2 |w_b w_c|) [1 + Delta^2/(gamma_b+gamma_c)^2].
 
@@ -36,15 +37,17 @@ double threshold_energy (double kappa, double omega_b, double omega_c,
                          double gamma_b, double gamma_c, double delta,
                          double E_star = 1.0);
 
-/* Where the parent settles, MW25 eq. A7 -- E_th with the pair damping in the
-   detuning penalty replaced by the triplet total:
+/* Where the parent settles, MW25 eq. 6 (Weinberg et al. 2012 eq. D11) -- E_th
+   with the pair damping in the detuning penalty replaced by the triplet total:
 
        E_eq = gamma_b gamma_c / (4 kappa^2 |w_b w_c|)
               [1 + Delta^2/(gamma_a+gamma_b+gamma_c)^2],
 
    which is why a driven mode saturates near the amplitude at which it first
    went nonlinearly unstable. Infinite if the three gammas cancel: with no net
-   dissipation the phase cannot lock and there is nothing to settle onto. */
+   dissipation the phase cannot lock and there is nothing to settle onto. For
+   gamma_a + gamma_b + gamma_c < 0 the value is finite but the fixed point is
+   unstable (Hurwitz a_1 = 2 (gamma_a+gamma_b+gamma_c) < 0, notes eq:quartic). */
 double equilibrium_energy (double kappa, double omega_b, double omega_c,
                            double gamma_a, double gamma_b, double gamma_c,
                            double delta, double E_star = 1.0);

@@ -9,7 +9,7 @@
 
        id  gen  n  l  m  omega  gamma  [flin]
 
-   (ids need not be 0-based or contiguous; gen and flin are not used here),
+   (ids need not be 0-based or contiguous; flin is not used here),
    then the triplet table:
 
        id1  id2  id3  kappa  [Delta/omega_1]
@@ -17,11 +17,9 @@
    A line's field count picks the table -- 7 or 8 is a mode, 4 or 5 a
    triplet. id2 == id3 is a literal self-coupling (id1 -> id2 + id2).
 
-   omega sign: taken from the file. network_build writes each mode twice,
-   +omega and -omega (q- = conj(q+), amplitude.hpp), paired here by (n, l, m);
-   the - copy starts at the conjugate of the + one and outputs list the +
-   copy only, under its id; energies_all.csv has every copy. A file with no negative omega at all (the old
-   data files) is signed the MW25 way instead, negative iff gamma is. */
+   omega sign: by generation, -|omega| for even gen, +|omega| for odd
+   (amplitude.hpp); the file's omega is a magnitude. A negative one means a
+   +-omega file from an older network_build, which is refused. */
 
 #include "amplitude.hpp"
 #include "csv.hpp"
@@ -29,7 +27,6 @@
 #include <CLI/CLI.hpp>
 
 #include <algorithm>
-#include <array>
 #include <cstdio>
 #include <fstream>
 #include <limits>
@@ -46,8 +43,6 @@ namespace {
 struct NetworkFile {
     std::vector<amp::Mode> modes;
     std::vector<Triplet> triplets;
-    std::vector<int> mirror;                     // index of the -omega copy, -1 if none
-    std::vector<int> shown;                      // the modes the outputs list
 };
 
 NetworkFile read_network (const std::filesystem::path& p) {
@@ -56,7 +51,6 @@ NetworkFile read_network (const std::filesystem::path& p) {
 
     NetworkFile net;
     std::map<long, int> index;                   // file id -> Network mode index
-    std::vector<std::array<double, 3>> nlm;
     bool skipped_norm_type = false;
     std::string line;
     while (std::getline(f, line)) {
@@ -68,39 +62,18 @@ NetworkFile read_network (const std::filesystem::path& p) {
         for (double v; ss >> v; ) field.push_back(v);
 
         if (field.size() == 7 || field.size() == 8) {         // id gen n l m omega gamma [flin]
+            if (field[5] < 0.0)
+                throw std::runtime_error("network_run: negative omega in " + p.string()
+                                         + ", a +-omega file from an older network_build; rebuild it");
             index[long(field[0])] = int(net.modes.size());
-            nlm.push_back({field[2], field[3], field[4]});
-            net.modes.push_back(amp::Mode{std::to_string(long(field[0])), field[5], field[6]});
+            const double sign = long(field[1]) % 2 == 0 ? -1.0 : 1.0;
+            net.modes.push_back(amp::Mode{std::to_string(long(field[0])), sign * field[5], field[6]});
         } else if (field.size() == 4 || field.size() == 5) {  // id1 id2 id3 kappa [Delta/w]
             net.triplets.push_back(Triplet{index.at(long(field[0])), index.at(long(field[1])),
                                            index.at(long(field[2])), field[3]});
         }
     }
 
-    const bool doubled = std::any_of(net.modes.begin(), net.modes.end(),
-                                     [](const amp::Mode& m) { return m.omega < 0.0; });
-    if (!doubled)
-        for (auto& m : net.modes) if (m.gamma < 0.0) m.omega = -m.omega;
-    net.mirror.assign(net.modes.size(), -1);
-    std::map<std::array<double, 3>, int> minus;
-    if (doubled)
-        for (size_t i = 0; i < net.modes.size(); ++i)
-            if (net.modes[i].omega < 0.0) minus[nlm[i]] = int(i);
-    for (size_t i = 0; i < net.modes.size(); ++i) {
-        if (doubled && net.modes[i].omega < 0.0) {
-            if (!minus.count(nlm[i]) || minus.at(nlm[i]) != int(i))
-                throw std::runtime_error("network_run: two -omega copies of one (n, l, m)");
-            continue;
-        }
-        net.shown.push_back(int(i));
-        if (doubled) {
-            const auto it = minus.find(nlm[i]);
-            if (it == minus.end()) throw std::runtime_error("network_run: unpaired +omega mode");
-            net.mirror[i] = it->second;
-        }
-    }
-    if (doubled && net.shown.size() * 2 != net.modes.size())
-        throw std::runtime_error("network_run: unpaired -omega mode");
     return net;
 }
 
@@ -125,10 +98,8 @@ int main (int argc, char** argv) {
 
     const NetworkFile nf = read_network(src);
     const Network net(nf.modes, nf.triplets);
-    const size_t copies = nf.modes.size() / nf.shown.size();       // 2 for a doubled file
-    const long n_modes = long(nf.shown.size()), n_trip = long(nf.triplets.size() / copies);
-    std::printf("%s: %ld modes, %ld triplets%s\n", src.c_str(), n_modes, n_trip,
-                copies == 2 ? " (each as +-omega)" : "");
+    const long n_modes = long(net.size()), n_trip = long(net.triplets().size());
+    std::printf("%s: %ld modes, %ld triplets\n", src.c_str(), n_modes, n_trip);
 
     if (t_end == 0.0) {
         double min_g = std::numeric_limits<double>::infinity();
@@ -139,15 +110,15 @@ int main (int argc, char** argv) {
     amp::Options opt;
     opt.n_out = n_out;
     opt.rtol = rtol;
-    opt.e_max = e_max * double(copies);         // the - copies hold as much again
+    opt.e_max = e_max;
     if (q0_d == 0.0) q0_d = q0;
     std::mt19937 rng(seed);
     std::uniform_real_distribution<double> phase(0.0, 2.0 * M_PI);
     State y0(size_t(net.size()));
-    for (int i : nf.shown) {
-        y0[size_t(i)] = std::polar(net.modes()[size_t(i)].gamma < 0.0 ? q0 : q0_d,
-                                   seed ? phase(rng) : 0.0);
-        if (nf.mirror[size_t(i)] >= 0) y0[size_t(nf.mirror[size_t(i)])] = std::conj(y0[size_t(i)]);
+    // phases on the +|omega| representation: a -omega mode starts at the conjugate
+    for (size_t i = 0; i < y0.size(); ++i) {
+        const amp::Mode& m = net.modes()[i];
+        y0[i] = std::polar(m.gamma < 0.0 ? q0 : q0_d, (m.omega < 0.0 ? -1.0 : 1.0) * (seed ? phase(rng) : 0.0));
     }
     amp::Solution sol = net.integrate(y0, t_end, opt);
     // Stopped early: energy cap crossed, or the amplitudes overflowed.
@@ -161,27 +132,15 @@ int main (int argc, char** argv) {
 
     std::filesystem::create_directories(out);
     std::vector<std::string> hdr = {"t"};
-    for (int i : nf.shown) hdr.push_back("E_" + net.modes()[size_t(i)].name);
+    for (const auto& m : net.modes()) hdr.push_back("E_" + m.name);
     csv::Writer w(std::filesystem::path(out) / "energies.csv", hdr);
     for (size_t j=0 ; j<sol.t.size() ; j++) {
         const eig::ArrayXd E = net.energy(sol.y[j]);
         std::string row = csv::fmt(sol.t[j]);
-        for (int i : nf.shown) row += "," + csv::fmt(E[i]);
+        for (eig::Index i=0 ; i<E.size() ; i++) row += "," + csv::fmt(E[i]);
         w.row(row);
     }
     std::printf("-> %s/energies.csv (t_end %.3e, %zu rows)\n", out.c_str(), t_end, sol.t.size());
-
-    if (copies == 2) {
-        hdr = {"t"};
-        for (const auto& m : net.modes()) hdr.push_back("E_" + m.name);
-        csv::Writer wa(std::filesystem::path(out) / "energies_all.csv", hdr);
-        for (size_t j=0 ; j<sol.t.size() ; j++) {
-            const eig::ArrayXd E = net.energy(sol.y[j]);
-            std::string row = csv::fmt(sol.t[j]);
-            for (eig::Index i=0 ; i<E.size() ; i++) row += "," + csv::fmt(E[i]);
-            wa.row(row);
-        }
-    }
 
     /* Second-half averages. At a bounded state the parents' kappa-mechanism
        input equals what the damped modes dissipate, so D/P -> 1 is the check
@@ -193,18 +152,18 @@ int main (int argc, char** argv) {
         const eig::ArrayXd E = net.energy(sol.y[j]);
         mean += E / double(nj);
         double p = 0.0;
-        for (int i : nf.shown) if (net.modes()[size_t(i)].gamma < 0.0) p += E[i];
+        for (int i = 0; i < net.size(); ++i) if (net.modes()[size_t(i)].gamma < 0.0) p += E[i];
         E_par.push_back(p);
     }
     double P = 0.0, D = 0.0, par = 0.0, top_d = 0.0;
-    for (int i : nf.shown) {
+    for (int i = 0; i < net.size(); ++i) {
         const double g = net.modes()[size_t(i)].gamma;
         (g < 0.0 ? P : D) += 2.0 * std::abs(g) * mean[i];
         if (g < 0.0) par += mean[i];
         else top_d = std::max(top_d, mean[i]);
     }
     long active = 0;
-    for (int i : nf.shown)
+    for (int i = 0; i < net.size(); ++i)
         active += net.modes()[size_t(i)].gamma >= 0.0 && mean[i] > 1e-3 * top_d;
     const auto mm = std::minmax_element(E_par.begin(), E_par.end());
     const std::string stop = runaway ? "runaway" : "end";

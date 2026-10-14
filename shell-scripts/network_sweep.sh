@@ -79,7 +79,7 @@ run() {   # network file
     rm -rf "$d"; mkdir -p "$d"; cp "$f" "$d/network.data"
     timeout "${WALL}m" ./build/network_run "$f" --out "$d" $RUN_ARGS > "$d/log.txt" 2>&1
     case $? in
-        0) python scripts/network_plot.py --data "$d" --parents $p --copies --title "$TAG $(basename "$d")" \
+        0) python scripts/network_plot.py --data "$d" --parents $p --title "$TAG $(basename "$d")" \
                >> "$d/log.txt" 2>&1 || echo "PLOT FAILED $d" ;;
         124) echo "TIMEOUT $f (> ${WALL} min)" ;;
         *) echo "FAILED $f (see $d/log.txt)" ;;
@@ -87,6 +87,10 @@ run() {   # network file
 }
 export -f run
 export OUT RUN_ARGS WALL TAG
-ls data/networks/"$TAG"/*/*.data | xargs -P "$JOBS" -I{} bash -c 'run {}'
+# costliest first, ~ max|Delta| * n_triplets (Delta = col 5 * |omega_id1|), so no long run finishes alone
+for f in data/networks/"$TAG"/*/*.data; do
+    awk '/^#/ {next} NF==7 {w[$1]=$6} NF==5 {d=$5*w[$1]; if (d<0) d=-d; if (d>m) m=d; n++}
+         END {print m*n, FILENAME}' "$f"
+done | sort -gr | cut -d' ' -f2- | xargs -P "$JOBS" -I{} bash -c 'run {}'
 
 for d in "$OUT/$TAG"/*/; do python scripts/network_convergence.py --runs "$d"; done
