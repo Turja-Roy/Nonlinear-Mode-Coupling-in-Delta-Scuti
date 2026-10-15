@@ -22,7 +22,7 @@ add_library(coupling STATIC
 # Vendored, so the build does not depend on the cluster's Eigen or Boost.
 target_include_directories(coupling PUBLIC src third_party third_party/eigen3 ${HDF5_INCLUDE_DIRS})
 target_link_libraries(coupling PUBLIC GSL::gsl ${HDF5_C_LIBRARIES}
-    SUNDIALS::cvode SUNDIALS::nvecopenmp SUNDIALS::sunlinsoldense SUNDIALS::sunmatrixdense
+    SUNDIALS::cvode SUNDIALS::nvecserial SUNDIALS::nvecopenmp SUNDIALS::sunlinsoldense SUNDIALS::sunmatrixdense
     SUNDIALS::sunnonlinsolfixedpoint SUNDIALS::core)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(coupling PUBLIC OpenMP::OpenMP_CXX)

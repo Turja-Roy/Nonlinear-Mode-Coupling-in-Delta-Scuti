@@ -89,6 +89,43 @@ int main () {
             close(E[i], 1e-12 * std::exp(-2.0 * g[i] * t_end), 1e-8, "linear decay");
     }
 
+    /* --- the analytic Jacobian matches central differences of the rhs (exact
+       up to roundoff: the rhs is quadratic), distinct and self-coupled --- */
+    {
+        amp::Network n({{"a", -2.0e-3, -4e-9}, {"b", 1.1e-3, 3e-9}, {"c", 0.9e-3, 5e-9}, {"d", 1.0e-3, 2e-9}},
+                       {{0, 1, 2, KAPPA}, {0, 3, 3, 0.5 * KAPPA}});
+        const State y = {{1e-6, 2e-7}, {-3e-7, 4e-7}, {5e-7, -1e-7}, {2e-7, 3e-7}};
+        const size_t m = 2 * y.size();
+        const double h = 1e-12;
+        for (bool slow : {true, false}) {
+            std::vector<double> J(m * m);
+            n.jacobian(T, y, slow, J.data());
+            double big = 0.0;
+            for (double v : J) big = std::max(big, std::abs(v));
+            auto f = [&](const State& s) { return slow ? n.dA_dt(T, s) : n.dq_dt(T, s); };
+            for (size_t c = 0; c < m; ++c) {
+                const std::complex<double> dy = c % 2 ? std::complex<double>(0.0, h) : h;
+                State yp = y, ym = y;
+                yp[c / 2] += dy;
+                ym[c / 2] -= dy;
+                const State fp = f(yp), fm = f(ym);
+                for (size_t r = 0; r < m; ++r) {
+                    const std::complex<double> d = (fp[r / 2] - fm[r / 2]) / (2.0 * h);
+                    assert(std::abs(J[c * m + r] - (r % 2 ? d.imag() : d.real())) < 1e-6 * big);
+                }
+            }
+        }
+    }
+
+    /* --- max_seconds stops early, keeps what it has, and says why --- */
+    {
+        amp::Network n = amp::three_mode({W[0], W[1], W[2]}, {G[0], G[1], G[2]}, KAPPA);
+        amp::Options o;
+        o.max_seconds = 1e-9;
+        const auto sol = n.integrate({1e-6, 1e-9, 1e-9}, 2.0e7, o);
+        assert(sol.out_of_time && !sol.t.empty() && sol.t.back() < 2.0e7 && sol.steps > 0);
+    }
+
     /* --- the three solvers agree on a resonant triplet trading most of its energy --- */
     {
         const double wb = 1.1e-3, wc = 0.9e-3;

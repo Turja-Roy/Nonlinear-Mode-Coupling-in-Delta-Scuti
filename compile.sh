@@ -90,7 +90,7 @@ if grep -q '^#define SUNDIALS_MPI_ENABLED 1' "$SUN_H"; then
     [[ $CXX == *mpi* ]] || { OMPI_CXX=$CXX MPICH_CXX=$CXX; export OMPI_CXX MPICH_CXX; CXX=mpicxx; }
     say "            built with MPI -> compiling with $CXX"
 fi
-SUN_L="$SUN_L -lsundials_cvode -lsundials_nvecopenmp -lsundials_sunlinsoldense -lsundials_sunmatrixdense -lsundials_sunnonlinsolfixedpoint -lsundials_core"
+SUN_L="$SUN_L -lsundials_cvode -lsundials_nvecserial -lsundials_nvecopenmp -lsundials_sunlinsoldense -lsundials_sunmatrixdense -lsundials_sunnonlinsolfixedpoint -lsundials_core"
 
 HDF5_C=""; HDF5_L="-lhdf5"; HDF5_FOUND=0
 for p in hdf5 hdf5-serial; do

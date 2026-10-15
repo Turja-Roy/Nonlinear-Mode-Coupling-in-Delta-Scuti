@@ -27,6 +27,7 @@
 #include <CLI/CLI.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <fstream>
 #include <limits>
@@ -82,7 +83,7 @@ NetworkFile read_network (const std::filesystem::path& p) {
 int main (int argc, char** argv) {
     CLI::App app{"Integrate an arbitrary network read from a plain-text file"};
     std::string src, out = "out/network_run";
-    double q0 = 1e-6, q0_d = 0.0, t_end = 0.0, rtol = 1e-10, atol = 0.0, e_max = 0.0;
+    double q0 = 1e-6, q0_d = 0.0, t_end = 0.0, rtol = 1e-10, atol = 0.0, e_max = 0.0, max_s = 0.0;
     amp::Solver solver = amp::Solver::rk8pd;
     int n_out = 4000;
     unsigned seed = 0;
@@ -96,6 +97,7 @@ int main (int argc, char** argv) {
     app.add_option("--n-out", n_out);
     app.add_option("--rtol", rtol);
     app.add_option("--atol", atol, "absolute tolerance on |A|; 0 = 1e-14 max|A(0)|");
+    app.add_option("--max-seconds", max_s, "stop integrating after this wall time, keeping outputs; 0 = never");
     app.add_option("--solver", solver, "rk8pd, adams or bdf (amplitude.hpp)")
         ->transform(CLI::CheckedTransformer(std::map<std::string, amp::Solver>{
             {"rk8pd", amp::Solver::rk8pd}, {"adams", amp::Solver::adams}, {"bdf", amp::Solver::bdf}}));
@@ -117,6 +119,7 @@ int main (int argc, char** argv) {
     opt.rtol = rtol;
     opt.atol = atol;
     opt.solver = solver;
+    opt.max_seconds = max_s;
     opt.e_max = e_max;
     if (q0_d == 0.0) q0_d = q0;
     std::mt19937 rng(seed);
@@ -127,15 +130,26 @@ int main (int argc, char** argv) {
         const amp::Mode& m = net.modes()[i];
         y0[i] = std::polar(m.gamma < 0.0 ? q0 : q0_d, (m.omega < 0.0 ? -1.0 : 1.0) * (seed ? phase(rng) : 0.0));
     }
+    const auto clock0 = std::chrono::steady_clock::now();
     amp::Solution sol = net.integrate(y0, t_end, opt);
-    // Stopped early: energy cap crossed, or the amplitudes overflowed.
-    const bool runaway = sol.t.back() < t_end * (1.0 - 0.5 / (n_out - 1));
+    // Stopped early by the energy cap (a solver failure or NaN is sol.failed instead).
+    const bool runaway = !sol.out_of_time && !sol.failed && sol.t.back() < t_end * (1.0 - 0.5 / (n_out - 1));
     /* A fast parent can cross the cap within a few outputs, leaving a plot of
-       two points; integrate again up to the crossing to resolve the growth. */
+       two points; integrate again up to the crossing to resolve the growth.
+       The counters below add up both passes: the cost of the run. */
     if (runaway && sol.t.size() < size_t(n_out / 4) && sol.t.back() > 0.0) {
         t_end = sol.t.back();
+        if (max_s > 0.0)                         // one budget for both passes
+            opt.max_seconds = std::max(1.0, max_s - std::chrono::duration<double>(
+                                                std::chrono::steady_clock::now() - clock0).count());
+        const amp::Solution first = sol;
         sol = net.integrate(y0, t_end, opt);
+        sol.steps += first.steps; sol.rhs_calls += first.rhs_calls; sol.failed_steps += first.failed_steps;
+        sol.jac_evals += first.jac_evals; sol.nonlin_iters += first.nonlin_iters;
     }
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - clock0).count();
+    std::printf("  integration %.1f s: %ld steps, %ld failed, %ld rhs calls, %ld Jacobians, %ld nonlinear iterations\n",
+                seconds, sol.steps, sol.failed_steps, sol.rhs_calls, sol.jac_evals, sol.nonlin_iters);
 
     std::filesystem::create_directories(out);
     std::vector<std::string> hdr = {"t"};
@@ -173,14 +187,16 @@ int main (int argc, char** argv) {
     for (int i = 0; i < net.size(); ++i)
         active += net.modes()[size_t(i)].gamma >= 0.0 && mean[i] > 1e-3 * top_d;
     const auto mm = std::minmax_element(E_par.begin(), E_par.end());
-    const std::string stop = runaway ? "runaway" : "end";
+    const std::string stop = sol.failed ? "failed" : sol.out_of_time ? "wall" : runaway ? "runaway" : "end";
     const double swing = (*mm.second - *mm.first) / par;
     std::printf("  <E_parents> %.3e E_star, swing %.3f, D/P %.3f, %ld active daughters, "
                 "stop: %s at t %.3e\n", par, swing, D / P, active, stop.c_str(), sol.t.back());
     csv::Writer s(std::filesystem::path(out) / "summary.csv",
                   {"file", "n_modes", "n_triplets", "t_end", "q0", "q0_daughter", "seed",
-                   "runaway", "stop", "E_parents", "swing", "driving", "dissipation", "n_active"});
+                   "runaway", "stop", "E_parents", "swing", "driving", "dissipation", "n_active",
+                   "seconds", "steps", "failed_steps", "rhs_calls", "jac_evals", "nonlin_iters"});
     s.row(src, n_modes, n_trip, sol.t.back(), q0, q0_d,
-          long(seed), runaway, stop, par, swing, P, D, active);
+          long(seed), runaway, stop, par, swing, P, D, active,
+          seconds, sol.steps, sol.failed_steps, sol.rhs_calls, sol.jac_evals, sol.nonlin_iters);
     return 0;
 }

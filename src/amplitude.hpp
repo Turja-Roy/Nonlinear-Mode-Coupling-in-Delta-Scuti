@@ -88,7 +88,8 @@ struct Triplet {
    bdf: CVODE BDF (implicit, order 1-5) with a dense direct linear solver and
    CVODE's finite-difference Jacobian; no stability limit, so modes below atol
    keep decaying. adams: CVODE Adams (order 1-12) with fixed-point iteration,
-   explicit-like, as in the ode_integrate_sundial.cpp we were given. */
+   explicit-like, as in the ode_integrate_sundial.cpp we were given. bdf uses
+   the analytic Jacobian, Network::jacobian. */
 enum class Solver { rk8pd, adams, bdf };
 
 struct Options {
@@ -99,11 +100,18 @@ struct Options {
     bool slow = true;                            // integrate A; false integrates q
     double e_max = 0.0;                          // > 0: stop when sum|y|^2 crosses it
     std::vector<int> frozen;                     // held at their initial amplitude
+    double max_seconds = 0.0;                    // > 0: stop after this much wall time
 };
 
 struct Solution {
     std::vector<double> t;
     std::vector<State> y;                        // A, or q when slow = false
+    // Solver counters: where the time goes. rhs_calls counts every call,
+    // including GSL's 13 stages per step; failed_steps adds CVODE's
+    // nonlinear-solver failures to the error-test rejections.
+    long steps = 0, rhs_calls = 0, failed_steps = 0, jac_evals = 0, nonlin_iters = 0;
+    bool out_of_time = false;                    // stopped by max_seconds, not by t_end or e_max
+    bool failed = false;                         // the solver gave up (step size collapsed, NaN)
 };
 
 class Network {
@@ -126,6 +134,12 @@ public:
        run takes millions of them. */
     void dq_dt (double t, const State& q, State& out) const;
     void dA_dt (double t, const State& A, State& out) const;
+
+    /* d(dy/dt)/dy on the real 2n-vector {Re y_0, Im y_0, Re y_1, ...}, column
+       major, J[col * 2n + row]: the A equations (slow) or the q equations. A
+       coupling term C conj(y_u) conj(y_v) moves with (Re y_u, Im y_u) as
+       W (1, -i), W = C conj(y_v), i.e. the real block [[Re W, Im W], [Im W, -Re W]]. */
+    void jacobian (double t, const State& y, bool slow, double* J) const;
 
     eig::ArrayXd energy (const State& y) const;  // E_x / E_star = |q_x|^2
     eig::ArrayXd action (const State& y) const;  // N_x = E_x / w_x

@@ -2,6 +2,7 @@
 
 #include <cvode/cvode.h>
 #include <nvector/nvector_openmp.h>
+#include <nvector/nvector_serial.h>
 #include <sunlinsol/sunlinsol_dense.h>
 #include <sunmatrix/sunmatrix_dense.h>
 #include <sunnonlinsol/sunnonlinsol_fixedpoint.h>
@@ -13,6 +14,7 @@
 #endif
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <stdexcept>
 
@@ -112,6 +114,39 @@ void Network::add_triplets (double t, const State& y, State& out, bool slow) con
     }
 }
 
+void Network::jacobian (double t, const State& y, bool slow, double* J) const {
+    const size_t m = 2 * size_t(size());
+    std::fill(J, J + m * m, 0.0);
+    auto at = [&](int r, int c) -> double& { return J[size_t(c) * m + size_t(r)]; };
+    auto lin = [&](int x, std::complex<double> L) {          // d(L y_x)/dy_x
+        at(2*x, 2*x) += L.real();   at(2*x, 2*x+1) -= L.imag();
+        at(2*x+1, 2*x) += L.imag(); at(2*x+1, 2*x+1) += L.real();
+    };
+    auto anti = [&](int x, int u, std::complex<double> W) {  // d(W conj(y_u))/dy_u, into row x
+        at(2*x, 2*u) += W.real();   at(2*x, 2*u+1) += W.imag();
+        at(2*x+1, 2*u) += W.imag(); at(2*x+1, 2*u+1) -= W.real();
+    };
+    for (int i=0 ; i<size() ; i++)
+        lin(i, slow ? std::complex<double>(-gamma_[i]) : -(I * omega_[i] + gamma_[i]));
+    for (size_t j=0 ; j<triplets_.size() ; j++) {
+        const Triplet& tr = triplets_[j];
+        const std::complex<double> k = tr.kappa * (slow ? std::exp(I * delta_[j] * t) : 1.0);
+        auto term = [&](int x, double c, int u, int v) {     // out[x] += c i w_x k conj(y_u) conj(y_v)
+            const std::complex<double> C = c * I * omega_[x] * k;
+            anti(x, u, C * std::conj(y[size_t(v)]));
+            anti(x, v, C * std::conj(y[size_t(u)]));
+        };
+        if (tr.b == tr.c) {                      // same terms as add_triplet
+            term(tr.a, 1.0, tr.b, tr.b);
+            term(tr.b, 2.0, tr.a, tr.b);
+            continue;
+        }
+        term(tr.a, 2.0, tr.b, tr.c);
+        term(tr.b, 2.0, tr.a, tr.c);
+        term(tr.c, 2.0, tr.a, tr.b);
+    }
+}
+
 eig::ArrayXd Network::energy (const State& y) const {
     eig::ArrayXd e(size());
     for (int i=0 ; i<size() ; i++) e[i] = std::norm(y[i]);
@@ -140,6 +175,7 @@ struct SysParams {
     const Network* net;
     const Options* opt;
     State y, dydt;                               // scratch, so the rhs never allocates
+    long rhs_calls = 0;
 };
 
 /* The solvers work with raw doubles, y[2n] = {Re q_0, Im q_0, Re q_1, ...};
@@ -149,7 +185,10 @@ std::complex<double>* as_complex (double* y) {
 }
 
 // Threads for SUNDIALS' vector operations: they are a few flops per element,
-// so threading only pays once the state is large.
+// so threading only pays once the state is large. Below that the serial vector,
+// not OpenMP with one thread: every OpenMP vector operation still opens a
+// parallel region, ~1 us each, dozens per CVODE step -- 10x the whole step on
+// a small network.
 int threads (int n) {
 #ifdef _OPENMP
     // ponytail: fixed cut; measure on the cluster once networks reach it
@@ -162,6 +201,7 @@ int threads (int n) {
 
 // Full right-hand side, dA/dt (or dq/dt), with frozen modes held.
 void full_rhs (double t, const double* y, double* dydt, SysParams* p) {
+    ++p->rhs_calls;
     const size_t n = p->y.size();
     std::copy_n(reinterpret_cast<const std::complex<double>*>(y), n, p->y.begin());
 
@@ -175,6 +215,18 @@ void full_rhs (double t, const double* y, double* dydt, SysParams* p) {
 // CVODE: the whole right-hand side.
 int rhs (sunrealtype t, N_Vector y, N_Vector ydot, void* params) {
     full_rhs(t, N_VGetArrayPointer(y), N_VGetArrayPointer(ydot), static_cast<SysParams*>(params));
+    return 0;
+}
+
+// CVODE BDF: the analytic Jacobian, frozen modes' rows zeroed like their rhs.
+int jac (sunrealtype t, N_Vector y, N_Vector, SUNMatrix J, void* params, N_Vector, N_Vector, N_Vector) {
+    auto* p = static_cast<SysParams*>(params);
+    const size_t n = p->y.size(), m = 2 * n;
+    std::copy_n(reinterpret_cast<const std::complex<double>*>(N_VGetArrayPointer(y)), n, p->y.begin());
+    double* d = SUNDenseMatrix_Data(J);
+    p->net->jacobian(t, p->y, p->opt->slow, d);
+    for (int i : p->opt->frozen)
+        for (size_t c = 0; c < m; ++c) d[c * m + 2 * size_t(i)] = d[c * m + 2 * size_t(i) + 1] = 0.0;
     return 0;
 }
 
@@ -202,7 +254,7 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
     // The state vector: 2n doubles (real + imaginary parts).
     SUNContext ctx;
     SUNContext_Create(SUN_COMM_NULL, &ctx);
-    N_Vector y = N_VNew_OpenMP(2 * n, threads(n), ctx);
+    N_Vector y = threads(n) > 1 ? N_VNew_OpenMP(2 * n, threads(n), ctx) : N_VNew_Serial(2 * n, ctx);
     double* yd = N_VGetArrayPointer(y);
     std::copy_n(y0.begin(), n, as_complex(yd));
 
@@ -233,7 +285,8 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
         if (opt.solver == Solver::bdf) {
             J = SUNDenseMatrix(2 * n, 2 * n, ctx);
             LS = SUNLinSol_Dense(y, J, ctx);
-            CVodeSetLinearSolver(mem, LS, J);    // no Jacobian given: CVODE differences rhs
+            CVodeSetLinearSolver(mem, LS, J);
+            CVodeSetJacFn(mem, jac);
             CVodeSetStabLimDet(mem, SUNTRUE);    // drops order when BDF 3-5 meet an oscillation
         } else {
             NLS = SUNNonlinSol_FixedPoint(y, 0, ctx);
@@ -262,6 +315,11 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
         if (opt.e_max > 0.0) e_prev = e;
         return c;
     };
+    const auto clock0 = std::chrono::steady_clock::now();
+    auto out_of_time = [&] {
+        return opt.max_seconds > 0.0 && std::chrono::duration<double>(
+                   std::chrono::steady_clock::now() - clock0).count() > opt.max_seconds;
+    };
     bool done = false;
     for (int step=0 ; step<opt.n_out && !done ; step++) {
         const double t_target = t_end * step / (opt.n_out - 1);
@@ -276,13 +334,26 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
             e = energy_now();
             if (!std::isfinite(e)) { flag = -1; break; }
             if (t < t_target && crossed(e)) { done = true; break; }
+            if (out_of_time()) { sol.out_of_time = done = true; break; }
         }
-        if (flag < 0) break;
+        if (flag < 0) { sol.failed = true; break; }
         sol.t.push_back(t);
         sol.y.push_back(out);
         if (!done && crossed(e)) done = true;
     }
 
+    sol.rhs_calls = params.rhs_calls;
+    if (drv) {
+        sol.steps = long(drv->e->count);
+        sol.failed_steps = long(drv->e->failed_steps);
+    } else {
+        long v = 0;
+        CVodeGetNumSteps(mem, &v);               sol.steps = v;
+        CVodeGetNumErrTestFails(mem, &v);        sol.failed_steps = v;
+        CVodeGetNumNonlinSolvConvFails(mem, &v); sol.failed_steps += v;
+        CVodeGetNumNonlinSolvIters(mem, &v);     sol.nonlin_iters = v;
+        if (J) { CVodeGetNumJacEvals(mem, &v);   sol.jac_evals = v; }
+    }
     if (drv) gsl_odeiv2_driver_free(drv);
     if (mem) CVodeFree(&mem);
     if (LS) SUNLinSolFree(LS);
