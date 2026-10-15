@@ -12,6 +12,7 @@
 #   PARENT_LMAX=4 sbatch shell-scripts/network_sweep.sh   # let l <= 4 modes compete as parents
 #   WALL=10 CLOSURE=0.15 sbatch shell-scripts/network_sweep.sh   # tighter cap, full closure
 #   sbatch --array=2 shell-scripts/network_sweep.sh             # MODELS[2] only
+#   NS="1 2 4 8 16" WALL=150 sbatch --cpus-per-task=32 shell-scripts/network_sweep.sh   # up to N16, 2.5 h cap
 #
 # Compiles network_build/network_run first (array tasks take turns on a lock;
 # up-to-date objects are skipped), rebuilds every network from scratch (one
@@ -29,16 +30,21 @@ echo "=== $MODEL (array task ${SLURM_ARRAY_TASK_ID:-none})"
 TAG=$(basename "$MODEL")
 JOBS=${SLURM_CPUS_PER_TASK:-4}
 OUT=${OUT:-out/networks}
-NS="1 2 4 8 16 32"
+NS=${NS:-"1 2 4 8 16 32"}
 CUTS="0.15 0.05 0.015 0.005 0.0015"
 # Cost ~ t_end * max|Delta| * n_triplets / 4e5 s, so the closure cut on
 # far-detuned couplings is the lever (selecting legs are always kept). t_end
-# 1e13 s: a bounded 8-daughter net has settled by then. WALL [min] kills a run
-# from outside; it leaves no summary and is logged as TIMEOUT. Keep it below
-# the job's --time, or Slurm kills the job first and the plots never run.
+# 1e13 s: a bounded 8-daughter net has settled by then. WALL [min]: a run
+# stops itself at 90% of it (--max-seconds) and keeps what it has (stop =
+# wall in summary.csv); `timeout` at WALL is only the backstop, logged as
+# TIMEOUT with no summary. Keep WALL below the job's --time, or Slurm kills the
+# job first and the plots never run.
+# rtol 1e-8 matches 1e-10 to ~3e-4 of peak energies at 2-5x less cost. atol
+# 1e-40 puts the numerical floor at E ~ 1e-80 (atol^2, every solver): regrowth
+# after a deeper dip starts from that floor, so its timing depends on atol.
 WALL=${WALL:-660}
 CLOSURE=${CLOSURE:-0.005}
-RUN_ARGS=${RUN_ARGS:-"--q0 1e-6 --q0-daughter 1e-9 --seed 1 --e-max 1e-2 --t-end 1e13"}
+RUN_ARGS=${RUN_ARGS:-"--q0 1e-6 --q0-daughter 1e-9 --seed 1 --e-max 1e-2 --t-end 1e13 --rtol 1e-8 --atol 1e-40"}
 export OMP_NUM_THREADS=1
 
 # Parents: PARENTS="l,n l,n" if given, else the builder picks the driven l <= PARENT_LMAX (default 2)
@@ -77,7 +83,8 @@ run() {   # network file
     [[ $grp == two_parents* ]] && p=2
     [[ -f $d/summary.csv ]] && cmp -s "$f" "$d/network.data" && return 0
     rm -rf "$d"; mkdir -p "$d"; cp "$f" "$d/network.data"
-    timeout "${WALL}m" ./build/network_run "$f" --out "$d" $RUN_ARGS > "$d/log.txt" 2>&1
+    timeout "${WALL}m" ./build/network_run "$f" --out "$d" $RUN_ARGS --max-seconds $((WALL * 54)) \
+        > "$d/log.txt" 2>&1
     case $? in
         0) python scripts/network_plot.py --data "$d" --parents $p --title "$TAG $(basename "$d")" \
                >> "$d/log.txt" 2>&1 || echo "PLOT FAILED $d" ;;

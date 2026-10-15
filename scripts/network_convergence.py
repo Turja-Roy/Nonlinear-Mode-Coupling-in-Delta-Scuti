@@ -66,6 +66,8 @@ def main() -> int:
             ax.plot(g[x], g[col], **style)
             bad = g[g["runaway"].astype(str) == "True"]
             ax.plot(bad[x], bad[col], "x", color="k", ms=8)
+            part = g[g["stop"].isin(["wall", "failed"])]   # cut short: not a converged value
+            ax.plot(part[x], part[col], "s", mfc="none", color="k", ms=9)
     for ax, (_, ylabel, logy) in zip(axes.flat, PANELS):
         ax.set(xscale="log", ylabel=ylabel, yscale="log" if logy else "linear")
         ax.set_xticks(sorted(df[x].unique()), [f"{v:g}" for v in sorted(df[x].unique())])
@@ -76,7 +78,8 @@ def main() -> int:
     axes[0, 0].annotate("observed", (1, 1e-12), xycoords=("axes fraction", "data"),
                         ha="right", va="bottom", fontsize=8, color="0.3")
     axes[0, 0].legend(fontsize=8, framealpha=0.9)
-    axes[0, 0].set_title(f"{a.runs.name}   (x = runaway)", fontsize=9, loc="left")
+    axes[0, 0].set_title(f"{a.runs.name}   (x = runaway, square = stopped by wall time or failure)",
+                         fontsize=9, loc="left")
 
     out = a.out or a.runs
     for ext in ("png", "pdf"):
