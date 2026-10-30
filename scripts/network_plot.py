@@ -8,12 +8,17 @@ Reads <data>/energies.csv (t, E_<id>...). A handful of modes get their own
 colour and a legend entry; more than that get thin grey lines with no
 per-mode legend, the same trick mw25_plot.py's Figure 2 uses for its N
 daughters -- a legend with 101 entries is not readable anyway.
+
+Dashed lines: each parent's lowest E_th over the selecting pairs in the
+network file's header, and that pair's E_eq when it has one, in the parent's
+colour.
 """
 
 from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -29,8 +34,12 @@ plt.rcParams.update({
 
 
 def read_network(path: pathlib.Path):
-    modes, trip, skipped = {}, [], False
+    modes, trip, eth, skipped = {}, [], {}, False
     for line in open(path):
+        if m := re.match(r"#\s+(\(\d+,[+-]\d+\)) -> ", line):   # selecting pair: ... E_th E_eq|none
+            f = line.split()
+            if m[1] not in eth or float(f[-2]) < eth[m[1]][0]:
+                eth[m[1]] = (float(f[-2]), None if f[-1] == "none" else float(f[-1]))
         if not line.strip() or line.startswith("#"):
             continue
         if not skipped:
@@ -41,7 +50,7 @@ def read_network(path: pathlib.Path):
             modes[int(f[0])] = dict(gen=int(f[1]), n=int(float(f[2])), l=int(float(f[3])), w=float(f[5]))
         elif len(f) in (4, 5):
             trip.append({int(f[0]), int(f[1]), int(f[2])})
-    return modes, trip
+    return modes, trip, eth
 
 
 def main() -> int:
@@ -60,11 +69,11 @@ def main() -> int:
     names = [c[2:] for c in df.columns if c != "t"]
 
     # (l, n) and role of each mode from the network file, when summary.csv names one
-    modes = {}
+    modes, eth = {}, {}
     if (a.data / "summary.csv").exists():
         net = pathlib.Path(pd.read_csv(a.data / "summary.csv")["file"].iloc[0])
         if net.exists():
-            modes = read_network(net)[0]
+            modes, _, eth = read_network(net)
     lab = {n: f"({modes[int(n)]['l']},{modes[int(n)]['n']:+d})" if int(n) in modes else f"mode {n}" for n in names}
     par = [n for n in names if modes.get(int(n), {}).get("gen") == 0] if modes else names[:a.parents]
     dau = [n for n in names if n not in par]
@@ -80,6 +89,12 @@ def main() -> int:
         for name, col in zip(par, PALETTE):
             ax.plot(t, df[f"E_{name}"], color=col, lw=1.6, label="parent " + lab[name])
         ax.plot([], [], color="0.4", lw=0.8, label=f"{len(dau)} daughters")
+    for name, col in zip(par, PALETTE):
+        e_th, e_eq = eth.get(lab[name], (None, None))
+        if e_th:
+            ax.axhline(e_th, color=col, lw=0.9, ls=(0, (6, 3)), label=r"$E_{\rm th}$ " + lab[name])
+        if e_eq:
+            ax.axhline(e_eq, color=col, lw=0.9, ls=(0, (2, 2)), label=r"$E_{\rm eq}$ " + lab[name])
     ax.legend(fontsize=8, framealpha=0.9)
     head = a.title or str(a.data)
     ax.set_title(f"{head}\nparents {', '.join(lab[n] for n in par)};  {len(dau)} daughters", fontsize=10)
