@@ -163,7 +163,10 @@ stale=0
 [[ -f $LIB ]] || stale=1
 for m in "${LIB_SRC[@]}"; do [[ $BUILD/obj/$m.o -nt $LIB ]] && stale=1; done
 if [[ $stale -eq 1 ]]; then
-    ar rcs "$LIB" "$BUILD"/obj/*.o
+    # From scratch, library objects only: `ar rcs` keeps members it is not given,
+    # and a stale one (a CMake build's amplitude.cpp.o) can shadow the fresh one.
+    rm -f "$LIB"
+    ar rcs "$LIB" $(printf "$BUILD/obj/%s.o " "${LIB_SRC[@]}")
     say "  ar libcoupling.a"
 fi
 

@@ -19,10 +19,19 @@
 
    omega sign: by generation, -|omega| for even gen, +|omega| for odd
    (amplitude.hpp); the file's omega is a magnitude. A negative one means a
-   +-omega file from an older network_build, which is refused. */
+   +-omega file from an older network_build, which is refused.
+
+   Starting energies: E_p(0) = f_p E_th,p for a parent, E_th,p the lowest
+   threshold energy over its parametric pairs in the file
+   (stab::threshold_energy), and E_d(0) = f_d E_th,p for a daughter, E_th,p
+   the lowest among the parents it shares a triplet with. f_p = 0.9, f_d =
+   1e-3 (Plans/network-growth.md sec. 3); --eth-parent, --eth-daughter
+   override them; 0 starts at --q0 instead, as does a mode with no E_th (a
+   direct-only network). */
 
 #include "amplitude.hpp"
 #include "csv.hpp"
+#include "stability.hpp"
 
 #include <CLI/CLI.hpp>
 
@@ -83,24 +92,23 @@ NetworkFile read_network (const std::filesystem::path& p) {
 int main (int argc, char** argv) {
     CLI::App app{"Integrate an arbitrary network read from a plain-text file"};
     std::string src, out = "out/network_run";
-    double q0 = 1e-6, q0_d = 0.0, t_end = 0.0, rtol = 1e-10, atol = 0.0, e_max = 0.0, max_s = 0.0;
-    amp::Solver solver = amp::Solver::rk8pd;
+    double q0 = 1e-6, q0_d = 0.0, f_p = 0.9, f_d = 1e-3, t_end = 0.0, rtol = 1e-10, atol = 1e-300,
+           e_max = 0.0, max_s = 0.0;
     int n_out = 4000;
     unsigned seed = 0;
     app.add_option("file", src, "network file, see data/fake_net_101.data")->required();
     app.add_option("--out", out);
-    app.add_option("--q0", q0, "initial |q| of the self-excited modes");
-    app.add_option("--q0-daughter", q0_d, "initial |q| of the damped modes; default --q0");
+    app.add_option("--eth-parent", f_p, "f_p: a parent starts at E = f_p E_th; 0: at --q0");
+    app.add_option("--eth-daughter", f_d, "f_d: a daughter starts at E = f_d E_th of its parents; 0: at --q0-daughter");
+    app.add_option("--q0", q0, "initial |q| of a self-excited mode with no E_th, or f_p = 0");
+    app.add_option("--q0-daughter", q0_d, "initial |q| of a damped mode with no E_th, or f_d = 0; default --q0");
     app.add_option("--seed", seed, "nonzero: random initial phases from this seed");
     app.add_option("--e-max", e_max, "stop once sum E crosses this [E_star]; 0 = never");
     app.add_option("--t-end", t_end, "integration length; default 20 / min|gamma|");
     app.add_option("--n-out", n_out);
     app.add_option("--rtol", rtol);
-    app.add_option("--atol", atol, "absolute tolerance on |A|; 0 = 1e-14 max|A(0)|");
+    app.add_option("--atol", atol, "absolute tolerance on |A| (amplitude.hpp)");
     app.add_option("--max-seconds", max_s, "stop integrating after this wall time, keeping outputs; 0 = never");
-    app.add_option("--solver", solver, "rk8pd, adams or bdf (amplitude.hpp)")
-        ->transform(CLI::CheckedTransformer(std::map<std::string, amp::Solver>{
-            {"rk8pd", amp::Solver::rk8pd}, {"adams", amp::Solver::adams}, {"bdf", amp::Solver::bdf}}));
     CLI11_PARSE(app, argc, argv);
 
     const NetworkFile nf = read_network(src);
@@ -118,17 +126,31 @@ int main (int argc, char** argv) {
     opt.n_out = n_out;
     opt.rtol = rtol;
     opt.atol = atol;
-    opt.solver = solver;
     opt.max_seconds = max_s;
     opt.e_max = e_max;
     if (q0_d == 0.0) q0_d = q0;
+    const auto& md = net.modes();
+    const double inf = std::numeric_limits<double>::infinity();
+    std::vector<double> e_th(md.size(), inf);
+    for (const Triplet& tr : net.triplets()) {
+        const double e = stab::threshold_energy(tr.kappa, md[tr.b].omega, md[tr.c].omega, md[tr.b].gamma,
+                                                md[tr.c].gamma, net.detuning(tr));
+        if (md[tr.a].gamma < 0.0 && e > 0.0) e_th[tr.a] = std::min(e_th[tr.a], e);
+    }
+    for (const Triplet& tr : net.triplets())
+        for (int i : {tr.a, tr.b, tr.c})
+            for (int p : {tr.a, tr.b, tr.c})
+                if (md[i].gamma >= 0.0 && md[p].gamma < 0.0) e_th[i] = std::min(e_th[i], e_th[p]);
     std::mt19937 rng(seed);
     std::uniform_real_distribution<double> phase(0.0, 2.0 * M_PI);
     State y0(size_t(net.size()));
     // phases on the +|omega| representation: a -omega mode starts at the conjugate
     for (size_t i = 0; i < y0.size(); ++i) {
-        const amp::Mode& m = net.modes()[i];
-        y0[i] = std::polar(m.gamma < 0.0 ? q0 : q0_d, (m.omega < 0.0 ? -1.0 : 1.0) * (seed ? phase(rng) : 0.0));
+        const bool parent = md[i].gamma < 0.0;
+        const double f = parent ? f_p : f_d;
+        const double q = f > 0.0 && std::isfinite(e_th[i]) ? std::sqrt(f * e_th[i]) : parent ? q0 : q0_d;
+        if (parent) std::printf("  parent %s: E_th %.3e, E(0) %.3e\n", md[i].name.c_str(), e_th[i], q * q);
+        y0[i] = std::polar(q, (md[i].omega < 0.0 ? -1.0 : 1.0) * (seed ? phase(rng) : 0.0));
     }
     const auto clock0 = std::chrono::steady_clock::now();
     amp::Solution sol = net.integrate(y0, t_end, opt);
@@ -145,11 +167,11 @@ int main (int argc, char** argv) {
         const amp::Solution first = sol;
         sol = net.integrate(y0, t_end, opt);
         sol.steps += first.steps; sol.rhs_calls += first.rhs_calls; sol.failed_steps += first.failed_steps;
-        sol.jac_evals += first.jac_evals; sol.nonlin_iters += first.nonlin_iters;
+        sol.nonlin_iters += first.nonlin_iters;
     }
     const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - clock0).count();
-    std::printf("  integration %.1f s: %ld steps, %ld failed, %ld rhs calls, %ld Jacobians, %ld nonlinear iterations\n",
-                seconds, sol.steps, sol.failed_steps, sol.rhs_calls, sol.jac_evals, sol.nonlin_iters);
+    std::printf("  integration %.1f s: %ld steps, %ld failed, %ld rhs calls, %ld nonlinear iterations\n",
+                seconds, sol.steps, sol.failed_steps, sol.rhs_calls, sol.nonlin_iters);
 
     std::filesystem::create_directories(out);
     std::vector<std::string> hdr = {"t"};
@@ -192,11 +214,11 @@ int main (int argc, char** argv) {
     std::printf("  <E_parents> %.3e E_star, swing %.3f, D/P %.3f, %ld active daughters, "
                 "stop: %s at t %.3e\n", par, swing, D / P, active, stop.c_str(), sol.t.back());
     csv::Writer s(std::filesystem::path(out) / "summary.csv",
-                  {"file", "n_modes", "n_triplets", "t_end", "q0", "q0_daughter", "seed",
-                   "runaway", "stop", "E_parents", "swing", "driving", "dissipation", "n_active",
-                   "seconds", "steps", "failed_steps", "rhs_calls", "jac_evals", "nonlin_iters"});
-    s.row(src, n_modes, n_trip, sol.t.back(), q0, q0_d,
+                  {"file", "n_modes", "n_triplets", "t_end", "q0", "q0_daughter", "f_parent", "f_daughter",
+                   "seed", "runaway", "stop", "E_parents", "swing", "driving", "dissipation", "n_active",
+                   "seconds", "steps", "failed_steps", "rhs_calls", "nonlin_iters"});
+    s.row(src, n_modes, n_trip, sol.t.back(), q0, q0_d, f_p, f_d,
           long(seed), runaway, stop, par, swing, P, D, active,
-          seconds, sol.steps, sol.failed_steps, sol.rhs_calls, sol.jac_evals, sol.nonlin_iters);
+          seconds, sol.steps, sol.failed_steps, sol.rhs_calls, sol.nonlin_iters);
     return 0;
 }

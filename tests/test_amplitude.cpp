@@ -77,16 +77,28 @@ int main () {
         }
     }
 
-    /* --- damping alone decays each energy at exactly 2 gamma, every solver --- */
-    for (amp::Solver s : {amp::Solver::rk8pd, amp::Solver::adams, amp::Solver::bdf}) {
+    /* --- damping alone decays each energy at exactly 2 gamma --- */
+    {
         const double g[3] = {4e-7, 3e-7, 5e-7}, t_end = 2.0e7;
         amp::Network n = amp::three_mode({W[0], W[1], W[2]}, {g[0], g[1], g[2]}, 0.0);
         amp::Options o;
         o.n_out = 3;
-        o.solver = s;
         const eig::ArrayXd E = n.energy(n.integrate({1e-6, 1e-6, 1e-6}, t_end, o).y.back());
         for (int i=0 ; i<3 ; i++)
             close(E[i], 1e-12 * std::exp(-2.0 * g[i] * t_end), 1e-8, "linear decay");
+    }
+
+    /* --- atol 1e-300: no floor in reach, the decay is followed to E ~ 1e-150;
+       Im y_0 and Re y_1 stay exactly 0 throughout --- */
+    {
+        const double g = 4e-7, t_end = 4.0e8;
+        amp::Network n = amp::three_mode({W[0], W[1], W[2]}, {g, g, g}, 0.0);
+        amp::Options o;
+        o.n_out = 3;
+        const auto sol = n.integrate({1e-6, {0.0, 1e-6}, {6e-7, 8e-7}}, t_end, o);
+        assert(!sol.failed);
+        const eig::ArrayXd E = n.energy(sol.y.back());
+        for (int i=0 ; i<3 ; i++) close(E[i] / (1e-12 * std::exp(-2.0 * g * t_end)), 1.0, 1e-6, "pure relative decay");
     }
 
     /* --- the analytic Jacobian matches central differences of the rhs (exact
@@ -126,19 +138,20 @@ int main () {
         assert(sol.out_of_time && !sol.t.empty() && sol.t.back() < 2.0e7 && sol.steps > 0);
     }
 
-    /* --- the three solvers agree on a resonant triplet trading most of its energy --- */
+    /* --- restarts do not perturb: a resonant triplet trading most of its
+       energy ends the same with 18 CVODE restarts (n_out 20) as with none --- */
     {
         const double wb = 1.1e-3, wc = 0.9e-3;
         amp::Network n = amp::three_mode({-(wb + wc), wb, wc}, {-1e-8, 2e-8, 3e-8}, KAPPA);
         std::vector<eig::ArrayXd> E;
-        for (amp::Solver s : {amp::Solver::rk8pd, amp::Solver::adams, amp::Solver::bdf}) {
+        for (int n_out : {2, 20}) {
             amp::Options o;
-            o.n_out = 2;
-            o.solver = s;
-            E.push_back(n.energy(n.integrate({1e-6, 2e-7, 3e-7}, 2.0e7, o).y.back()));
+            o.n_out = n_out;
+            const auto sol = n.integrate({1e-6, 2e-7, 3e-7}, 2.0e7, o);
+            assert(!sol.failed);
+            E.push_back(n.energy(sol.y.back()));
         }
-        for (size_t k=1 ; k<E.size() ; k++)
-            for (int i=0 ; i<3 ; i++) close(E[k][i], E[0][i], 1e-6, "solvers agree");
+        for (int i=0 ; i<3 ; i++) close(E[1][i], E[0][i], 1e-6, "restarts agree");
     }
 
     /* --- A and q give the same |amplitude| --- */
@@ -171,6 +184,7 @@ int main () {
         amp::Options cap;
         cap.n_out = 9;
         cap.e_max = 1e-14;
+        cap.rtol = 1e-8;                         // only whether the cap fires is checked
         assert(all_driven.integrate({1e-9, 1e-9, 1e-9}, 4.0e9, cap).t.back() < 4.0e9);
         // starting above the cap never fires: there is nothing to cross
         close(n.integrate({1e-6, 1e-9, 1e-9}, 2.0e7, cap).t.back(), 2.0e7, 1e-12,
@@ -239,6 +253,26 @@ int main () {
         const eig::ArrayXd E = n.energy(n.integrate({0.3 * q, 1e-3 * q, 1e-3 * q},
                                                     100.0 / -g[0], o).y.back());
         for (int i=0 ; i<3 ; i++) close(E[i] / ee[i], 1.0, 1e-4, "A7 fixed point");
+    }
+
+    /* --- a direct leg x + y -> c with the parents held is a forced oscillator:
+       E_c settles on R_c E_x E_y, R_c = (s mu)^2, s = 2 for two parents and
+       1 for a + a -> c (network_build's ranking) --- */
+    {
+        const double wx = 1.1e-3, wy = 0.9e-3, d = 2e-8, gc = 3e-8;
+        const std::complex<double> ax(6e-7, 8e-7), ay(-3e-7, 4e-7), ac(1e-12, 1e-12);
+        const amp::Network two({{"x", -wx, -1e-9}, {"y", -wy, -2e-9}, {"c", wx + wy + d, gc}}, {{2, 0, 1, KAPPA}});
+        const amp::Network one({{"x", -wx, -1e-9}, {"c", 2.0 * wx + d, gc}}, {{1, 0, 0, KAPPA}});
+        amp::Options o;
+        o.n_out = 2;
+        o.frozen = {0, 1};
+        eig::ArrayXd E = two.energy(two.integrate({ax, ay, ac}, 40.0 / gc, o).y.back());
+        const double s2 = std::pow(2.0 * stab::mu(KAPPA, wx + wy + d, d, gc), 2);
+        close(E[2] / (s2 * E[0] * E[1]), 1.0, 1e-6, "direct leg, two parents");
+        o.frozen = {0};
+        E = one.energy(one.integrate({ax, ac}, 40.0 / gc, o).y.back());
+        const double s1 = std::pow(stab::mu(KAPPA, 2.0 * wx + d, d, gc), 2);
+        close(E[1] / (s1 * E[0] * E[0]), 1.0, 1e-6, "direct leg, a + a -> c");
     }
 
     /* --- csv.cpp round-trips, and writes the pandas spellings --- */

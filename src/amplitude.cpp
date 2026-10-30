@@ -3,11 +3,15 @@
 #include <cvode/cvode.h>
 #include <nvector/nvector_openmp.h>
 #include <nvector/nvector_serial.h>
-#include <sunlinsol/sunlinsol_dense.h>
-#include <sunmatrix/sunmatrix_dense.h>
 #include <sunnonlinsol/sunnonlinsol_fixedpoint.h>
+#if 0   // the solvers set aside, see Options
+#include <cvode/cvode_bandpre.h>
+#include <sunlinsol/sunlinsol_dense.h>
+#include <sunlinsol/sunlinsol_spgmr.h>
+#include <sunmatrix/sunmatrix_dense.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_odeiv2.h>
+#endif
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -218,6 +222,20 @@ int rhs (sunrealtype t, N_Vector y, N_Vector ydot, void* params) {
     return 0;
 }
 
+/* Error weight per mode, not per real component: |A_i| sets the tolerance on
+   both Re A_i and Im A_i. Per component, a phase that puts one of them at 0
+   asks for atol absolute there, and a real start with Delta != 0 fails its
+   first step. */
+int ewt (N_Vector y, N_Vector w, void* params) {
+    const auto* p = static_cast<SysParams*>(params);
+    const double* yd = N_VGetArrayPointer(y);
+    double* wd = N_VGetArrayPointer(w);
+    for (size_t i = 0; i < p->y.size(); ++i)
+        wd[2 * i] = wd[2 * i + 1] = 1.0 / (p->opt->rtol * std::hypot(yd[2 * i], yd[2 * i + 1]) + p->opt->atol);
+    return 0;
+}
+
+#if 0
 // CVODE BDF: the analytic Jacobian, frozen modes' rows zeroed like their rhs.
 int jac (sunrealtype t, N_Vector y, N_Vector, SUNMatrix J, void* params, N_Vector, N_Vector, N_Vector) {
     auto* p = static_cast<SysParams*>(params);
@@ -235,6 +253,7 @@ int rhs_gsl (double t, const double y[], double dydt[], void* params) {
     full_rhs(t, y, dydt, static_cast<SysParams*>(params));
     return GSL_SUCCESS;
 }
+#endif
 
 }  // namespace
 
@@ -242,12 +261,6 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
     const int n = size();
     if (int(y0.size()) != n)
         throw std::invalid_argument("amp::Network::integrate: y0 has the wrong length");
-
-    if (opt.atol == 0.0) {
-        double mx = 0.0;
-        for (const auto& z : y0) mx = std::max(mx, std::abs(z));
-        opt.atol = 1e-14 * mx;
-    }
 
     SysParams params{this, &opt, State(size_t(n)), State(size_t(n))};
 
@@ -267,32 +280,29 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
     const double h0 = rate > 0.0 ? std::min(t_end / (10.0 * opt.n_out), 0.01 / rate)
                                  : t_end / (10.0 * opt.n_out);
 
+    void* mem = CVodeCreate(CV_ADAMS, ctx);
+    CVodeInit(mem, rhs, 0.0, y);
+    CVodeSetUserData(mem, &params);
+    CVodeWFtolerances(mem, ewt);
+    CVodeSetInitStep(mem, h0);
+    CVodeSetMaxNumSteps(mem, -1);                // no cap on steps per output interval
+    SUNNonlinearSolver NLS = SUNNonlinSol_FixedPoint(y, 0, ctx);
+    CVodeSetNonlinearSolver(mem, NLS);
+#if 0   // instead of the Adams lines above; GSL also restarts every chunk, see the loop
     gsl_odeiv2_system sys{rhs_gsl, nullptr, size_t(2 * n), &params};
-    gsl_odeiv2_driver* drv = nullptr;
-    void* mem = nullptr;
-    SUNMatrix J = nullptr;
-    SUNLinearSolver LS = nullptr;
-    SUNNonlinearSolver NLS = nullptr;
-    if (opt.solver == Solver::rk8pd) {
-        drv = gsl_odeiv2_driver_alloc_y_new(&sys, gsl_odeiv2_step_rk8pd, h0, opt.atol, opt.rtol);
-    } else {
-        mem = CVodeCreate(opt.solver == Solver::bdf ? CV_BDF : CV_ADAMS, ctx);
-        CVodeInit(mem, rhs, 0.0, y);
-        CVodeSStolerances(mem, opt.rtol, opt.atol);
-        CVodeSetUserData(mem, &params);
-        CVodeSetInitStep(mem, h0);
-        CVodeSetMaxNumSteps(mem, -1);            // no cap on steps per output interval
-        if (opt.solver == Solver::bdf) {
-            J = SUNDenseMatrix(2 * n, 2 * n, ctx);
-            LS = SUNLinSol_Dense(y, J, ctx);
-            CVodeSetLinearSolver(mem, LS, J);
-            CVodeSetJacFn(mem, jac);
-            CVodeSetStabLimDet(mem, SUNTRUE);    // drops order when BDF 3-5 meet an oscillation
-        } else {
-            NLS = SUNNonlinSol_FixedPoint(y, 0, ctx);
-            CVodeSetNonlinearSolver(mem, NLS);
-        }
-    }
+    gsl_odeiv2_driver* drv = gsl_odeiv2_driver_alloc_y_new(&sys, gsl_odeiv2_step_rk8pd, h0, opt.atol, opt.rtol);
+    // BDF, dense
+    mem = CVodeCreate(CV_BDF, ctx);
+    SUNMatrix J = SUNDenseMatrix(2 * n, 2 * n, ctx);
+    SUNLinearSolver LS = SUNLinSol_Dense(y, J, ctx);
+    CVodeSetLinearSolver(mem, LS, J);
+    CVodeSetJacFn(mem, jac);
+    CVodeSetStabLimDet(mem, SUNTRUE);            // drops order when BDF 3-5 meet an oscillation
+    // BDF, Krylov: SPGMR, CVBANDPRE preconditioner of half-bandwidth `band`
+    LS = SUNLinSol_SPGMR(y, SUN_PREC_LEFT, 0, ctx);
+    CVodeSetLinearSolver(mem, LS, nullptr);
+    CVBandPrecInit(mem, 2 * n, band, band);
+#endif
 
     /* The integration loop: n_out outputs evenly spaced over [0, t_end]. With
        a cap, energy is also checked every e-folding of the fastest driven mode,
@@ -320,17 +330,42 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
         return opt.max_seconds > 0.0 && std::chrono::duration<double>(
                    std::chrono::steady_clock::now() - clock0).count() > opt.max_seconds;
     };
+    // CVodeReInit zeroes CVODE's counters, so they are added up before each restart.
+    auto collect = [&] {
+        long v = 0;
+        CVodeGetNumSteps(mem, &v);               sol.steps += v;
+        CVodeGetNumErrTestFails(mem, &v);        sol.failed_steps += v;
+        CVodeGetNumNonlinSolvConvFails(mem, &v); sol.failed_steps += v;
+        CVodeGetNumNonlinSolvIters(mem, &v);     sol.nonlin_iters += v;
+    };
+    /* Restarts keep the solver's t below one output interval: a stage time
+       near t ~ 1e12 s is rounded to its ulp, which puts noise ~Delta eps t
+       into exp(i Delta t), and the error estimate cannot get below it. The q
+       equations carry no explicit t, so from t0 on A_x(t0 + s) = B_x(s)
+       exp(i w_x t0), where B obeys the same dA_dt from s = 0 with B(0) = q(t0).
+       The solver integrates B; the equations are untouched. */
+    double t0 = 0.0, s = 0.0;                    // t = t0 + s, s the solver's t
     bool done = false;
     for (int step=0 ; step<opt.n_out && !done ; step++) {
         const double t_target = t_end * step / (opt.n_out - 1);
+        if (s > 0.0) {
+            collect();
+            if (opt.slow) std::copy_n(to_q(s, State(as_complex(yd), as_complex(yd) + n)).begin(), n, as_complex(yd));
+            CVodeReInit(mem, 0.0, y);            // GSL: gsl_odeiv2_driver_reset
+            t0 = t;
+            s = 0.0;
+        }
 
         // advance from t to t_target, updating t and y in place; flag < 0 is a failure
         int flag = 0;
         double e = energy_now();
         while (t < t_target && flag == 0) {
             const double t_next = std::min(t_target, t + check);
-            flag = drv ? (gsl_odeiv2_driver_apply(drv, &t, t_next, yd) == GSL_SUCCESS ? 0 : -1)
-                       : CVode(mem, t_next, y, &t, CV_NORMAL);
+            flag = CVode(mem, t_next - t0, y, &s, CV_NORMAL);
+#if 0
+            flag = gsl_odeiv2_driver_apply(drv, &s, t_next - t0, yd) == GSL_SUCCESS ? 0 : -1;
+#endif
+            t = t0 + s;
             e = energy_now();
             if (!std::isfinite(e)) { flag = -1; break; }
             if (t < t_target && crossed(e)) { done = true; break; }
@@ -338,27 +373,14 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
         }
         if (flag < 0) { sol.failed = true; break; }
         sol.t.push_back(t);
-        sol.y.push_back(out);
+        sol.y.push_back(opt.slow ? to_q(-t0, out) : out);   // A = B exp(i w t0)
         if (!done && crossed(e)) done = true;
     }
 
     sol.rhs_calls = params.rhs_calls;
-    if (drv) {
-        sol.steps = long(drv->e->count);
-        sol.failed_steps = long(drv->e->failed_steps);
-    } else {
-        long v = 0;
-        CVodeGetNumSteps(mem, &v);               sol.steps = v;
-        CVodeGetNumErrTestFails(mem, &v);        sol.failed_steps = v;
-        CVodeGetNumNonlinSolvConvFails(mem, &v); sol.failed_steps += v;
-        CVodeGetNumNonlinSolvIters(mem, &v);     sol.nonlin_iters = v;
-        if (J) { CVodeGetNumJacEvals(mem, &v);   sol.jac_evals = v; }
-    }
-    if (drv) gsl_odeiv2_driver_free(drv);
-    if (mem) CVodeFree(&mem);
-    if (LS) SUNLinSolFree(LS);
-    if (J) SUNMatDestroy(J);
-    if (NLS) SUNNonlinSolFree(NLS);
+    collect();
+    CVodeFree(&mem);
+    SUNNonlinSolFree(NLS);
     N_VDestroy(y);
     SUNContext_Free(&ctx);
     return sol;

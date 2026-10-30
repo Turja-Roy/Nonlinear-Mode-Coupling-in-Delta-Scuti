@@ -23,7 +23,7 @@ add_library(coupling STATIC
 target_include_directories(coupling PUBLIC src third_party third_party/eigen3 ${HDF5_INCLUDE_DIRS})
 target_link_libraries(coupling PUBLIC GSL::gsl ${HDF5_C_LIBRARIES}
     SUNDIALS::cvode SUNDIALS::nvecserial SUNDIALS::nvecopenmp SUNDIALS::sunlinsoldense SUNDIALS::sunmatrixdense
-    SUNDIALS::sunnonlinsolfixedpoint SUNDIALS::core)
+    SUNDIALS::sunlinsolspgmr SUNDIALS::sunnonlinsolfixedpoint SUNDIALS::core)
 if(OpenMP_CXX_FOUND)
     target_link_libraries(coupling PUBLIC OpenMP::OpenMP_CXX)
 endif()

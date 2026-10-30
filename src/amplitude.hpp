@@ -82,21 +82,19 @@ struct Triplet {
     double kappa;
 };
 
-/* rk8pd: GSL Prince-Dormand 8(9), explicit. Fine while every mode stays above
-   atol; a mode below it no longer limits the step, which then grows to the
-   method's stability limit and parks that mode near atol^2 in energy.
-   bdf: CVODE BDF (implicit, order 1-5) with a dense direct linear solver and
-   CVODE's finite-difference Jacobian; no stability limit, so modes below atol
-   keep decaying. adams: CVODE Adams (order 1-12) with fixed-point iteration,
-   explicit-like, as in the ode_integrate_sundial.cpp we were given. bdf uses
-   the analytic Jacobian, Network::jacobian. */
-enum class Solver { rk8pd, adams, bdf };
-
+/* CVODE Adams (order 1-12) with fixed-point iteration, restarted at t = 0
+   every output (CVodeReInit), see integrate(). The survey's choice
+   (out/solver_compare, out/atol_bench); GSL rk8pd and CVODE BDF (dense, and
+   Krylov with a band preconditioner) are left in integrate() under #if 0.
+   Error weight per mode, 1/(rtol |A_i| + atol) on both Re and Im A_i, so the
+   phase does not set the tolerance. A decaying mode parks near atol^2 in
+   energy; atol = 0 has no floor but fails once a mode goes subnormal, and
+   1e-300 floors at E ~ 1e-600, below the double range, and matched atol = 0
+   wherever that finished (out/atol_bench). */
 struct Options {
-    Solver solver = Solver::rk8pd;
     int n_out = 2000;
     double rtol = 1e-12;
-    double atol = 0.0;                           // 0 -> 1e-14 max|y0|, since |q| ~ 1e-6
+    double atol = 1e-300;
     bool slow = true;                            // integrate A; false integrates q
     double e_max = 0.0;                          // > 0: stop when sum|y|^2 crosses it
     std::vector<int> frozen;                     // held at their initial amplitude
@@ -106,10 +104,9 @@ struct Options {
 struct Solution {
     std::vector<double> t;
     std::vector<State> y;                        // A, or q when slow = false
-    // Solver counters: where the time goes. rhs_calls counts every call,
-    // including GSL's 13 stages per step; failed_steps adds CVODE's
+    // Solver counters: where the time goes. failed_steps adds CVODE's
     // nonlinear-solver failures to the error-test rejections.
-    long steps = 0, rhs_calls = 0, failed_steps = 0, jac_evals = 0, nonlin_iters = 0;
+    long steps = 0, rhs_calls = 0, failed_steps = 0, nonlin_iters = 0;
     bool out_of_time = false;                    // stopped by max_seconds, not by t_end or e_max
     bool failed = false;                         // the solver gave up (step size collapsed, NaN)
 };
