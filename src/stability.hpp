@@ -140,7 +140,7 @@ std::vector<Row> build_rows (const std::vector<RadialTriplet>& triplets, const M
 
 /* kappa at m = (0, 0, 0) per unordered (l, n) triple. The sign assignment
    does not enter kappa (only omega^2 does), so one value serves every channel
-   that uses the triple. Legs missing from `kap` are integrated on `jobs`
+   that uses the triple. Triplets missing from `kap` are integrated on `jobs`
    threads and appended to the TSV `cache` as they finish, so a crash loses
    only the integrals in flight. Delete the cache if the GYRE details change. */
 using TripletKey = std::array<Key, 3>;                  // sorted

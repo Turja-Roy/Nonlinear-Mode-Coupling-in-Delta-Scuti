@@ -255,7 +255,7 @@ int main () {
         for (int i=0 ; i<3 ; i++) close(E[i] / ee[i], 1.0, 1e-4, "A7 fixed point");
     }
 
-    /* --- a direct leg x + y -> c with the parents held is a forced oscillator:
+    /* --- a direct triplet x + y -> c with the parents held is a forced oscillator:
        E_c settles on R_c E_x E_y, R_c = (s mu)^2, s = 2 for two parents and
        1 for a + a -> c (network_build's ranking) --- */
     {
@@ -268,11 +268,11 @@ int main () {
         o.frozen = {0, 1};
         eig::ArrayXd E = two.energy(two.integrate({ax, ay, ac}, 40.0 / gc, o).y.back());
         const double s2 = std::pow(2.0 * stab::mu(KAPPA, wx + wy + d, d, gc), 2);
-        close(E[2] / (s2 * E[0] * E[1]), 1.0, 1e-6, "direct leg, two parents");
+        close(E[2] / (s2 * E[0] * E[1]), 1.0, 1e-6, "direct triplet, two parents");
         o.frozen = {0};
         E = one.energy(one.integrate({ax, ac}, 40.0 / gc, o).y.back());
         const double s1 = std::pow(stab::mu(KAPPA, 2.0 * wx + d, d, gc), 2);
-        close(E[1] / (s1 * E[0] * E[0]), 1.0, 1e-6, "direct leg, a + a -> c");
+        close(E[1] / (s1 * E[0] * E[0]), 1.0, 1e-6, "direct triplet, a + a -> c");
     }
 
     /* --- csv.cpp round-trips, and writes the pandas spellings --- */

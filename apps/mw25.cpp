@@ -158,7 +158,7 @@ void fig4() {
 }
 
 void fig5() {
-    // Does q_c = mu q_a q_b survive the parametric leg? mu belongs to the
+    // Does q_c = mu q_a q_b survive the parametric triplet? mu belongs to the
     // daughter of the direct triplet, MW25 Eq. (9).
     for (auto [tag, gpar, t_end, n_out] : {std::tuple{"fig5a", -0.01, 2000.0, 20000},
                                     std::tuple{"fig5b", -0.003, 40000.0, 95000}}) {

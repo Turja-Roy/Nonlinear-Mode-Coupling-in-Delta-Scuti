@@ -129,20 +129,20 @@ int main(int argc, char** argv) {
 
     /* The sign assignment does not enter kappa (only omega^2 does), so one
        kappa per unordered (l, n) triple serves every candidate that uses it. */
-    std::map<TripletKey, RadialTriplet> legs;
+    std::map<TripletKey, RadialTriplet> radial;
     for (const Tri& t : direct) {
         int s, p0, p1;
         if (t.sgn > 0)            { s = t.ic; p0 = t.ia; p1 = t.ib; }
         else if (w[t.ia] > w[t.ib]) { s = t.ia; p0 = t.ib; p1 = t.ic; }
         else                        { s = t.ib; p0 = t.ia; p1 = t.ic; }
-        legs.emplace(key_of(t.ia, t.ib, t.ic), triplet(s, p0, p1));
+        radial.emplace(key_of(t.ia, t.ib, t.ic), triplet(s, p0, p1));
     }
     for (const Quad& q : quads)
-        legs.emplace(key_of(q.ic, q.id, q.id), triplet(q.ic, q.id, q.id));
+        radial.emplace(key_of(q.ic, q.id, q.id), triplet(q.ic, q.id, q.id));
     for (const Quad& q : par_quads)
         for (int ip : {q.ia, q.ib})
-            legs.emplace(key_of(ip, q.id, q.id), triplet(ip, q.id, q.id));
-    std::printf("%zu distinct radial triplets to integrate\n", legs.size());
+            radial.emplace(key_of(ip, q.id, q.id), triplet(ip, q.id, q.id));
+    std::printf("%zu distinct radial triplets to integrate\n", radial.size());
 
     const auto t1 = std::chrono::steady_clock::now();
     const std::filesystem::path outp(out);
@@ -150,7 +150,7 @@ int main(int argc, char** argv) {
     cache_path.replace_extension(".kappa_cache.tsv");
     stab::KappaCache kap = stab::load_kappa_cache(cache_path);
     std::vector<TripletKey> todo;
-    for (const auto& [k, t] : legs) if (!kap.count(k)) todo.push_back(k);
+    for (const auto& [k, t] : radial) if (!kap.count(k)) todo.push_back(k);
     if (!kap.empty())
         std::printf("resuming: %zu triplets cached, %zu to go\n", kap.size(), todo.size());
     stab::kappa_m000(todo, efs, cache_path, kap, jobs);
@@ -170,7 +170,7 @@ int main(int argc, char** argv) {
                                     : std::min(wa, wb) + wc - std::max(wa, wb);
         const double dp = 2 * wd - wc;
         /* q_c driven off resonance by the two parents, then Gamma of the c -> d,d
-           parametric leg at that q_c. s_c = 2 for distinct parents, 1 for a
+           parametric triplet at that q_c. s_c = 2 for distinct parents, 1 for a
            self-coupled pair -- the mixed-network integrator measured the 2
            directly against the bare mu. */
         const double s_c = q.ia != q.ib ? 2.0 : 1.0;
@@ -277,7 +277,7 @@ int main(int argc, char** argv) {
     for (const DRow& r : rows) {
         const std::pair<Key, Key> key{keys[r.q.ic], keys[r.q.id]};
         if (!seen.insert(key).second) continue;
-        const RadialTriplet& t = legs.at(key_of(r.q.ic, r.q.id, r.q.id));
+        const RadialTriplet& t = radial.at(key_of(r.q.ic, r.q.id, r.q.id));
         const auto tk = t.keys();
         const auto ms = t.m_combinations();
         const auto [ks, refine] = kappa_all_m(efs.at(tk[0]), efs.at(tk[1]), efs.at(tk[2]), ms);

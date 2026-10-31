@@ -1,7 +1,7 @@
 /* Integrate a mixed direct/parametric network to a bounded state.
 
    Direct and parametric coupling act on the same modes (MW25 sec 5). Which mode
-   carries the parametric leg decides whether the network has a bounded state:
+   carries the parametric triplet decides whether the network has a bounded state:
 
        daughter   a + b -> c,  c -> d + d
        parent     a + b -> c,  a -> d + d,  b -> d + d
@@ -10,7 +10,7 @@
    Parents are self-excited and nothing else in `daughter` can absorb that flux,
    so its parents run away and are only integrable as a fixed-amplitude pump --
    the physical picture for modes whose saturation lies outside the network. In
-   `parent` and `pair` the parametric leg drains the parents themselves, which
+   `parent` and `pair` the parametric triplet drains the parents themselves, which
    is MW25's stabilisation mechanism; those run unpumped.
 
    Topology is data, not equations: each entry of TOPOLOGIES returns a mode list
@@ -47,7 +47,7 @@ double cell(const csv::Table& df, const std::string& c, size_t i) {
 // Modes for the (l, n) columns named by `labels`, frequencies in c/d. omega
 // is signed by this mode's own gamma (negative = self-excited), which the
 // amplitude equations need and the CSV's plain-magnitude f_* columns don't
-// carry. Right here because every leg is direct-sum or parametric, where the
+// carry. Right here because every triplet is direct-sum or parametric, where the
 // gamma-odd mode is the sum mode -- see amplitude.hpp.
 std::vector<amp::Mode> modes_of(const csv::Table& df, size_t i, const std::string& labels) {
     std::vector<amp::Mode> out;
@@ -108,7 +108,7 @@ double drive_amplitude(const csv::Table& df, size_t i, const std::string& topolo
     return std::sqrt(cell(df, "E_th_par", i));
 }
 
-/* Slaving is a sub-threshold statement: above E_th the parametric leg drains c
+/* Slaving is a sub-threshold statement: above E_th the parametric triplet drains c
    and |q_c| sits below the slaved value by construction. Verify it where it
    should hold, at half the threshold amplitude, where d decays and c relaxes
    cleanly. The response is s_c mu q_a q_b with s_c = 2 for distinct parents --
@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
         std::printf("  %-14s f %8.4f c/d   gamma %+.3e s^-1\n",
                     m.name.c_str(), m.omega / CD, m.gamma);
     for (const Triplet& tr : b.cps) {
-        std::printf("  leg [");
+        std::printf("  triplet [");
         for (int i : {tr.a, tr.b, tr.c}) std::printf("%s  ", b.modes[i].name.c_str());
         std::printf("]  kappa %+.3f  Delta %+.3e c/d\n", tr.kappa, net.detuning(tr) / CD);
     }
