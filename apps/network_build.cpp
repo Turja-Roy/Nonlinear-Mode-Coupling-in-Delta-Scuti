@@ -25,21 +25,21 @@
    they are rare (one mode at omega/2, not any pair summing to omega) and
    rank low, so without it they are seldom picked. None exists for odd l_a:
    l_a + 2 l_d must be even.
-   --direct k adds, on top of N, the k best direct legs x + y -> c for each
+   --direct k adds, on top of N, the k best direct triplets x + y -> c for each
    pair of parents (x == y: a + a -> c, at 2 omega_a), c damped and
    |Delta| < cut, ranked by the energy c is forced to, E_c = R_c E_x E_y,
    R_c = (s mu)^2 with s = 2 for x != y and 1 for x == y (stab::mu; checked
-   against the equations in test_amplitude). A difference leg, c at
+   against the equations in test_amplitude). A difference triplet, c at
    |omega_x - omega_y|, needs the two parents at opposite signs, which signing
    by generation cannot give.
 
    Closure then adds every triplet among the chosen modes with |Delta| below
-   the closure cut, whichever leg selected them: the equations do not know why
+   the closure cut, whichever triplet selected them: the equations do not know why
    a mode is in the network. network_run signs omega by generation
    (amplitude.hpp), so a triplet resonates only with its sum slot in one
    generation and both pair slots in the other: parametric 0 -> 1 + 1, direct
-   0 + 0 -> 1. Any other (a daughter -> daughter + daughter, a difference leg)
-   is left out and counted. --no-closure keeps the selecting legs only. */
+   0 + 0 -> 1. Any other (a daughter -> daughter + daughter, a difference triplet)
+   is left out and counted. --no-closure keeps the selecting triplets only. */
 
 #include "csv.hpp"
 #include "stability.hpp"
@@ -73,7 +73,7 @@ double e_th (const ModeMap& efs, const RadialTriplet& t, double kappa) {
     return stab::threshold_energy(kappa, b.omega, c.omega, b.gamma, c.gamma, t.delta);
 }
 
-// Direct leg x + y -> c: E_c / (E_x E_y) with the parents held.
+// Direct triplet x + y -> c: E_c / (E_x E_y) with the parents held.
 double r_c (const ModeMap& efs, const RadialTriplet& t, double kappa) {
     const Eigenfunction& c = efs.at(t.sum_mode);
     const double s = t.pair[0] == t.pair[1] ? 1.0 : 2.0;
@@ -86,12 +86,12 @@ bool self_coupled (const RadialTriplet& t) { return t.pair[0] == t.pair[1]; }
 
 // One row per mode, omega a magnitude: network_run signs it by generation.
 void write_network (const std::filesystem::path& p, const std::string& header,
-                    const std::vector<RadialTriplet>& chosen, const std::vector<RadialTriplet>& legs,
+                    const std::vector<RadialTriplet>& chosen, const std::vector<RadialTriplet>& direct,
                     const std::vector<RadialTriplet>& net, const std::vector<Key>& by_id,
                     const std::set<Key>& parents, const ModeMap& efs, const stab::KappaCache& kap) {
     std::map<Key, int> id;
     for (size_t i = 0; i < by_id.size(); ++i) id[by_id[i]] = int(i);
-    // Delta as network_run has it, the signed sum: a direct leg's sum slot is the + mode
+    // Delta as network_run has it, the signed sum: a direct triplet's sum slot is the + mode
     auto sign = [&](const RadialTriplet& t) { return parents.count(t.sum_mode) ? 1.0 : -1.0; };
     std::ofstream f(p);
     const std::string rule_line = "#" + std::string(98, '-') + "\n";
@@ -113,9 +113,9 @@ void write_network (const std::filesystem::path& p, const std::string& header,
                       k, e_th(efs, t, k), eq);
         f << buf;
     }
-    if (!legs.empty())
-        f << "# direct legs (x + y -> c): Delta [c/d], Delta/omega_c, kappa, R_c = E_c/(E_x E_y), parents held\n";
-    for (const auto& t : legs) {
+    if (!direct.empty())
+        f << "# direct triplets (x + y -> c): Delta [c/d], Delta/omega_c, kappa, R_c = E_c/(E_x E_y), parents held\n";
+    for (const auto& t : direct) {
         const double k = kappa_of(kap, t);
         std::snprintf(buf, sizeof buf, "#   (%d,%+d) + (%d,%+d) -> (%d,%+d)   %+.3e  %+.3e  %+.3e  %.3e\n",
                       t.pair[0].first, t.pair[0].second, t.pair[1].first, t.pair[1].second,
@@ -168,7 +168,7 @@ int main (int argc, char** argv) {
     app.add_option("--min-gamma-ratio", min_gamma_ratio,
                    "keep pairs with min(gamma_b, gamma_c) >= r |gamma_parent|");
     app.add_option("--self-coupled", n_self, "add each parent's k best a -> d + d pairs");
-    app.add_option("--direct", n_direct, "add the k best direct legs x + y -> c per pair of parents");
+    app.add_option("--direct", n_direct, "add the k best direct triplets x + y -> c per pair of parents");
     app.add_flag("--shared", shared, "two parents: N counts daughters shared by both, each with its two pairs");
     app.add_option("-N", ns, "daughter counts, exact (shared daughters with --shared)");
     app.add_option("--cut", cuts, "candidate |Delta| cuts, units of sqrt(GM/R^3)");
@@ -279,8 +279,8 @@ int main (int argc, char** argv) {
     }
     stab::kappa_m000(keys_of(all), efs, cache, kap, jobs);
 
-    // Direct legs at the widest cut: damped c near omega_x + omega_y, both pair slots parents.
-    std::vector<RadialTriplet> legs_all;
+    // Direct triplets at the widest cut: damped c near omega_x + omega_y, both pair slots parents.
+    std::vector<RadialTriplet> direct_all;
     if (n_direct > 0) {
         std::set<Key> near;
         for (Key x : parents)
@@ -289,9 +289,9 @@ int main (int argc, char** argv) {
                     if (e.gamma > 0.0 && std::abs(e.omega - efs.at(x).omega - efs.at(y).omega) < cut_max)
                         near.insert(k);
         for (const auto& t : enumerate_triplets(efs, cut_max, l_max, &near))
-            if (parents.count(t.pair[0]) && parents.count(t.pair[1])) legs_all.push_back(t);
-        stab::kappa_m000(keys_of(legs_all), efs, cache, kap, jobs);
-        std::printf("%zu direct legs at cut %.3g c/d\n", legs_all.size(), cut_max / CD);
+            if (parents.count(t.pair[0]) && parents.count(t.pair[1])) direct_all.push_back(t);
+        stab::kappa_m000(keys_of(direct_all), efs, cache, kap, jobs);
+        std::printf("%zu direct triplets at cut %.3g c/d\n", direct_all.size(), cut_max / CD);
     }
     std::filesystem::create_directories(out);
 
@@ -334,15 +334,15 @@ int main (int argc, char** argv) {
                         ranked.empty() ? std::nan("") : ranked[0].first);
         }
 
-        // The k best direct legs per pair of parents, by R_c.
+        // The k best direct triplets per pair of parents, by R_c.
         std::map<std::pair<Key, Key>, std::vector<RadialTriplet>> by_parents;
-        for (const auto& t : legs_all)
+        for (const auto& t : direct_all)
             if (std::abs(t.delta) < cut_dimless * wdyn) by_parents[{t.pair[0], t.pair[1]}].push_back(t);
-        std::vector<RadialTriplet> legs;
+        std::vector<RadialTriplet> direct;
         for (auto& [xy, ts] : by_parents) {
             std::sort(ts.begin(), ts.end(), [&](const RadialTriplet& a, const RadialTriplet& b) {
                 return r_c(efs, a, kappa_of(kap, a)) > r_c(efs, b, kappa_of(kap, b)); });
-            legs.insert(legs.end(), ts.begin(), ts.begin() + std::min(ts.size(), size_t(n_direct)));
+            direct.insert(direct.end(), ts.begin(), ts.begin() + std::min(ts.size(), size_t(n_direct)));
         }
 
         std::vector<int> ns_up(ns);
@@ -386,12 +386,12 @@ int main (int argc, char** argv) {
                 for (size_t i : o)
                     if (n < n_self && self_coupled(cand[i])) { take(i); ++n; }
             }
-            for (const auto& t : legs)
+            for (const auto& t : direct)
                 if (std::find(daughters.begin(), daughters.end(), t.sum_mode) == daughters.end())
                     daughters.push_back(t.sum_mode);
 
             std::vector<RadialTriplet> selecting = chosen;
-            selecting.insert(selecting.end(), legs.begin(), legs.end());
+            selecting.insert(selecting.end(), direct.begin(), direct.end());
             std::vector<RadialTriplet> net = selecting;
             if (closure) {
                 ModeMap sub;
@@ -424,7 +424,7 @@ int main (int argc, char** argv) {
                 std::snprintf(tags + std::strlen(tags), sizeof tags - std::strlen(tags), "_dir%d", n_direct);
             if (shared) std::snprintf(lead, sizeof lead, "shared%d_", n_daughters);
             std::snprintf(name, sizeof name, "cut%g_%sd%zu%s%s.data", cut_dimless, lead, daughters.size(),
-                          tags, closure ? "" : "_open");
+                          tags, closure ? "" : "_noclosure");
             std::snprintf(header, sizeof header,
                           "# network_build %s  gamma_%s  daughters %zu  cut %g  closure %s"
                           "  min_gamma_ratio %g  self_coupled %d  direct %d  shared %d\n",
@@ -432,13 +432,13 @@ int main (int argc, char** argv) {
                           closure ? std::to_string(closure_cut / wdyn).c_str() : "off",
                           min_gamma_ratio, n_self, n_direct, shared ? n_daughters : 0);
             const auto p = std::filesystem::path(out) / name;
-            write_network(p, header, chosen, legs, net, by_id, parents, efs, kap);
+            write_network(p, header, chosen, direct, net, by_id, parents, efs, kap);
             std::vector<double> fd;
             for (const auto& t : net) fd.push_back(std::abs(frac_detuning(t)));
             std::sort(fd.begin(), fd.end());
             std::printf("  %-36s %3zu daughters, %3zu pairs, %zu direct, %4zu triplets (%ld off-generation "
                         "dropped), |Delta|/omega min %.2e median %.2e\n",
-                        name, daughters.size(), chosen.size(), legs.size(), net.size(), n_off,
+                        name, daughters.size(), chosen.size(), direct.size(), net.size(), n_off,
                         fd.empty() ? 0.0 : fd.front(), fd.empty() ? 0.0 : fd[fd.size() / 2]);
         }
     }
