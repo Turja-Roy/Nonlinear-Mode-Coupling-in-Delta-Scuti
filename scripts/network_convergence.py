@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Network observables against daughter count N (or the detuning cut, for a
-cut sweep at fixed N), one line per parent starting energy f_p.
+cut sweep at fixed N), one line per daughter starting ratio E_d(0)/E_p(0).
 
     python3 scripts/network_convergence.py --runs out/networks/one_parent
 
@@ -42,8 +42,8 @@ def load(runs: pathlib.Path) -> pd.DataFrame:
         rows.append(r)
     df = pd.DataFrame(rows)
     df["balance"] = df["dissipation"] / df["driving"]
-    if "f_parent" not in df:                     # runs from before --eth-parent
-        df["f_parent"] = 0.0
+    if "daughter_ratio" not in df:               # runs from before --daughter-ratio
+        df["daughter_ratio"] = (df["q0_daughter"] / df["q0"]) ** 2
     return df
 
 
@@ -54,15 +54,15 @@ def main() -> int:
     ap.add_argument("--out", type=pathlib.Path, default=None)
     a = ap.parse_args()
     df = load(a.runs)
-    df.sort_values(["f_parent", "closure", "cut", "N"]).to_csv(a.runs / "convergence.csv", index=False)
+    df.sort_values(["daughter_ratio", "closure", "cut", "N"]).to_csv(a.runs / "convergence.csv", index=False)
 
     # a cut sweep at fixed N plots against the cut instead
     x, other = ("N", "cut") if df["N"].nunique() > 1 else ("cut", "N")
     fig, axes = plt.subplots(2, 2, figsize=(9, 6.5), layout="constrained", sharex=True)
-    fps = sorted(df["f_parent"].unique())
-    for (fp, closure, o), g in df.groupby(["f_parent", "closure", other]):
+    fps = sorted(df["daughter_ratio"].unique())
+    for (fp, closure, o), g in df.groupby(["daughter_ratio", "closure", other]):
         g = g.sort_values(x)
-        label = f"f_p {fp:g}, {other} {o:g}" + ("" if closure else ", no closure")
+        label = f"E_d/E_p {fp:g}, {other} {o:g}" + ("" if closure else ", no closure")
         style = dict(color=PALETTE[fps.index(fp) % len(PALETTE)], lw=2, marker="o", ms=5,
                      ls="-" if closure else "--", label=label)
         for ax, (col, _, _) in zip(axes.flat, PANELS):
