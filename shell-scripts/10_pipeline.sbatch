@@ -4,6 +4,7 @@
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 16
+#SBATCH --mem=30000      # node has 31868 MB; the default per-CPU memory x 16 asks for more
 #SBATCH -t 48:00:00
 #SBATCH -o logs/dsct_%j.out
 #SBATCH -e logs/dsct_%j.err
@@ -19,7 +20,8 @@
 # is skipped when its output already exists, so a job killed by walltime can
 # be resubmitted verbatim and continues. Pass --force-all to redo everything.
 #
-# -c 16, no --mem: a wider request sits in PD Resources on this partition.
+# -c 16 --mem=30000: one whole node. No --mem stopped working 2026-11-04 (default
+# per-CPU memory x 16 > 31868 MB node, "Requested node configuration is not available").
 #   sacct -j <id> --format=JobName,Elapsed,MaxRSS,State
 
 set -euo pipefail

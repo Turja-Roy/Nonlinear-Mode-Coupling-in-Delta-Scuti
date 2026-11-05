@@ -33,6 +33,11 @@
    |omega_x - omega_y|, needs the two parents at opposite signs, which signing
    by generation cannot give.
 
+   --list-direct: parent pairs for a mixed network. Every x + y -> c with x, y
+   driven (l <= --parent-l-max), c damped and |Delta| < cut, ranked by R_c, with
+   each parent's damped pairs and how many have an equilibrium
+   (gamma_x + gamma_b + gamma_c > 0). Writes no network.
+
    Closure then adds every triplet among the chosen modes with |Delta| below
    the closure cut, whichever triplet selected them: the equations do not know why
    a mode is in the network. network_run signs omega by generation
@@ -156,7 +161,7 @@ int main (int argc, char** argv) {
     std::vector<int> ns = {2};
     double closure_dimless = -1.0, min_gamma_ratio = 0.0;
     int l_max = 25, jobs = 4, n_parents = 1, parent_l_max = 2, n_self = 0, n_direct = 0;
-    bool closure = true, shared = false;
+    bool closure = true, shared = false, list_direct = false;
     app.add_option("--model", model);
     app.add_option("--detail-dir", detail_dir);
     app.add_option("--inlist", inlist);
@@ -169,6 +174,7 @@ int main (int argc, char** argv) {
                    "keep pairs with min(gamma_b, gamma_c) >= r |gamma_parent|");
     app.add_option("--self-coupled", n_self, "add each parent's k best a -> d + d pairs");
     app.add_option("--direct", n_direct, "add the k best direct triplets x + y -> c per pair of parents");
+    app.add_flag("--list-direct", list_direct, "rank x + y -> c over all driven x, y; no network");
     app.add_flag("--shared", shared, "two parents: N counts daughters shared by both, each with its two pairs");
     app.add_option("-N", ns, "daughter counts, exact (shared daughters with --shared)");
     app.add_option("--cut", cuts, "candidate |Delta| cuts, units of sqrt(GM/R^3)");
@@ -208,6 +214,45 @@ int main (int argc, char** argv) {
         }
         return out;
     };
+
+    if (list_direct) {
+        std::set<Key> driven, near;
+        for (const auto& [k, e] : efs) if (e.gamma < 0.0 && k.first <= parent_l_max) driven.insert(k);
+        for (Key x : driven)
+            for (Key y : driven)
+                for (const auto& [k, e] : efs)
+                    if (e.gamma > 0.0 && std::abs(e.omega - efs.at(x).omega - efs.at(y).omega) < cut_max)
+                        near.insert(k);
+        std::vector<RadialTriplet> ds;
+        for (const auto& t : enumerate_triplets(efs, cut_max, l_max, &near))
+            if (driven.count(t.pair[0]) && driven.count(t.pair[1])) ds.push_back(t);
+        stab::kappa_m000(keys_of(ds), efs, cache, kap, jobs);
+        std::map<Key, std::array<long, 2>> np;          // damped pairs, those with E_eq
+        for (const auto& t : pairs_of(driven)) {
+            auto& n = np[t.sum_mode];
+            ++n[0];
+            if (efs.at(t.sum_mode).gamma + efs.at(t.pair[0]).gamma + efs.at(t.pair[1]).gamma > 0.0) ++n[1];
+        }
+        std::vector<std::pair<double, size_t>> order;
+        for (size_t i = 0; i < ds.size(); ++i)
+            if (const double k = kappa_of(kap, ds[i]); k != 0.0) order.push_back({-r_c(efs, ds[i], k), i});
+        std::sort(order.begin(), order.end());
+        std::printf("%zu driven l <= %d modes, %zu direct triplets x + y -> c at cut %.3g c/d (kappa != 0: %zu)\n"
+                    "#  x        y        c          f_x      f_y      f_c   Delta[c/d]  gamma_x     gamma_y"
+                    "     gamma_c     kappa       R_c        pairs_x eq_x  pairs_y eq_y\n",
+                    driven.size(), parent_l_max, ds.size(), cut_max / CD, order.size());
+        for (const auto& [r, i] : order) {
+            const auto& t = ds[i];
+            const Eigenfunction &x = efs.at(t.pair[0]), &y = efs.at(t.pair[1]), &c = efs.at(t.sum_mode);
+            const auto &nx = np[t.pair[0]], &ny = np[t.pair[1]];
+            std::printf("  (%d,%+d)  (%d,%+d)  (%d,%+d)  %8.3f %8.3f %8.3f  %+.3e  %+.3e  %+.3e  %+.3e  %+.3e  %.3e"
+                        "  %6ld %5ld  %6ld %5ld\n",
+                        t.pair[0].first, t.pair[0].second, t.pair[1].first, t.pair[1].second,
+                        t.sum_mode.first, t.sum_mode.second, x.omega / CD, y.omega / CD, c.omega / CD,
+                        t.delta / CD, x.gamma, y.gamma, c.gamma, kappa_of(kap, t), -r, nx[0], nx[1], ny[0], ny[1]);
+        }
+        return 0;
+    }
 
     /* No --parent: the driven l <= parent_l_max modes easiest to destabilise, i.e. lowest
        min E_th over their damped pairs. Not the most driven: a fast-growing
@@ -262,15 +307,16 @@ int main (int argc, char** argv) {
     std::printf("%zu modes, %zu parents, %zu candidate pairs at cut %.3g c/d\n",
                 efs.size(), parents.size(), all.size(), cut_max / CD);
     for (Key k : parents) {
-        long n = 0, n_sc = 0;
+        long n = 0, n_sc = 0, n_eq = 0;
         double best_sc = std::numeric_limits<double>::infinity();
         for (const auto& t : all) {
             if (t.sum_mode != k) continue;
             ++n;
+            if (efs.at(k).gamma + efs.at(t.pair[0]).gamma + efs.at(t.pair[1]).gamma > 0.0) ++n_eq;
             if (self_coupled(t)) { ++n_sc; best_sc = std::min(best_sc, std::abs(frac_detuning(t))); }
         }
-        std::printf("  (%d,%+d): %ld pairs with min gamma_d >= %g |gamma_p|, %ld of them a -> d + d"
-                    " (best |Delta|/omega %.2e)\n", k.first, k.second, n, min_gamma_ratio, n_sc, best_sc);
+        std::printf("  (%d,%+d): %ld pairs with min gamma_d >= %g |gamma_p|, %ld with E_eq, %ld of them a -> d + d"
+                    " (best |Delta|/omega %.2e)\n", k.first, k.second, n, min_gamma_ratio, n_eq, n_sc, best_sc);
     }
     if (all.empty()) {
         std::fprintf(stderr, "no damped pair passes: the daughters near f/2 are driven, "
@@ -343,6 +389,10 @@ int main (int argc, char** argv) {
             std::sort(ts.begin(), ts.end(), [&](const RadialTriplet& a, const RadialTriplet& b) {
                 return r_c(efs, a, kappa_of(kap, a)) > r_c(efs, b, kappa_of(kap, b)); });
             direct.insert(direct.end(), ts.begin(), ts.begin() + std::min(ts.size(), size_t(n_direct)));
+        }
+        if (n_direct > 0 && direct.empty()) {           // would only repeat the set without --direct
+            std::printf("  cut %g: no direct triplet, nothing written\n", cut_dimless);
+            continue;
         }
 
         std::vector<int> ns_up(ns);

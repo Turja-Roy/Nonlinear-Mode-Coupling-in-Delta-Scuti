@@ -4,6 +4,7 @@
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 16
+#SBATCH --mem=30000      # node has 31868 MB; the default per-CPU memory x 16 asks for more
 #SBATCH -t 24:00:00
 #SBATCH -a 0-4
 #SBATCH -o logs/l-conv_%A_%a.out
