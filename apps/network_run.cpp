@@ -35,56 +35,12 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
-#include <fstream>
 #include <limits>
-#include <map>
 #include <random>
-#include <sstream>
 
 using amp::Network;
 using amp::State;
 using amp::Triplet;
-
-namespace {
-
-struct NetworkFile {
-    std::vector<amp::Mode> modes;
-    std::vector<Triplet> triplets;
-};
-
-NetworkFile read_network (const std::filesystem::path& p) {
-    std::ifstream f(p);
-    if (!f) throw std::runtime_error("network_run: cannot open " + p.string());
-
-    NetworkFile net;
-    std::map<long, int> index;                   // file id -> Network mode index
-    bool skipped_norm_type = false;
-    std::string line;
-    while (std::getline(f, line)) {
-        if (line.empty() || line[0] == '#') continue;
-        if (!skipped_norm_type) { skipped_norm_type = true; continue; }
-
-        std::istringstream ss(line);
-        std::vector<double> field;
-        for (double v; ss >> v; ) field.push_back(v);
-
-        if (field.size() == 7 || field.size() == 8) {         // id gen n l m omega gamma [flin]
-            if (field[5] < 0.0)
-                throw std::runtime_error("network_run: negative omega in " + p.string()
-                                         + ", a +-omega file from an older network_build; rebuild it");
-            index[long(field[0])] = int(net.modes.size());
-            const double sign = long(field[1]) % 2 == 0 ? -1.0 : 1.0;
-            net.modes.push_back(amp::Mode{std::to_string(long(field[0])), sign * field[5], field[6]});
-        } else if (field.size() == 4 || field.size() == 5) {  // id1 id2 id3 kappa [Delta/w]
-            net.triplets.push_back(Triplet{index.at(long(field[0])), index.at(long(field[1])),
-                                           index.at(long(field[2])), field[3]});
-        }
-    }
-
-    return net;
-}
-
-}  // namespace
 
 int main (int argc, char** argv) {
     CLI::App app{"Integrate an arbitrary network read from a plain-text file"};
@@ -107,8 +63,7 @@ int main (int argc, char** argv) {
     app.add_option("--max-seconds", max_s, "stop integrating after this wall time, keeping outputs; 0 = never");
     CLI11_PARSE(app, argc, argv);
 
-    const NetworkFile nf = read_network(src);
-    const Network net(nf.modes, nf.triplets);
+    const Network net = amp::read_network(src);
     const long n_modes = long(net.size()), n_trip = long(net.triplets().size());
     std::printf("%s: %ld modes, %ld triplets\n", src.c_str(), n_modes, n_trip);
 

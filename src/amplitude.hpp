@@ -3,6 +3,7 @@
 #include "triplets.hpp"
 
 #include <complex>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -168,5 +169,8 @@ Network three_mode (std::array<double, 3> omega, std::array<double, 3> gamma, do
 // Mode a decaying into two copies of one mode d: a -> d + d
 Network self_coupled (double omega_a, double omega_d, double gamma_a, double gamma_d,
                       double kappa);
+
+// network_build's file (format: apps/network_run.cpp); omega signed by generation
+Network read_network (const std::filesystem::path& p);
 
 }  // namespace amp

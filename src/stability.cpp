@@ -44,7 +44,7 @@ double threshold_energy_ceiling (double kappa, double omega_b, double omega_c,
 
 std::array<double, 3> equilibrium_energies (double kappa, std::array<double, 3> omega,
                                             std::array<double, 3> gamma,
-                                            double delta, double E_star) {
+                                            double delta, double E_star, bool self) {
     const double nan = std::numeric_limits<double>::quiet_NaN();
 
     std::array<double, 3> ratio;                 // w_i / gamma_i
@@ -53,12 +53,15 @@ std::array<double, 3> equilibrium_energies (double kappa, std::array<double, 3> 
         ratio[i] = omega[i] / gamma[i];
         if (!std::isfinite(ratio[i])) return {nan, nan, nan};
     }
-    const bool s = ratio[0] > 0.0;
-    if ((ratio[1] > 0.0) != s || (ratio[2] > 0.0) != s) return {nan, nan, nan};
+    const bool pos = ratio[0] > 0.0;
+    if ((ratio[1] > 0.0) != pos || (ratio[2] > 0.0) != pos) return {nan, nan, nan};
 
-    const double E_a = equilibrium_energy(kappa, omega[1], omega[2],
-                                          gamma[0], gamma[1], gamma[2], delta, E_star);
-    return {E_a, E_a * ratio[1] / ratio[0], E_a * ratio[2] / ratio[0]};
+    if (kappa == 0.0) return {nan, nan, nan};
+    const double g_sum = gamma[0] + gamma[1] + gamma[2];
+    const double E_a = gamma[1] * gamma[2] / (4.0 * kappa * kappa * omega[1] * omega[2])
+                       * (1.0 + delta * delta / (g_sum * g_sum)) * E_star;
+    const double s = self ? 2.0 : 1.0;
+    return {E_a, s * E_a * ratio[1] / ratio[0], s * E_a * ratio[2] / ratio[0]};
 }
 
 eig::Array<bool, eig::Dynamic, 1> nonadiabatic_shell (const Star& s, double omega) {

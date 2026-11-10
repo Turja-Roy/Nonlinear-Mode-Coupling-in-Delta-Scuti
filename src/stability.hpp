@@ -71,10 +71,13 @@ double threshold_energy_ceiling (double kappa, double omega_b, double omega_c,
    avoids the sign trap that a term-by-term expansion falls into (for a
    parametric triplet gamma_a gamma_c and w_a w_c are both negative). NaN when
    the three w_i/gamma_i do not share a sign: the fixed point then puts a
-   negative energy somewhere and there is nothing to settle onto. */
+   negative energy somewhere and there is nothing to settle onto.
+
+   Signed omega and gamma, so any channel: direct x + y -> c as slots {c, x, y}.
+   self (b == c: a -> d + d, x + x -> c): E_b = E_c doubles, E_a unchanged. */
 std::array<double, 3> equilibrium_energies (double kappa, std::array<double, 3> omega,
                                             std::array<double, 3> gamma,
-                                            double delta, double E_star = 1.0);
+                                            double delta, double E_star = 1.0, bool self = false);
 
 // Shell where w t_thermal < 2 pi, i.e. where an adiabatic eigenfunction is no
 // longer justified -- r/R >~ 0.96 for a delta Sct.

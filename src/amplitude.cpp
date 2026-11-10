@@ -20,6 +20,9 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <fstream>
+#include <map>
+#include <sstream>
 #include <stdexcept>
 
 namespace amp {
@@ -397,6 +400,38 @@ Network self_coupled (double omega_a, double omega_d, double gamma_a, double gam
                       double kappa) {
     return Network({Mode{"a", omega_a, gamma_a}, Mode{"d", omega_d, gamma_d}},
                    {Triplet{0, 1, 1, kappa}});
+}
+
+Network read_network (const std::filesystem::path& p) {
+    std::ifstream f(p);
+    if (!f) throw std::runtime_error("read_network: cannot open " + p.string());
+
+    std::vector<Mode> modes;
+    std::vector<Triplet> triplets;
+    std::map<long, int> index;                   // file id -> Network mode index
+    bool skipped_norm_type = false;
+    std::string line;
+    while (std::getline(f, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        if (!skipped_norm_type) { skipped_norm_type = true; continue; }
+
+        std::istringstream ss(line);
+        std::vector<double> field;
+        for (double v; ss >> v; ) field.push_back(v);
+
+        if (field.size() == 7 || field.size() == 8) {         // id gen n l m omega gamma [flin]
+            if (field[5] < 0.0)
+                throw std::runtime_error("read_network: negative omega in " + p.string()
+                                         + ", a +-omega file from an older network_build; rebuild it");
+            index[long(field[0])] = int(modes.size());
+            const double sign = long(field[1]) % 2 == 0 ? -1.0 : 1.0;
+            modes.push_back(Mode{std::to_string(long(field[0])), sign * field[5], field[6]});
+        } else if (field.size() == 4 || field.size() == 5) {  // id1 id2 id3 kappa [Delta/w]
+            triplets.push_back(Triplet{index.at(long(field[0])), index.at(long(field[1])),
+                                       index.at(long(field[2])), field[3]});
+        }
+    }
+    return Network(std::move(modes), std::move(triplets));
 }
 
 }  // namespace amp
