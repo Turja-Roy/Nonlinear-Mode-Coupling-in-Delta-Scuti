@@ -154,20 +154,62 @@ int main () {
         for (int i=0 ; i<3 ; i++) close(E[1][i], E[0][i], 1e-6, "restarts agree");
     }
 
-    /* --- A and q give the same |amplitude| --- */
+    /* --- q == A exp(-i w t), complex. q's own error sets the gap: 1e-3 at
+       rtol 1e-10, 4e-6 at 1e-12, 5e-8 at 1e-13, whatever A's rtol --- */
     {
-        amp::Network n = amp::three_mode({W[0], W[1], W[2]}, {G[0], G[1], G[2]}, KAPPA);
+        const double wb = 1.1e-3, wc = 0.9e-3;
+        amp::Network n = amp::three_mode({-(wb + wc) + 3e-7, wb, wc}, {-1e-8, 2e-8, 3e-8}, KAPPA);
+        const State y0 = {std::polar(1e-6, 0.3), std::polar(2e-7, 1.1), std::polar(3e-7, -2.0)};
         amp::Options slow, full;
-        slow.n_out = full.n_out = 5;
+        slow.n_out = full.n_out = 20;
         full.slow = false;
-        const auto A = n.integrate({1e-6, 1e-9, 1e-9}, 2.0e4, slow);
-        const auto q = n.integrate({1e-6, 1e-9, 1e-9}, 2.0e4, full);
-        for (size_t j=0 ; j<A.y.size() ; j++)
-            for (int i=0 ; i<3 ; i++)
-                close(std::abs(A.y[j][i]), std::abs(q.y[j][i]), 1e-7, "|A| == |q|");
-        const State q_t = n.to_q(A.t.back(), A.y.back());
-        for (int i=0 ; i<3 ; i++)
-            close(std::abs(q_t[i]), std::abs(A.y.back()[i]), 1e-12, "to_q preserves |A|");
+        full.rtol = 1e-13;
+        const auto A = n.integrate(y0, 2.0e7, slow);
+        const auto q = n.integrate(y0, 2.0e7, full);
+        assert(A.t.size() == 20 && q.t.size() == 20);
+        double swing = 0.0;
+        for (size_t j=0 ; j<A.y.size() ; j++) {
+            const State qa = n.to_q(A.t[j], A.y[j]);
+            for (int i=0 ; i<3 ; i++) close(std::abs(q.y[j][i] - qa[i]) / std::abs(q.y[j][i]), 0.0, 5e-7, "q == A exp(-iwt)");
+            swing = std::max(swing, std::abs(std::norm(qa[0]) / std::norm(y0[0]) - 1.0));
+        }
+        assert(swing > 0.1);
+    }
+
+    /* --- equilibrium_energies' fixed points hold in dA_dt: dE_i/dt = 0 and
+       W = conj(A_a A_b A_c) exp(i Delta t) still. Im W from slot a's balance,
+       Re W = -Delta Im W / sum(gamma), |W| from E: a wrong E breaks it. --- */
+    {
+        auto fixed_point = [&](const amp::Network& n, const char* what) {
+            const amp::Triplet& tr = n.triplets()[0];
+            const auto& md = n.modes();
+            const bool self = tr.b == tr.c;
+            const double d = n.detuning(tr), g = md[tr.a].gamma + md[tr.b].gamma + md[tr.c].gamma;
+            const auto E = stab::equilibrium_energies(tr.kappa, {md[tr.a].omega, md[tr.b].omega, md[tr.c].omega},
+                                                      {md[tr.a].gamma, md[tr.b].gamma, md[tr.c].gamma}, d, 1.0, self);
+            const double im = -md[tr.a].gamma * E[0] / ((self ? 1.0 : 2.0) * md[tr.a].omega * tr.kappa);
+            State A(size_t(n.size()));
+            A[tr.a] = std::polar(std::sqrt(E[0]), -std::atan2(im, -d * im / g));
+            A[tr.b] = std::sqrt(E[1]);
+            A[tr.c] = std::sqrt(E[2]);
+            const State dA = n.dA_dt(0.0, A);
+            double lock = d;                     // d arg W / dt
+            for (int i : {tr.a, tr.b, tr.c}) {
+                lock -= (dA[i] / A[i]).imag();
+                close((std::conj(A[i]) * dA[i]).real() / (md[i].gamma * std::norm(A[i])), 0.0, 1e-10, what);
+            }
+            close(lock / d, 0.0, 1e-10, what);
+            return E;
+        };
+        const double wb = 1.1e-3, wc = 0.9e-3, d = 1e-5, gc = 3e-8;
+        fixed_point(amp::three_mode({-(wb + wc) + d, wb, wc}, {-1e-7, 1e-6, 1.5e-6}, KAPPA), "fixed point a -> b + c");
+        fixed_point(amp::self_coupled(-2.0 * wb + d, wb, -1e-7, 1e-6, KAPPA), "fixed point a -> d + d");
+        fixed_point(amp::Network({{"c", wb + wc + d, gc}, {"x", -wb, -1e-9}, {"y", -wc, -2e-9}}, {{0, 1, 2, KAPPA}}),
+                    "fixed point x + y -> c");
+        const auto E = fixed_point(amp::Network({{"c", 2.0 * wb + d, gc}, {"x", -wb, -1e-9}}, {{0, 1, 1, KAPPA}}),
+                                   "fixed point x + x -> c");
+        close(E[1], 1e-9 * gc / (2.0 * KAPPA * KAPPA * wb * (2.0 * wb + d))
+                        * (1.0 + d * d / std::pow(gc - 2e-9, 2)), 1e-12, "hold energy");
     }
 
     /* --- frozen modes hold; e_max truncates on the way up only --- */
@@ -256,8 +298,7 @@ int main () {
     }
 
     /* --- a direct triplet x + y -> c with the parents held is a forced oscillator:
-       E_c settles on R_c E_x E_y, R_c = (s mu)^2, s = 2 for two parents and
-       1 for a + a -> c (network_build's ranking) --- */
+       E_c settles on (s mu)^2 E_x E_y, s = 2 for two parents and 1 for a + a -> c --- */
     {
         const double wx = 1.1e-3, wy = 0.9e-3, d = 2e-8, gc = 3e-8;
         const std::complex<double> ax(6e-7, 8e-7), ay(-3e-7, 4e-7), ac(1e-12, 1e-12);
