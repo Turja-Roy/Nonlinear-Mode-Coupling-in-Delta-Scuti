@@ -1,0 +1,330 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[a4paper,hmargin=1.4cm,top=1.2cm,bottom=1.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype,amsmath,amssymb,booktabs,graphicx,xcolor,enumitem,caption,array}
+\usepackage[colorlinks,linkcolor=blue!50!black,urlcolor=blue!50!black]{hyperref}
+\captionsetup{font=small,labelfont=bf}
+\setlist{itemsep=1pt,topsep=2pt,leftmargin=*}
+\setlength{\parskip}{3pt}
+\setlength{\parindent}{0pt}
+\emergencystretch=3em
+\newcommand{\atol}{\mathrm{atol}}
+\newcommand{\rtol}{\mathrm{rtol}}
+\newcommand{\Eth}{E_{\rm th}}
+\newcommand{\Eeq}{E_{\rm eq}}
+
+\title{Integrator and Tolerance Bench on Small Mode Networks}
+\date{21 October 2026}
+
+\begin{document}
+\maketitle
+\vspace{-1.5em}
+
+\section*{In short}
+No run is singled out as a reference here; every statement compares runs with each other. $\Delta$ means the detuning throughout.
+\begin{enumerate}
+    \item \textbf{The absolute tolerance, not the integrator, causes the disagreements seen in earlier sweeps.}
+        \begin{itemize}
+            \item At $\atol=10^{-40}$ (the sweep default so far), bursts happen at different times for different integrators on four of the nine networks (and on \texttt{2p\_M2.0T\_eth}, see item 5).
+            \item At $\atol=10^{-300}$, the five integrators give the same curves on eight of the nine networks.
+        \end{itemize}
+    \item \textbf{$\atol=0$ (pure relative error control) reproduces $\atol=10^{-300}$ exactly wherever it finishes.} It does not finish on \texttt{2p\_M2.0T\_eth}, where an amplitude decays below the smallest normal double: rk8pd crawls into the wall-time limit there, and CVODE stops with ``too much accuracy requested''.
+    \item \textbf{rk8pd is the cheapest integrator.} At $\atol=10^{-300}$, measured against rk8pd (medians over the networks):
+        \begin{itemize}
+            \item BDF takes $11.6\times$ the steps and $5.8\times$ the wall time;
+            \item Adams takes $5.2\times$ the steps and $2.9\times$ the wall time.
+        \end{itemize}
+    \item \textbf{BDF-Krylov (GMRES with a banded finite-difference preconditioner) gives the same curves as BDF with the analytic Jacobian, but it is not faster at these sizes ($\le6$ modes).} Preconditioner band 3 and the full band behave the same.
+    \item \textbf{\texttt{2p\_M2.0T\_eth} disagrees between runs at every setting.} One daughter's exact dip ($E\sim10^{-3600}$) is far below what a double can hold.
+    \item \textbf{Proposal for the sweep:} rk8pd, $\rtol=10^{-8}$, $\atol=10^{-300}$. The decisions are listed in \S\ref{sec:decisions}.
+\end{enumerate}
+
+\section{Setup}
+
+\subsection{Equations and notation}
+Each mode $a$ has a slow complex amplitude $A_a(t)$, with $t$ in seconds. For a triplet $(a,b,c)$ with $b\ne c$, mode $a$ obeys
+\begin{equation}
+    \dot A_a = -\gamma_a A_a + 2i\,\omega_a\,\kappa_{abc}\,A_b^*A_c^*\,e^{i\Delta_{abc}t},
+    \qquad \Delta_{abc}=\omega_a+\omega_b+\omega_c .
+\end{equation}
+Each triplet that contains $a$ adds such a term. A self-coupled pair ($b=c$) has the coefficient $1$ instead of $2$ in the parent's equation. The symbols are:
+\begin{itemize}
+    \item $\omega_a$: the mode frequency, signed by generation. Generation 0 (the parents) has $-|\omega|$; generation 1 (the daughters) has $+|\omega|$.
+    \item $\Delta_{abc}$: the detuning of the triplet. With the signs above it is small for a parent $\to$ daughter + daughter triplet. It is fixed by the network: it is the same in every run of a given network.
+    \item $\gamma_a$: the linear damping rate, in s$^{-1}$. $\gamma_a<0$ means the mode is driven (the parents); $\gamma_a>0$ means it is damped.
+    \item $\kappa_{abc}$: the three-mode coupling coefficient.
+    \item $E_a=|A_a|^2$: the mode energy, in units of $E_\star$.
+    \item $\Eth$: a parent's parametric threshold energy for its selecting pair (Weinberg+12, eq.~50).
+    \item $\Eeq$: the three-mode equilibrium energy (MW25, eq.~6). It is absent when the triplet has no stable equilibrium.
+\end{itemize}
+The integrators advance the real vector $y=(\operatorname{Re}A_0,\operatorname{Im}A_0,\dots,\operatorname{Re}A_{n-1},\operatorname{Im}A_{n-1})$ of length $2n$, where $n$ is the number of modes.
+
+\subsection{Error control and the energy floor}
+\textbf{The step test.} Both libraries accept a step when the local error estimate $e_i$ of each component $y_i$ satisfies
+\begin{equation}
+    |e_i| \lesssim \atol + \rtol\,|y_i| .
+\end{equation}
+GSL applies this test to each component separately. CVODE applies it through a weighted root-mean-square norm, with weights $1/(\rtol|y_i|+\atol)$.
+
+\textbf{The floor.}
+\begin{itemize}
+    \item When $|y_i|\gg\atol/\rtol$, the error control is relative. Below that, it is absolute: the component is held only to about $\pm\atol$.
+    \item So a decaying mode is not followed below $|A|\sim\atol$, i.e.\ $E\sim\atol^2$. Each integrator leaves the mode at its own level near this floor.
+    \item When the mode later grows back at rate $\sigma$, it needs a time of about $\ln(\Eth/E_{\rm floor})/(2\sigma)$ to reach threshold. A floor that differs by tens of decades therefore moves the next burst.
+\end{itemize}
+
+\textbf{Why $\atol=0$ is fragile.}
+\begin{itemize}
+    \item $\atol=0$ removes the floor but asks for relative accuracy at every magnitude.
+    \item Doubles below $2.2\times10^{-308}$ are subnormal and carry fewer significant digits. Once an amplitude reaches that range ($E\lesssim5\times10^{-616}$), the requested accuracy cannot be met: rk8pd's step size collapses, and CVODE stops.
+    \item A mode decaying freely from $E=10^{-18}$ reaches that range after about $690/\gamma$.
+\end{itemize}
+
+\begin{table}[h]
+    \centering\small
+    \caption{The absolute tolerances tested and the energy floor each one implies.}
+    \begin{tabular}{@{}lll@{}}
+        \toprule
+        $\atol$ & floor $E\sim\atol^2$ & note \\
+        \midrule
+        $10^{-40}$ & $10^{-80}$ & sweep default so far \\
+        $10^{-150}$ & $10^{-300}$ & \\
+        $10^{-300}$ & $10^{-600}$ & near the double-precision limit for $A$ \\
+        $0$ & none & pure relative control; fails once an $A$ becomes subnormal ($E\lesssim5\times10^{-616}$) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Integrators}
+\begin{table}[h]
+    \centering\small
+    \caption{The five integrator configurations. GSL 2.8; CVODE from SUNDIALS 7.9.0 (the cluster has 7.1.1).}
+    \begin{tabular}{@{}>{\raggedright}p{2.8cm}>{\raggedright}p{5.9cm}>{\raggedright\arraybackslash}p{8.5cm}@{}}
+        \toprule
+        label & method & linear algebra \\
+        \midrule
+        rk8pd & GSL \texttt{rk8pd}: explicit embedded Runge--Kutta Prince--Dormand 8(9) & none \\
+        BDF, dense analytic Jacobian & CVODE BDF, orders 1--5, Newton iteration, stability-limit detection & dense LU on the hand-written Jacobian \\
+        BDF-Krylov, band full & as BDF & GMRES (SPGMR, Krylov dimension 5), with Jacobian--vector products by finite differences. Left preconditioner CVBANDPRE: a banded finite-difference Jacobian of half-bandwidth $2n-1$ (the whole matrix) \\
+        BDF-Krylov, band 3 & as BDF & as above, half-bandwidth 3 \\
+        Adams, fixed point & CVODE Adams--Moulton, orders 1--12, fixed-point iteration & none \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Restarts.}
+\begin{itemize}
+    \item CVODE is re-initialised (\texttt{CVodeReInit}) at each of the 4000 outputs, with its local time set back to 0. GSL likewise restarts its local time in each output interval.
+    \item The phase factor $e^{i\Delta t}$ at the restart time is carried along as a constant.
+    \item This keeps $t$ small inside the exponential. Otherwise rounding of $t\approx10^{13}$\,s would add phase noise of order $\Delta\,\varepsilon\,t$, where $\varepsilon$ is the machine epsilon.
+    \item The restarts cost almost nothing. BDF at $\atol=10^{-40}$ on \texttt{1p2d\_M1.7\_eth} took 6.39\,M steps with them, against 6.92\,M steps in the earlier cluster run without them.
+\end{itemize}
+
+\subsection{Runs}
+\begin{itemize}
+    \item \textbf{Networks.} Nine networks (Table~\ref{tab:nets}), made by \texttt{network\_build} with $N=1$ or 4, cut 0.15 and closure 0.005.
+        \begin{itemize}
+            \item The name prefix gives the shape: \texttt{1p2d} is one parent with one daughter pair, \texttt{1p4d} is one parent with two pairs, and \texttt{2p} is two parents with one pair each.
+            \item The suffix gives the pair-ranking rule.
+        \end{itemize}
+    \item \textbf{Initial state.} Parents start at $|A|=10^{-6}$ ($E=10^{-12}$) and daughters at $|A|=10^{-9}$ ($E=10^{-18}$). The phases are random, with seed 1.
+    \item \textbf{Time span.} $t_{\rm end}=10^{13}$\,s, with 4000 equally spaced outputs. A run stops early, as a runaway, once $\sum_a E_a>10^{-2}$.
+    \item \textbf{Tolerances.}
+        \begin{itemize}
+            \item All five integrators: $\rtol=10^{-8}$, with $\atol\in\{10^{-40},10^{-150},10^{-300},0\}$.
+            \item rk8pd also ran at $\rtol=10^{-10}$ ($\atol=0$ and $10^{-40}$ only) and at $\rtol=10^{-12}$ (all four $\atol$); see Appendix~\ref{app:rk8pd}.
+        \end{itemize}
+    \item \textbf{Wall-time limits.}
+        \begin{itemize}
+            \item \texttt{network\_run --max-seconds 900}. It is checked only between outputs, so it cannot stop a run that stalls inside one output interval.
+            \item The bench scripts also kill a run after 600\,s (rk8pd) or 1000\,s (CVODE).
+        \end{itemize}
+    \item \textbf{Machine.} A laptop running up to six runs at once. Wall times are good to about a factor of 2; step counts are exact.
+\end{itemize}
+
+\textbf{Stop codes.}
+\begin{itemize}
+    \item \texttt{end}: reached $t_{\rm end}$.
+    \item \texttt{runaway}: crossed $\sum E=10^{-2}$.
+    \item \texttt{failed}: CVODE returned an error. All four failures here are ``too much accuracy requested''.
+    \item \texttt{wall}: stopped by the 900\,s limit.
+    \item \texttt{stalled}: killed by the bench script's timeout; no output was written.
+\end{itemize}
+
+\subsection{Table columns}\label{sec:columns}
+The integrator advances in time steps whose length $h$ it picks itself. The basic unit of work is one evaluation of the right-hand side $f(t,y)=\dot y$, i.e.\ $\dot A$ for every mode. The examples are \texttt{1p2d\_M1.7\_eth} at $\atol=10^{-300}$ (\S\ref{net:1p2d_M1.7_eth}). ``--'' means the column does not apply to that integrator.
+
+\begin{description}[style=nextline,leftmargin=1.2cm,itemsep=3pt]
+    \item[steps] Accepted steps: how many times the solution was advanced in time.
+        \begin{itemize}
+            \item rk8pd took 1.13\,M.
+            \item BDF took 13.78\,M. It is lower order, so it needs shorter steps for the same accuracy.
+        \end{itemize}
+
+    \item[rejected] Steps that were tried, thrown away and retried with a shorter step. They cost work but do not advance the solution.
+        \begin{itemize}
+            \item rk8pd rejects a step when its error estimate exceeds $\atol+\rtol|y_i|$.
+            \item CVODE also rejects a step when the iteration that solves for the new state (see NL it.) fails to converge.
+        \end{itemize}
+
+    \item[RHS] Right-hand-side evaluations, counted inside our $f$, so everything that calls it is included. This is the fairest cost measure that does not depend on the machine.
+        \begin{itemize}
+            \item \textbf{rk8pd:} about 12 per attempted step (13 stages, the first one reused). Here $14.65\,\mathrm M \approx 12\times(1.13\,\mathrm M + 0.13\,\mathrm M)$.
+            \item \textbf{BDF and Adams:} one per nonlinear iteration, so RHS $\approx$ NL it.
+            \item \textbf{BDF-Krylov:} one per nonlinear iteration, plus one per GMRES iteration, plus about $2n$ per preconditioner build. Here $29.86\,\mathrm M \approx 14.47\,\mathrm M + 13.98\,\mathrm M + 6\times234.6\,\mathrm k$, which is about twice dense BDF's count for the same number of steps.
+        \end{itemize}
+
+    \item[Jac.] Jacobian evaluations. The Jacobian is the $2n\times2n$ matrix $J=\partial f/\partial y$.
+        \begin{itemize}
+            \item \textbf{BDF:} computed from the hand-written formula. CVODE reuses $J$ across many steps and recomputes it only when its iteration starts to converge slowly: 241\,k Jacobians for 13.78\,M steps.
+            \item \textbf{BDF-Krylov:} CVBANDPRE's banded finite-difference approximation of $J$, used as the preconditioner.
+            \item \textbf{rk8pd and Adams:} use no Jacobian.
+        \end{itemize}
+
+    \item[NL it.] Nonlinear iterations. BDF and Adams are implicit: the new state appears on both sides of the update,
+        \[
+            y_{\rm new} = (\text{terms from earlier steps}) + h\,\beta\, f(t_{\rm new}, y_{\rm new}),
+        \]
+        with $\beta$ a fixed coefficient of the method. The integrator therefore solves for $y_{\rm new}$ iteratively.
+        \begin{itemize}
+            \item \textbf{BDF:} Newton iteration, which uses $J$.
+            \item \textbf{Adams:} fixed-point iteration (put the current guess into $f$ and repeat), which needs no $J$.
+            \item Here it takes about one iteration per step: 14.74\,M iterations for 13.78\,M BDF steps.
+            \item \textbf{rk8pd:} explicit, so it has none.
+        \end{itemize}
+
+    \item[lin. it.] GMRES iterations; BDF-Krylov only. Each Newton iteration solves a linear system with the matrix $I-h\beta J$.
+        \begin{itemize}
+            \item \textbf{Dense BDF:} solves it directly by LU factorisation, so there are no iterations to count.
+            \item \textbf{BDF-Krylov:} solves it iteratively with GMRES. Each GMRES iteration needs one product $Jv$, which is approximated with one extra right-hand-side evaluation.
+        \end{itemize}
+
+    \item[wall {[s]}] Elapsed clock time of the integration, in seconds. Up to six runs shared the laptop, so it is good only to about a factor of 2. Use steps and RHS for exact comparisons.
+\end{description}
+
+\section{Overview}
+
+\begin{table}[h]
+    \centering\footnotesize
+    \caption{The networks. Each name links to its page.}
+    \label{tab:nets}
+    \input{gen/netlist}
+\end{table}
+
+\begin{figure}[p]
+    \centering
+    \includegraphics[width=\textwidth]{figs/maps.pdf}
+    \caption{Cost of every network $\times$ (integrator, $\atol$) at $\rtol=10^{-8}$. \textbf{Top:} accepted steps. \textbf{Bottom:} wall time. Hatched cells stopped early (\texttt{failed}, \texttt{wall} or \texttt{stalled}).}
+    \label{fig:maps}
+\end{figure}
+
+\begin{table}[h]
+    \centering\footnotesize
+    \caption{Cost of each (integrator, $\atol$) pair over the nine networks at $\rtol=10^{-8}$. The ratios are medians over the networks where both this run and rk8pd at the same $\atol$ finished. $^*$ Sum over the finished runs only.}
+    \label{tab:summary}
+    \input{gen/summary}
+\end{table}
+
+\subsection{Findings}
+\begin{enumerate}
+    \item \textbf{atol, not the integrator, sets the curves.}
+        \begin{itemize}
+            \item At $\atol=10^{-300}$ and at $\atol=0$, the five integrators agree to within 0.25 decades in $E$ at every output where $E>10^{-34}$ (the plots' lower edge) on eight networks; the exception is \texttt{2p\_M2.0T\_eth}. By eye, their plots are the same.
+            \item At $\atol=10^{-40}$, bursts move on four networks: \texttt{1p2d\_M1.7\_eth}, \texttt{1p2d\_M2.0\_dgamma}, \texttt{2p\_M1.7\_eth} and \texttt{2p\_M2.0\_eeq}.
+                \begin{itemize}
+                    \item The bursts move between integrators.
+                    \item Each integrator's bursts also move relative to its own $\atol=10^{-300}$ run.
+                    \item The cause is that each integrator leaves the decaying daughters at a different level around the $10^{-80}$ floor, and the next burst follows from that level.
+                \end{itemize}
+            \item This explains the earlier rk8pd--BDF disagreement on \texttt{1p2d\_M1.7\_eth}: both were run at $\atol=10^{-40}$.
+            \item $\atol=10^{-150}$ removes the differences on the two M1.7 networks, but not on \texttt{dgamma} and \texttt{eeq}.
+        \end{itemize}
+    \item \textbf{$\atol=10^{-300}$ and $\atol=0$ give identical curves for every integrator, wherever $\atol=0$ finishes.} $\atol=0$ does not finish on \texttt{2p\_M2.0T\_eth}:
+        \begin{itemize}
+            \item rk8pd crawls to the wall-time limit at $5.1\times10^{11}$\,s, after 50\,M steps;
+            \item all CVODE configurations fail at $4.85\times10^{11}$\,s.
+        \end{itemize}
+    \item \textbf{rk8pd is the cheapest integrator.} At every $\atol$ it takes the fewest steps on every network. It is also the fastest by wall time, with one exception: Adams on \texttt{2p\_M2.0T\_eth} at $10^{-150}$, which is within the timing noise.
+    \item \textbf{BDF-Krylov gives no gain at these sizes.}
+        \begin{itemize}
+            \item The finite-difference Jacobian is as good as the hand-written one: the curves are the same, and BDF-Krylov takes 1--8\,\% fewer steps than dense BDF.
+            \item Each step costs more. The median wall time is $7.6$--$8.5\times$ rk8pd's, against $5.8\times$ for dense BDF.
+            \item Band 3 and the full band behave the same.
+            \item With $2n\le12$ unknowns, a dense LU solve is trivial. A Krylov solver is expected to pay off only for hundreds of modes; this was not tested.
+        \end{itemize}
+    \item \textbf{$\rtol=10^{-8}$ is enough for rk8pd} (Appendix~\ref{app:rk8pd}). At $\atol=10^{-300}$, rk8pd at $\rtol=10^{-8}$ and at $\rtol=10^{-12}$ agree to within 0.01 decades on every network except \texttt{2p\_M2.0T\_eth}.
+    \item \textbf{\texttt{2p\_M2.0T\_eth} cannot be converged in double precision.}
+        \begin{itemize}
+            \item The daughter (14,$-48$) is fed by parent (2,$-3$) through a self-coupled pair. In exact arithmetic it decays to $E\sim10^{-3600}$ by $3\times10^{12}$\,s.
+            \item Its regrowth time is set by whichever floor a run has. So the runs disagree with each other at every $\atol$, at every $\rtol$, and for every integrator.
+            \item Any network whose exact dips go below about $10^{-600}$ will behave like this.
+        \end{itemize}
+\end{enumerate}
+
+\section{Decisions}\label{sec:decisions}
+\begin{enumerate}
+    \item \textbf{Sweep integrator and tolerances.}
+        \begin{enumerate}
+            \item[(a)] \emph{rk8pd, $\rtol=10^{-8}$, $\atol=10^{-300}$ (proposed).}
+                \begin{itemize}
+                    \item The same curves as every other integrator and as $\atol=0$.
+                    \item The cheapest option, and it never stalled.
+                    \item Requires changing \texttt{RUN\_ARGS} in \texttt{network\_sweep.sh} from \texttt{--atol 1e-40}.
+                \end{itemize}
+            \item[(b)] \emph{$\atol=0$.} The same curves, but it fails on networks with very deep dips. A stalled run also defeats \texttt{--max-seconds}.
+            \item[(c)] \emph{A physical floor, $\atol=\sqrt{E_{\min}}$} (the ``$E_{\rm min,crash}$'' idea).
+                \begin{itemize}
+                    \item This is a choice of physics, not of numerics.
+                    \item The \texttt{dgamma} and \texttt{eeq} networks show that a floor of $E_{\min}\gtrsim10^{-300}$ already moves bursts.
+                    \item Setting a mode to zero is not an option: a pair whose daughters are both zero can never regrow.
+                \end{itemize}
+        \end{enumerate}
+    \item \textbf{Role of CVODE.} Keep it as an independent check on a sample of networks. Adams is the cheaper choice ($5\times$ rk8pd's steps, $3\times$ its wall time); BDF is the established one.
+    \item \textbf{BDF-Krylov:} keep it (about ten lines; \texttt{--solver bdf-krylov --band}) for future large networks, or remove it.
+    \item \textbf{Floor-dependent networks such as \texttt{2p\_M2.0T\_eth}.} Three options:
+        \begin{enumerate}
+            \item[(a)] Flag runs in which a mode stays below $10^{-600}$, and treat their timing as unconverged.
+            \item[(b)] Pick a physical noise floor, and accept that results depend on it.
+            \item[(c)] Integrate $\ln|A|$ and the phase instead of $(\operatorname{Re}A,\operatorname{Im}A)$. This is exact at any depth, but it is the largest change.
+        \end{enumerate}
+    \item \textbf{Reference for future comparisons:} still to be chosen.
+    \item \textbf{Open item:} \texttt{--max-seconds} does not fire inside a stalled output interval.
+\end{enumerate}
+
+\textbf{Caveats.}
+\begin{itemize}
+    \item One random seed.
+    \item At most six modes per network.
+    \item CVODE was run only at $\rtol=10^{-8}$.
+    \item Wall times are noisy, because the CPU was shared.
+\end{itemize}
+
+\section{Networks}
+\textbf{Each network has one page.}
+\begin{itemize}
+    \item \textbf{Header.}
+        \begin{itemize}
+            \item The modes: id, generation, $(\ell,n)$, $\omega$ and $\gamma$.
+            \item The selecting pairs, with detuning $\Delta/\omega_a$, $\kappa$, $\Eth$ and $\Eeq$.
+        \end{itemize}
+    \item \textbf{Plots.} The \texttt{network\_plot.py} plot of each run, unchanged. Rows are integrators and columns are $\atol$, all at $\rtol=10^{-8}$.
+        \begin{itemize}
+            \item Each plot keeps its own time axis, so a run that stopped early covers a shorter span.
+            \item The dashed lines are each parent's $\Eth$ and $\Eeq$.
+            \item A framed box stands in for a run with no output.
+            \item The images are high resolution, so zoom in for detail.
+        \end{itemize}
+    \item \textbf{Table.} One row per run; the columns are defined in \S\ref{sec:columns}.
+\end{itemize}
+
+\input{gen/networks}
+
+\appendix
+\clearpage
+\section{rk8pd: relative tolerance}\label{app:rk8pd}
+These pages use the same layout as the network pages, but the rows are $\rtol$ instead of integrators. $\rtol=10^{-10}$ was run only at $\atol=0$ and $10^{-40}$.
+
+\input{gen/appendix}
+
+\end{document}

@@ -115,4 +115,6 @@ for f in "$DATA/$TAG"/*/*.data; do
 done | sort -gr | cut -d' ' -f2- | xargs -P "$JOBS" -I{} bash -c 'run "$@"' _ {}
 
 for d in "$OUT/$TAG"/ladder_*/; do
-    [[ -d $DATA/$TAG/$(basename "$d") ]] || continue python scripts/network_convergence.py --runs "$d" || echo "CONVERGENCE PLOT FAILED $d"; done
+    [[ -d $DATA/$TAG/$(basename "$d") ]] || continue
+    python scripts/network_convergence.py --runs "$d" || echo "CONVERGENCE PLOT FAILED $d"
+done

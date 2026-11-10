@@ -1,0 +1,305 @@
+\clearpage
+\subsection{\texttt{1p2d\_M1.7\_eth}: rk8pd, rtol $\times$ atol}
+\noindent See \S\ref{net:1p2d_M1.7_eth} for the network. The second burst disagreed between rk8pd and BDF in the earlier sweep.
+\par\smallskip{\centering\begin{tabular}{@{}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{}}
+ & \small atol $10^{-40}$ & \small atol $10^{-150}$ & \small atol $10^{-300}$ & \small atol $0$ \\[1pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-8}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M1.7_eth/r1e-8_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M1.7_eth/r1e-8_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M1.7_eth/r1e-8_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M1.7_eth/r1e-8_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 953.2\,k steps, 1.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.13\,M steps, 2.3\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.13\,M steps, 2.2\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.13\,M steps, 2.8\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-10}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M1.7_eth/r1e-10_a1e-40.png} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M1.7_eth/r1e-10_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.54\,M steps, 3.9\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.87\,M steps, 4.8\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-12}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M1.7_eth/r1e-12_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M1.7_eth/r1e-12_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M1.7_eth/r1e-12_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M1.7_eth/r1e-12_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 2.56\,M steps, 4.4\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 3.16\,M steps, 4.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 3.16\,M steps, 4.6\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 3.16\,M steps, 7.8\,s} \\[2pt]
+\end{tabular}\par}
+\par\noindent{\scriptsize\setlength\tabcolsep{3.5pt}\renewcommand\arraystretch{0.92}
+\begin{tabular}{@{}llllrrrrrrr@{}}
+\toprule
+rtol & atol & stop & $t_{\rm stop}$ [s] & steps & rejected & RHS & Jac. & NL it. & lin. it. & wall [s] \\
+\midrule
+$10^{-8}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 953.2\,k & 101.3\,k & 12.39\,M & -- & -- & -- & 1.5 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 1.13\,M & 126.8\,k & 14.65\,M & -- & -- & -- & 2.3 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 1.13\,M & 126.8\,k & 14.65\,M & -- & -- & -- & 2.2 \\
+ & $0$ & end & $1.00\times10^{13}$ & 1.13\,M & 126.8\,k & 14.65\,M & -- & -- & -- & 2.8 \\
+\addlinespace[2pt]
+$10^{-10}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 1.54\,M & 110.1\,k & 20.04\,M & -- & -- & -- & 3.9 \\
+ & $10^{-150}$ & not run & \multicolumn{8}{l}{} \\
+ & $10^{-300}$ & not run & \multicolumn{8}{l}{} \\
+ & $0$ & end & $1.00\times10^{13}$ & 1.87\,M & 140.6\,k & 24.25\,M & -- & -- & -- & 4.8 \\
+\addlinespace[2pt]
+$10^{-12}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 2.56\,M & 116.1\,k & 33.27\,M & -- & -- & -- & 4.4 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 3.16\,M & 153.8\,k & 41.12\,M & -- & -- & -- & 4.5 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 3.16\,M & 153.8\,k & 41.12\,M & -- & -- & -- & 4.6 \\
+ & $0$ & end & $1.00\times10^{13}$ & 3.16\,M & 153.8\,k & 41.12\,M & -- & -- & -- & 7.8 \\
+\bottomrule
+\end{tabular}}
+
+\clearpage
+\subsection{\texttt{1p2d\_M2.0T\_eth}: rk8pd, rtol $\times$ atol}
+\noindent See \S\ref{net:1p2d_M2.0T_eth} for the network. 
+\par\smallskip{\centering\begin{tabular}{@{}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{}}
+ & \small atol $10^{-40}$ & \small atol $10^{-150}$ & \small atol $10^{-300}$ & \small atol $0$ \\[1pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-8}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0T_eth/r1e-8_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0T_eth/r1e-8_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0T_eth/r1e-8_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0T_eth/r1e-8_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 385.4\,k steps, 0.4\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 385.4\,k steps, 0.6\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 385.4\,k steps, 0.8\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 385.4\,k steps, 0.9\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-10}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0T_eth/r1e-10_a1e-40.png} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0T_eth/r1e-10_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 604.0\,k steps, 0.8\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 604.0\,k steps, 0.9\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-12}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0T_eth/r1e-12_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0T_eth/r1e-12_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0T_eth/r1e-12_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0T_eth/r1e-12_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.03\,M steps, 2.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.03\,M steps, 1.6\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.03\,M steps, 1.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.03\,M steps, 1.8\,s} \\[2pt]
+\end{tabular}\par}
+\par\noindent{\scriptsize\setlength\tabcolsep{3.5pt}\renewcommand\arraystretch{0.92}
+\begin{tabular}{@{}llllrrrrrrr@{}}
+\toprule
+rtol & atol & stop & $t_{\rm stop}$ [s] & steps & rejected & RHS & Jac. & NL it. & lin. it. & wall [s] \\
+\midrule
+$10^{-8}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 385.4\,k & 83.7\,k & 5.01\,M & -- & -- & -- & 0.4 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 385.4\,k & 83.7\,k & 5.01\,M & -- & -- & -- & 0.6 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 385.4\,k & 83.7\,k & 5.01\,M & -- & -- & -- & 0.8 \\
+ & $0$ & end & $1.00\times10^{13}$ & 385.4\,k & 83.7\,k & 5.01\,M & -- & -- & -- & 0.9 \\
+\addlinespace[2pt]
+$10^{-10}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 604.0\,k & 87.8\,k & 7.85\,M & -- & -- & -- & 0.8 \\
+ & $10^{-150}$ & not run & \multicolumn{8}{l}{} \\
+ & $10^{-300}$ & not run & \multicolumn{8}{l}{} \\
+ & $0$ & end & $1.00\times10^{13}$ & 604.0\,k & 87.8\,k & 7.85\,M & -- & -- & -- & 0.9 \\
+\addlinespace[2pt]
+$10^{-12}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 1.03\,M & 131.8\,k & 13.36\,M & -- & -- & -- & 2.5 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 1.03\,M & 131.8\,k & 13.36\,M & -- & -- & -- & 1.6 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 1.03\,M & 131.8\,k & 13.36\,M & -- & -- & -- & 1.5 \\
+ & $0$ & end & $1.00\times10^{13}$ & 1.03\,M & 131.8\,k & 13.36\,M & -- & -- & -- & 1.8 \\
+\bottomrule
+\end{tabular}}
+
+\clearpage
+\subsection{\texttt{1p2d\_M2.0\_dgamma}: rk8pd, rtol $\times$ atol}
+\noindent See \S\ref{net:1p2d_M2.0_dgamma} for the network. Deep dips between bursts.
+\par\smallskip{\centering\begin{tabular}{@{}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{}}
+ & \small atol $10^{-40}$ & \small atol $10^{-150}$ & \small atol $10^{-300}$ & \small atol $0$ \\[1pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-8}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0_dgamma/r1e-8_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0_dgamma/r1e-8_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0_dgamma/r1e-8_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0_dgamma/r1e-8_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 6.61\,M steps, 9.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 8.24\,M steps, 15.6\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 9.26\,M steps, 13.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 9.26\,M steps, 20.4\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-10}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0_dgamma/r1e-10_a1e-40.png} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0_dgamma/r1e-10_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 10.60\,M steps, 19.0\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 15.47\,M steps, 35.0\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-12}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0_dgamma/r1e-12_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0_dgamma/r1e-12_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0_dgamma/r1e-12_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p2d_M2.0_dgamma/r1e-12_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 17.32\,M steps, 34.3\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 22.42\,M steps, 33.3\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 26.08\,M steps, 32.1\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 26.08\,M steps, 50.2\,s} \\[2pt]
+\end{tabular}\par}
+\par\noindent{\scriptsize\setlength\tabcolsep{3.5pt}\renewcommand\arraystretch{0.92}
+\begin{tabular}{@{}llllrrrrrrr@{}}
+\toprule
+rtol & atol & stop & $t_{\rm stop}$ [s] & steps & rejected & RHS & Jac. & NL it. & lin. it. & wall [s] \\
+\midrule
+$10^{-8}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 6.61\,M & 575.7\,k & 85.89\,M & -- & -- & -- & 9.5 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 8.24\,M & 937.9\,k & 107.11\,M & -- & -- & -- & 15.6 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 9.26\,M & 1.04\,M & 120.43\,M & -- & -- & -- & 13.5 \\
+ & $0$ & end & $1.00\times10^{13}$ & 9.26\,M & 1.04\,M & 120.43\,M & -- & -- & -- & 20.4 \\
+\addlinespace[2pt]
+$10^{-10}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 10.60\,M & 653.6\,k & 137.86\,M & -- & -- & -- & 19.0 \\
+ & $10^{-150}$ & not run & \multicolumn{8}{l}{} \\
+ & $10^{-300}$ & not run & \multicolumn{8}{l}{} \\
+ & $0$ & end & $1.00\times10^{13}$ & 15.47\,M & 1.23\,M & 201.05\,M & -- & -- & -- & 35.0 \\
+\addlinespace[2pt]
+$10^{-12}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 17.32\,M & 702.1\,k & 225.19\,M & -- & -- & -- & 34.3 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 22.42\,M & 1.16\,M & 291.47\,M & -- & -- & -- & 33.3 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 26.08\,M & 1.34\,M & 339.08\,M & -- & -- & -- & 32.1 \\
+ & $0$ & end & $1.00\times10^{13}$ & 26.08\,M & 1.34\,M & 339.08\,M & -- & -- & -- & 50.2 \\
+\bottomrule
+\end{tabular}}
+
+\clearpage
+\subsection{\texttt{1p4d\_M1.7\_eth}: rk8pd, rtol $\times$ atol}
+\noindent See \S\ref{net:1p4d_M1.7_eth} for the network. Runaway near $3\times10^{11}$\,s.
+\par\smallskip{\centering\begin{tabular}{@{}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{}}
+ & \small atol $10^{-40}$ & \small atol $10^{-150}$ & \small atol $10^{-300}$ & \small atol $0$ \\[1pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-8}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M1.7_eth/r1e-8_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M1.7_eth/r1e-8_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M1.7_eth/r1e-8_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M1.7_eth/r1e-8_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 7.58\,M steps, 19.8\,s, runaway} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 7.58\,M steps, 17.7\,s, runaway} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 7.58\,M steps, 18.4\,s, runaway} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 7.58\,M steps, 19.8\,s, runaway} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-10}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M1.7_eth/r1e-10_a1e-40.png} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M1.7_eth/r1e-10_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 13.64\,M steps, 41.1\,s, runaway} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 13.64\,M steps, 36.1\,s, runaway} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-12}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M1.7_eth/r1e-12_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M1.7_eth/r1e-12_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M1.7_eth/r1e-12_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M1.7_eth/r1e-12_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 22.63\,M steps, 58.6\,s, runaway} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 22.63\,M steps, 57.4\,s, runaway} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 22.63\,M steps, 57.3\,s, runaway} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 22.63\,M steps, 82.7\,s, runaway} \\[2pt]
+\end{tabular}\par}
+\par\noindent{\scriptsize\setlength\tabcolsep{3.5pt}\renewcommand\arraystretch{0.92}
+\begin{tabular}{@{}llllrrrrrrr@{}}
+\toprule
+rtol & atol & stop & $t_{\rm stop}$ [s] & steps & rejected & RHS & Jac. & NL it. & lin. it. & wall [s] \\
+\midrule
+$10^{-8}$ & $10^{-40}$ & runaway & $3.01\times10^{11}$ & 7.58\,M & 1.01\,M & 98.48\,M & -- & -- & -- & 19.8 \\
+ & $10^{-150}$ & runaway & $3.01\times10^{11}$ & 7.58\,M & 1.01\,M & 98.48\,M & -- & -- & -- & 17.7 \\
+ & $10^{-300}$ & runaway & $3.01\times10^{11}$ & 7.58\,M & 1.01\,M & 98.48\,M & -- & -- & -- & 18.4 \\
+ & $0$ & runaway & $3.01\times10^{11}$ & 7.58\,M & 1.01\,M & 98.48\,M & -- & -- & -- & 19.8 \\
+\addlinespace[2pt]
+$10^{-10}$ & $10^{-40}$ & runaway & $3.01\times10^{11}$ & 13.64\,M & 1.93\,M & 177.26\,M & -- & -- & -- & 41.1 \\
+ & $10^{-150}$ & not run & \multicolumn{8}{l}{} \\
+ & $10^{-300}$ & not run & \multicolumn{8}{l}{} \\
+ & $0$ & runaway & $3.01\times10^{11}$ & 13.64\,M & 1.93\,M & 177.29\,M & -- & -- & -- & 36.1 \\
+\addlinespace[2pt]
+$10^{-12}$ & $10^{-40}$ & runaway & $3.01\times10^{11}$ & 22.63\,M & 2.32\,M & 294.20\,M & -- & -- & -- & 58.6 \\
+ & $10^{-150}$ & runaway & $3.01\times10^{11}$ & 22.63\,M & 2.33\,M & 294.20\,M & -- & -- & -- & 57.4 \\
+ & $10^{-300}$ & runaway & $3.01\times10^{11}$ & 22.63\,M & 2.33\,M & 294.20\,M & -- & -- & -- & 57.3 \\
+ & $0$ & runaway & $3.01\times10^{11}$ & 22.63\,M & 2.33\,M & 294.20\,M & -- & -- & -- & 82.7 \\
+\bottomrule
+\end{tabular}}
+
+\clearpage
+\subsection{\texttt{1p4d\_M2.0T\_eth}: rk8pd, rtol $\times$ atol}
+\noindent See \S\ref{net:1p4d_M2.0T_eth} for the network. 
+\par\smallskip{\centering\begin{tabular}{@{}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{}}
+ & \small atol $10^{-40}$ & \small atol $10^{-150}$ & \small atol $10^{-300}$ & \small atol $0$ \\[1pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-8}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0T_eth/r1e-8_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0T_eth/r1e-8_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0T_eth/r1e-8_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0T_eth/r1e-8_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 618.4\,k steps, 1.8\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 618.5\,k steps, 2.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 618.5\,k steps, 1.2\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 618.5\,k steps, 2.7\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-10}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0T_eth/r1e-10_a1e-40.png} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0T_eth/r1e-10_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.47\,M steps, 4.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.47\,M steps, 4.6\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-12}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0T_eth/r1e-12_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0T_eth/r1e-12_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0T_eth/r1e-12_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0T_eth/r1e-12_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 2.37\,M steps, 9.4\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 2.37\,M steps, 6.6\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 2.37\,M steps, 4.8\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 2.37\,M steps, 9.2\,s} \\[2pt]
+\end{tabular}\par}
+\par\noindent{\scriptsize\setlength\tabcolsep{3.5pt}\renewcommand\arraystretch{0.92}
+\begin{tabular}{@{}llllrrrrrrr@{}}
+\toprule
+rtol & atol & stop & $t_{\rm stop}$ [s] & steps & rejected & RHS & Jac. & NL it. & lin. it. & wall [s] \\
+\midrule
+$10^{-8}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 618.4\,k & 18.4\,k & 8.04\,M & -- & -- & -- & 1.8 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 618.5\,k & 18.4\,k & 8.04\,M & -- & -- & -- & 2.5 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 618.5\,k & 18.4\,k & 8.04\,M & -- & -- & -- & 1.2 \\
+ & $0$ & end & $1.00\times10^{13}$ & 618.5\,k & 18.4\,k & 8.04\,M & -- & -- & -- & 2.7 \\
+\addlinespace[2pt]
+$10^{-10}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 1.47\,M & 287.4\,k & 19.11\,M & -- & -- & -- & 4.5 \\
+ & $10^{-150}$ & not run & \multicolumn{8}{l}{} \\
+ & $10^{-300}$ & not run & \multicolumn{8}{l}{} \\
+ & $0$ & end & $1.00\times10^{13}$ & 1.47\,M & 287.3\,k & 19.11\,M & -- & -- & -- & 4.6 \\
+\addlinespace[2pt]
+$10^{-12}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 2.37\,M & 303.5\,k & 30.87\,M & -- & -- & -- & 9.4 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 2.37\,M & 303.3\,k & 30.87\,M & -- & -- & -- & 6.6 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 2.37\,M & 303.3\,k & 30.87\,M & -- & -- & -- & 4.8 \\
+ & $0$ & end & $1.00\times10^{13}$ & 2.37\,M & 303.3\,k & 30.87\,M & -- & -- & -- & 9.2 \\
+\bottomrule
+\end{tabular}}
+
+\clearpage
+\subsection{\texttt{1p4d\_M2.0\_eth}: rk8pd, rtol $\times$ atol}
+\noindent See \S\ref{net:1p4d_M2.0_eth} for the network. 
+\par\smallskip{\centering\begin{tabular}{@{}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{}}
+ & \small atol $10^{-40}$ & \small atol $10^{-150}$ & \small atol $10^{-300}$ & \small atol $0$ \\[1pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-8}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0_eth/r1e-8_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0_eth/r1e-8_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0_eth/r1e-8_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0_eth/r1e-8_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 2.41\,M steps, 5.2\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 2.41\,M steps, 10.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 2.41\,M steps, 7.6\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 2.41\,M steps, 10.1\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-10}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0_eth/r1e-10_a1e-40.png} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0_eth/r1e-10_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 3.70\,M steps, 14.2\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 3.70\,M steps, 14.5\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-12}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0_eth/r1e-12_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0_eth/r1e-12_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0_eth/r1e-12_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/1p4d_M2.0_eth/r1e-12_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 6.39\,M steps, 18.1\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 6.39\,M steps, 15.7\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 6.39\,M steps, 13.3\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 6.39\,M steps, 27.4\,s} \\[2pt]
+\end{tabular}\par}
+\par\noindent{\scriptsize\setlength\tabcolsep{3.5pt}\renewcommand\arraystretch{0.92}
+\begin{tabular}{@{}llllrrrrrrr@{}}
+\toprule
+rtol & atol & stop & $t_{\rm stop}$ [s] & steps & rejected & RHS & Jac. & NL it. & lin. it. & wall [s] \\
+\midrule
+$10^{-8}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 2.41\,M & 469.8\,k & 31.29\,M & -- & -- & -- & 5.2 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 2.41\,M & 469.8\,k & 31.29\,M & -- & -- & -- & 10.5 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 2.41\,M & 469.8\,k & 31.29\,M & -- & -- & -- & 7.6 \\
+ & $0$ & end & $1.00\times10^{13}$ & 2.41\,M & 469.8\,k & 31.29\,M & -- & -- & -- & 10.1 \\
+\addlinespace[2pt]
+$10^{-10}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 3.70\,M & 439.1\,k & 48.05\,M & -- & -- & -- & 14.2 \\
+ & $10^{-150}$ & not run & \multicolumn{8}{l}{} \\
+ & $10^{-300}$ & not run & \multicolumn{8}{l}{} \\
+ & $0$ & end & $1.00\times10^{13}$ & 3.70\,M & 439.1\,k & 48.05\,M & -- & -- & -- & 14.5 \\
+\addlinespace[2pt]
+$10^{-12}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 6.39\,M & 647.9\,k & 83.13\,M & -- & -- & -- & 18.1 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 6.39\,M & 647.7\,k & 83.13\,M & -- & -- & -- & 15.7 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 6.39\,M & 647.7\,k & 83.13\,M & -- & -- & -- & 13.3 \\
+ & $0$ & end & $1.00\times10^{13}$ & 6.39\,M & 647.7\,k & 83.13\,M & -- & -- & -- & 27.4 \\
+\bottomrule
+\end{tabular}}
+
+\clearpage
+\subsection{\texttt{2p\_M1.7\_eth}: rk8pd, rtol $\times$ atol}
+\noindent See \S\ref{net:2p_M1.7_eth} for the network. 
+\par\smallskip{\centering\begin{tabular}{@{}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{}}
+ & \small atol $10^{-40}$ & \small atol $10^{-150}$ & \small atol $10^{-300}$ & \small atol $0$ \\[1pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-8}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M1.7_eth/r1e-8_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M1.7_eth/r1e-8_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M1.7_eth/r1e-8_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M1.7_eth/r1e-8_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 990.0\,k steps, 1.9\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.13\,M steps, 5.3\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.13\,M steps, 3.3\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.13\,M steps, 5.3\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-10}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M1.7_eth/r1e-10_a1e-40.png} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M1.7_eth/r1e-10_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.63\,M steps, 7.7\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.87\,M steps, 7.0\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-12}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M1.7_eth/r1e-12_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M1.7_eth/r1e-12_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M1.7_eth/r1e-12_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M1.7_eth/r1e-12_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 2.68\,M steps, 11.8\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 3.17\,M steps, 9.0\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 3.17\,M steps, 7.0\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 3.17\,M steps, 12.2\,s} \\[2pt]
+\end{tabular}\par}
+\par\noindent{\scriptsize\setlength\tabcolsep{3.5pt}\renewcommand\arraystretch{0.92}
+\begin{tabular}{@{}llllrrrrrrr@{}}
+\toprule
+rtol & atol & stop & $t_{\rm stop}$ [s] & steps & rejected & RHS & Jac. & NL it. & lin. it. & wall [s] \\
+\midrule
+$10^{-8}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 990.0\,k & 104.5\,k & 12.87\,M & -- & -- & -- & 1.9 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 1.13\,M & 128.5\,k & 14.69\,M & -- & -- & -- & 5.3 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 1.13\,M & 128.6\,k & 14.69\,M & -- & -- & -- & 3.3 \\
+ & $0$ & end & $1.00\times10^{13}$ & 1.13\,M & 128.6\,k & 14.69\,M & -- & -- & -- & 5.3 \\
+\addlinespace[2pt]
+$10^{-10}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 1.63\,M & 125.6\,k & 21.14\,M & -- & -- & -- & 7.7 \\
+ & $10^{-150}$ & not run & \multicolumn{8}{l}{} \\
+ & $10^{-300}$ & not run & \multicolumn{8}{l}{} \\
+ & $0$ & end & $1.00\times10^{13}$ & 1.87\,M & 143.7\,k & 24.31\,M & -- & -- & -- & 7.0 \\
+\addlinespace[2pt]
+$10^{-12}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 2.68\,M & 128.7\,k & 34.85\,M & -- & -- & -- & 11.8 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 3.17\,M & 158.2\,k & 41.21\,M & -- & -- & -- & 9.0 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 3.17\,M & 158.5\,k & 41.21\,M & -- & -- & -- & 7.0 \\
+ & $0$ & end & $1.00\times10^{13}$ & 3.17\,M & 158.5\,k & 41.21\,M & -- & -- & -- & 12.2 \\
+\bottomrule
+\end{tabular}}
+
+\clearpage
+\subsection{\texttt{2p\_M2.0T\_eth}: rk8pd, rtol $\times$ atol}
+\noindent See \S\ref{net:2p_M2.0T_eth} for the network. Daughter (14,$-48$) decays to $E\sim10^{-3600}$ in exact arithmetic; its regrowth time is set by each run's floor.
+\par\smallskip{\centering\begin{tabular}{@{}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{}}
+ & \small atol $10^{-40}$ & \small atol $10^{-150}$ & \small atol $10^{-300}$ & \small atol $0$ \\[1pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-8}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0T_eth/r1e-8_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0T_eth/r1e-8_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0T_eth/r1e-8_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0T_eth/r1e-8_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 385.6\,k steps, 1.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 385.4\,k steps, 9.3\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 385.4\,k steps, 2.4\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 50.17\,M steps, 1522.6\,s, wall} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-10}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0T_eth/r1e-10_a1e-40.png} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize stalled\\[1pt]killed by the timeout,\\ no output written}}} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 604.3\,k steps, 15.8\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-12}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0T_eth/r1e-12_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0T_eth/r1e-12_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0T_eth/r1e-12_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0T_eth/r1e-12_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.03\,M steps, 11.0\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.03\,M steps, 14.6\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 1.03\,M steps, 10.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 24.77\,M steps, 1715.4\,s, wall} \\[2pt]
+\end{tabular}\par}
+\par\noindent{\scriptsize\setlength\tabcolsep{3.5pt}\renewcommand\arraystretch{0.92}
+\begin{tabular}{@{}llllrrrrrrr@{}}
+\toprule
+rtol & atol & stop & $t_{\rm stop}$ [s] & steps & rejected & RHS & Jac. & NL it. & lin. it. & wall [s] \\
+\midrule
+$10^{-8}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 385.6\,k & 83.9\,k & 5.01\,M & -- & -- & -- & 1.5 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 385.4\,k & 83.7\,k & 5.01\,M & -- & -- & -- & 9.3 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 385.4\,k & 83.7\,k & 5.01\,M & -- & -- & -- & 2.4 \\
+ & $0$ & wall & $5.10\times10^{11}$ & 50.17\,M & 56.1\,k & 652.18\,M & -- & -- & -- & 1522.6 \\
+\addlinespace[2pt]
+$10^{-10}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 604.3\,k & 87.9\,k & 7.86\,M & -- & -- & -- & 15.8 \\
+ & $10^{-150}$ & not run & \multicolumn{8}{l}{} \\
+ & $10^{-300}$ & not run & \multicolumn{8}{l}{} \\
+ & $0$ & stalled & \multicolumn{8}{l}{no output written} \\
+\addlinespace[2pt]
+$10^{-12}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 1.03\,M & 132.0\,k & 13.36\,M & -- & -- & -- & 11.0 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 1.03\,M & 132.1\,k & 13.37\,M & -- & -- & -- & 14.6 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 1.03\,M & 132.2\,k & 13.37\,M & -- & -- & -- & 10.5 \\
+ & $0$ & wall & $5.03\times10^{11}$ & 24.77\,M & 5.09\,M & 321.99\,M & -- & -- & -- & 1715.4 \\
+\bottomrule
+\end{tabular}}
+
+\clearpage
+\subsection{\texttt{2p\_M2.0\_eeq}: rk8pd, rtol $\times$ atol}
+\noindent See \S\ref{net:2p_M2.0_eeq} for the network. Deep dips between bursts.
+\par\smallskip{\centering\begin{tabular}{@{}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{\hspace{2pt}}c@{}}
+ & \small atol $10^{-40}$ & \small atol $10^{-150}$ & \small atol $10^{-300}$ & \small atol $0$ \\[1pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-8}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0_eeq/r1e-8_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0_eeq/r1e-8_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0_eeq/r1e-8_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0_eeq/r1e-8_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 6.11\,M steps, 16.3\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 8.12\,M steps, 35.2\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 9.27\,M steps, 35.6\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 9.27\,M steps, 32.1\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-10}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0_eeq/r1e-10_a1e-40.png} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & {\fboxsep0pt\fbox{\parbox[b][\dimexpr0.1323\textwidth-2\fboxrule][c]{\dimexpr0.21\textwidth-2\fboxrule}{\centering\scriptsize not run}}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0_eeq/r1e-10_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 12.20\,M steps, 33.3\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize --} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 15.47\,M steps, 52.3\,s} \\[2pt]
+\rotatebox{90}{\parbox{0.1323\textwidth}{\centering\scriptsize\bfseries rtol $10^{-12}$}} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0_eeq/r1e-12_a1e-40.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0_eeq/r1e-12_a1e-150.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0_eeq/r1e-12_a1e-300.png} & \includegraphics[width=0.21\textwidth,height=0.1323\textwidth]{../plots/rk8pd/2p_M2.0_eeq/r1e-12_a0.png} \\[-1pt]
+ & \parbox[t]{0.21\textwidth}{\centering\scriptsize 20.56\,M steps, 62.8\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 24.05\,M steps, 71.5\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 26.09\,M steps, 70.3\,s} & \parbox[t]{0.21\textwidth}{\centering\scriptsize 26.09\,M steps, 82.0\,s} \\[2pt]
+\end{tabular}\par}
+\par\noindent{\scriptsize\setlength\tabcolsep{3.5pt}\renewcommand\arraystretch{0.92}
+\begin{tabular}{@{}llllrrrrrrr@{}}
+\toprule
+rtol & atol & stop & $t_{\rm stop}$ [s] & steps & rejected & RHS & Jac. & NL it. & lin. it. & wall [s] \\
+\midrule
+$10^{-8}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 6.11\,M & 535.4\,k & 79.40\,M & -- & -- & -- & 16.3 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 8.12\,M & 944.9\,k & 105.61\,M & -- & -- & -- & 35.2 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 9.27\,M & 1.04\,M & 120.46\,M & -- & -- & -- & 35.6 \\
+ & $0$ & end & $1.00\times10^{13}$ & 9.27\,M & 1.04\,M & 120.46\,M & -- & -- & -- & 32.1 \\
+\addlinespace[2pt]
+$10^{-10}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 12.20\,M & 774.2\,k & 158.63\,M & -- & -- & -- & 33.3 \\
+ & $10^{-150}$ & not run & \multicolumn{8}{l}{} \\
+ & $10^{-300}$ & not run & \multicolumn{8}{l}{} \\
+ & $0$ & end & $1.00\times10^{13}$ & 15.47\,M & 1.23\,M & 201.08\,M & -- & -- & -- & 52.3 \\
+\addlinespace[2pt]
+$10^{-12}$ & $10^{-40}$ & end & $1.00\times10^{13}$ & 20.56\,M & 859.5\,k & 267.22\,M & -- & -- & -- & 62.8 \\
+ & $10^{-150}$ & end & $1.00\times10^{13}$ & 24.05\,M & 1.29\,M & 312.67\,M & -- & -- & -- & 71.5 \\
+ & $10^{-300}$ & end & $1.00\times10^{13}$ & 26.09\,M & 1.34\,M & 339.15\,M & -- & -- & -- & 70.3 \\
+ & $0$ & end & $1.00\times10^{13}$ & 26.09\,M & 1.34\,M & 339.15\,M & -- & -- & -- & 82.0 \\
+\bottomrule
+\end{tabular}}
