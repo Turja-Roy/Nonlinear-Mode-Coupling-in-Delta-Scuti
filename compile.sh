@@ -4,7 +4,7 @@
 #   ./compile.sh                 build everything into build/
 #   ./compile.sh -j 16           more parallel jobs (default 4)
 #   ./compile.sh --test          build, then run the unit tests
-#   ./compile.sh --clean         remove build/ first
+#   ./compile.sh --clean         rebuild every object
 #   ./compile.sh three_mode_search        build one target only
 #
 # CXXFLAGS overrides the optimisation flags (default -O2). Do not add
@@ -38,7 +38,7 @@ done
 
 CXX=${CXX:-g++}
 BUILD=build
-[[ $CLEAN -eq 1 ]] && rm -rf "$BUILD"
+[[ $CLEAN -eq 1 ]] && rm -rf "$BUILD/obj" "$BUILD/libcoupling.a"   # not build/ itself: it holds the flock lock
 mkdir -p "$BUILD/obj"
 
 # ---------------------------------------------------------------- dependencies
@@ -130,7 +130,7 @@ FLAGS="-std=c++17 $CXXFLAGS -Wall -Wextra $OMP $INC"
 LIBS="$SUN_L $GSL_L $HDF5_L $OMP -lm"
 
 LIB_SRC=(numeric angular model kappa triplets amplitude stability csv)
-APPS=(three_mode_search channels four_mode_search mixed_network make_inlists mw25 network_run network_build)
+APPS=(three_mode_search channels four_mode_search mixed_network make_inlists mw25 network_run network_build slow_amplitude damping)
 TESTS=(numeric kappa amplitude)
 
 # Objects are checked against their source and the newest header: a header

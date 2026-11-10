@@ -28,7 +28,7 @@ if(OpenMP_CXX_FOUND)
     target_link_libraries(coupling PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
-foreach(app three_mode_search channels four_mode_search mixed_network make_inlists mw25 network_run network_build)
+foreach(app three_mode_search channels four_mode_search mixed_network make_inlists mw25 network_run network_build slow_amplitude damping)
     add_executable(${app} apps/${app}.cpp)
     target_link_libraries(${app} PRIVATE coupling)
 endforeach()

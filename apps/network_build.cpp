@@ -27,15 +27,14 @@
    l_a + 2 l_d must be even.
    --direct k adds, on top of N, the k best direct triplets x + y -> c for each
    pair of parents (x == y: a + a -> c, at 2 omega_a), c damped and
-   |Delta| < cut, ranked by the energy c is forced to, E_c = R_c E_x E_y,
-   R_c = (s mu)^2 with s = 2 for x != y and 1 for x == y (stab::mu; checked
-   against the equations in test_amplitude). A difference triplet, c at
-   |omega_x - omega_y|, needs the two parents at opposite signs, which signing
-   by generation cannot give.
+   |Delta| < cut, ranked by --direct-rank: eeq (default), E_x + E_y at the
+   triplet's fixed point, lowest first; mu, MW23 eq. 9, highest first.
+   A difference triplet, c at |omega_x - omega_y|, needs the two parents at
+   opposite signs, which signing by generation cannot give.
 
    --list-direct: parent pairs for a mixed network. Every x + y -> c with x, y
-   driven (l <= --parent-l-max), c damped and |Delta| < cut, ranked by R_c, with
-   each parent's damped pairs and how many have an equilibrium
+   driven (l <= --parent-l-max), c damped and |Delta| < cut, ranked by E_eq,
+   then by mu, with each parent's damped pairs and how many have an equilibrium
    (gamma_x + gamma_b + gamma_c > 0). Writes no network.
 
    Closure then adds every triplet among the chosen modes with |Delta| below
@@ -78,11 +77,19 @@ double e_th (const ModeMap& efs, const RadialTriplet& t, double kappa) {
     return stab::threshold_energy(kappa, b.omega, c.omega, b.gamma, c.gamma, t.delta);
 }
 
-// Direct triplet x + y -> c: E_c / (E_x E_y) with the parents held.
-double r_c (const ModeMap& efs, const RadialTriplet& t, double kappa) {
+// x + y -> c: MW23 eq. 9
+double mu_direct (const ModeMap& efs, const RadialTriplet& t, double kappa) {
     const Eigenfunction& c = efs.at(t.sum_mode);
-    const double s = t.pair[0] == t.pair[1] ? 1.0 : 2.0;
-    return std::pow(s * stab::mu(kappa, c.omega, t.delta, c.gamma), 2);
+    return stab::mu(kappa, c.omega, t.delta, c.gamma);
+}
+
+// x + y -> c: E_x + E_y at the fixed point; x == y: E_x, the hold energy
+double e_eq_direct (const ModeMap& efs, const RadialTriplet& t, double kappa) {
+    const Eigenfunction &c = efs.at(t.sum_mode), &x = efs.at(t.pair[0]), &y = efs.at(t.pair[1]);
+    const bool self = t.pair[0] == t.pair[1];
+    const auto E = stab::equilibrium_energies(kappa, {c.omega, -x.omega, -y.omega}, {c.gamma, x.gamma, y.gamma},
+                                              t.delta, 1.0, self);
+    return self ? E[1] : E[1] + E[2];
 }
 
 double frac_detuning (const RadialTriplet& t) { return t.delta / -t.omega[0]; }
@@ -119,13 +126,13 @@ void write_network (const std::filesystem::path& p, const std::string& header,
         f << buf;
     }
     if (!direct.empty())
-        f << "# direct triplets (x + y -> c): Delta [c/d], Delta/omega_c, kappa, R_c = E_c/(E_x E_y), parents held\n";
+        f << "# direct triplets (x + y -> c): Delta [c/d], Delta/omega_c, kappa, E_eq/E_star, mu\n";
     for (const auto& t : direct) {
         const double k = kappa_of(kap, t);
-        std::snprintf(buf, sizeof buf, "#   (%d,%+d) + (%d,%+d) -> (%d,%+d)   %+.3e  %+.3e  %+.3e  %.3e\n",
+        std::snprintf(buf, sizeof buf, "#   (%d,%+d) + (%d,%+d) -> (%d,%+d)   %+.3e  %+.3e  %+.3e  %.3e  %.3e\n",
                       t.pair[0].first, t.pair[0].second, t.pair[1].first, t.pair[1].second,
                       t.sum_mode.first, t.sum_mode.second, sign(t) * t.delta / CD,
-                      sign(t) * frac_detuning(t), k, r_c(efs, t, k));
+                      sign(t) * frac_detuning(t), k, e_eq_direct(efs, t, k), mu_direct(efs, t, k));
         f << buf;
     }
     f << rule_line << "  2nd_order\n" << rule_line
@@ -153,7 +160,7 @@ void write_network (const std::filesystem::path& p, const std::string& header,
 int main (int argc, char** argv) {
     CLI::App app{"Networks around one or two parents"};
     std::string model = "models/dsct_M2.0", detail_dir = "detail_wide";
-    std::string inlist = "gyre_ad_wide.in", gamma_mode = "tot";
+    std::string inlist = "gyre_ad_wide.in", gamma_mode = "tot", direct_rank = "eeq";
     std::string out = "data/network", cache = "out/four_mode_dsct_M2.0.kappa_cache.tsv";
     std::vector<std::string> nad = {"summary_nad_wide.h5", "summary_nad_wide_hi.h5"};
     std::vector<std::string> parent_s;
@@ -174,6 +181,8 @@ int main (int argc, char** argv) {
                    "keep pairs with min(gamma_b, gamma_c) >= r |gamma_parent|");
     app.add_option("--self-coupled", n_self, "add each parent's k best a -> d + d pairs");
     app.add_option("--direct", n_direct, "add the k best direct triplets x + y -> c per pair of parents");
+    app.add_option("--direct-rank", direct_rank, "eeq (default): lowest E_eq first; mu: highest mu first")
+        ->check(CLI::IsMember({"eeq", "mu"}));
     app.add_flag("--list-direct", list_direct, "rank x + y -> c over all driven x, y; no network");
     app.add_flag("--shared", shared, "two parents: N counts daughters shared by both, each with its two pairs");
     app.add_option("-N", ns, "daughter counts, exact (shared daughters with --shared)");
@@ -233,23 +242,34 @@ int main (int argc, char** argv) {
             ++n[0];
             if (efs.at(t.sum_mode).gamma + efs.at(t.pair[0]).gamma + efs.at(t.pair[1]).gamma > 0.0) ++n[1];
         }
-        std::vector<std::pair<double, size_t>> order;
-        for (size_t i = 0; i < ds.size(); ++i)
-            if (const double k = kappa_of(kap, ds[i]); k != 0.0) order.push_back({-r_c(efs, ds[i], k), i});
-        std::sort(order.begin(), order.end());
+        std::vector<size_t> order;
+        std::vector<double> eeq(ds.size()), mu(ds.size());
+        for (size_t i=0 ; i<ds.size() ; i++)
+            if (const double k = kappa_of(kap, ds[i]); k != 0.0) {
+                order.push_back(i);
+                eeq[i] = e_eq_direct(efs, ds[i], k);
+                mu[i] = mu_direct(efs, ds[i], k);
+            }
         std::printf("%zu driven l <= %d modes, %zu direct triplets x + y -> c at cut %.3g c/d (kappa != 0: %zu)\n"
-                    "#  x        y        c          f_x      f_y      f_c   Delta[c/d]  gamma_x     gamma_y"
-                    "     gamma_c     kappa       R_c        pairs_x eq_x  pairs_y eq_y\n",
+                    "E_eq: E_x + E_y at the fixed point (x == y: E_x) [E_star]; mu: MW23 eq. 9\n",
                     driven.size(), parent_l_max, ds.size(), cut_max / CD, order.size());
-        for (const auto& [r, i] : order) {
-            const auto& t = ds[i];
-            const Eigenfunction &x = efs.at(t.pair[0]), &y = efs.at(t.pair[1]), &c = efs.at(t.sum_mode);
-            const auto &nx = np[t.pair[0]], &ny = np[t.pair[1]];
-            std::printf("  (%d,%+d)  (%d,%+d)  (%d,%+d)  %8.3f %8.3f %8.3f  %+.3e  %+.3e  %+.3e  %+.3e  %+.3e  %.3e"
-                        "  %6ld %5ld  %6ld %5ld\n",
-                        t.pair[0].first, t.pair[0].second, t.pair[1].first, t.pair[1].second,
-                        t.sum_mode.first, t.sum_mode.second, x.omega / CD, y.omega / CD, c.omega / CD,
-                        t.delta / CD, x.gamma, y.gamma, c.gamma, kappa_of(kap, t), -r, nx[0], nx[1], ny[0], ny[1]);
+        for (const bool by_eeq : {true, false}) {
+            std::stable_sort(order.begin(), order.end(), [&](size_t i, size_t j) {
+                return by_eeq ? eeq[i] < eeq[j] : mu[i] > mu[j]; });
+            std::printf("\n%s\n#  x        y        c          f_x      f_y      f_c   Delta[c/d]  gamma_x     gamma_y"
+                        "     gamma_c     kappa       E_eq       mu         pairs_x eq_x  pairs_y eq_y\n",
+                        by_eeq ? "ranked by E_eq, lowest first" : "ranked by mu, highest first");
+            for (size_t i : order) {
+                const auto& t = ds[i];
+                const Eigenfunction &x = efs.at(t.pair[0]), &y = efs.at(t.pair[1]), &c = efs.at(t.sum_mode);
+                const auto &nx = np[t.pair[0]], &ny = np[t.pair[1]];
+                std::printf("  (%d,%+d)  (%d,%+d)  (%d,%+d)  %8.3f %8.3f %8.3f  %+.3e  %+.3e  %+.3e  %+.3e  %+.3e"
+                            "  %.3e  %.3e  %6ld %5ld  %6ld %5ld\n",
+                            t.pair[0].first, t.pair[0].second, t.pair[1].first, t.pair[1].second,
+                            t.sum_mode.first, t.sum_mode.second, x.omega / CD, y.omega / CD, c.omega / CD,
+                            t.delta / CD, x.gamma, y.gamma, c.gamma, kappa_of(kap, t), eeq[i], mu[i],
+                            nx[0], nx[1], ny[0], ny[1]);
+            }
         }
         return 0;
     }
@@ -380,14 +400,16 @@ int main (int argc, char** argv) {
                         ranked.empty() ? std::nan("") : ranked[0].first);
         }
 
-        // The k best direct triplets per pair of parents, by R_c.
+        // The k best direct triplets per pair of parents, by --direct-rank.
         std::map<std::pair<Key, Key>, std::vector<RadialTriplet>> by_parents;
         for (const auto& t : direct_all)
             if (std::abs(t.delta) < cut_dimless * wdyn) by_parents[{t.pair[0], t.pair[1]}].push_back(t);
         std::vector<RadialTriplet> direct;
         for (auto& [xy, ts] : by_parents) {
-            std::sort(ts.begin(), ts.end(), [&](const RadialTriplet& a, const RadialTriplet& b) {
-                return r_c(efs, a, kappa_of(kap, a)) > r_c(efs, b, kappa_of(kap, b)); });
+            std::stable_sort(ts.begin(), ts.end(), [&](const RadialTriplet& a, const RadialTriplet& b) {
+                const double ka = kappa_of(kap, a), kb = kappa_of(kap, b);
+                return direct_rank == "mu" ? mu_direct(efs, a, ka) > mu_direct(efs, b, kb)
+                                           : e_eq_direct(efs, a, ka) < e_eq_direct(efs, b, kb); });
             direct.insert(direct.end(), ts.begin(), ts.begin() + std::min(ts.size(), size_t(n_direct)));
         }
         if (n_direct > 0 && direct.empty()) {           // would only repeat the set without --direct
