@@ -276,9 +276,10 @@ Solution Network::integrate (State y0, double t_end, Options opt) const {
 
     /* First trial step well inside the fastest rate. Too large a step overflows
        to NaN, every error comparison against NaN is false, and the driver then
-       accepts it and runs on to t_end on garbage. */
+       accepts it and runs on to t_end on garbage. q: omega too, else the corrector
+       fails ten times at t = 0. */
     double rate = 0.0;
-    for (int i=0 ; i<n ; i++) rate = std::max(rate, std::abs(gamma_[i]));
+    for (int i=0 ; i<n ; i++) rate = std::max({rate, std::abs(gamma_[i]), opt.slow ? 0.0 : std::abs(omega_[i])});
     for (double d : delta_) rate = std::max(rate, std::abs(d));
     const double h0 = rate > 0.0 ? std::min(t_end / (10.0 * opt.n_out), 0.01 / rate)
                                  : t_end / (10.0 * opt.n_out);
