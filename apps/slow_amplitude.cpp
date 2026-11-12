@@ -1,9 +1,12 @@
 /* dq_dt against dA_dt: each case integrated as q (rtol 1e-13, 1e-12) and as A
-   (rtol 1e-10, 1e-8), compared as complex q = A exp(-i w t).
+   (rtol 1e-10, 1e-8), compared as complex q = A exp(-i w t). Writes q_vs_A.csv, modes.csv,
+   runs.csv, pairs.csv: the toys one folder each under --out, a --net network into --out itself,
+   with a copy of its file. A network run stops at E = 1e-2, as network_run does.
 
        ./slow_amplitude --out out/slow_amplitude
-       ./slow_amplitude --net data/atol_bench/1p2d_M2.0T_eth.data --out out/slow_amplitude
-       python3 scripts/slow_amplitude_plot.py --data out/slow_amplitude
+       ./slow_amplitude --net out/networks/dsct_M2.0_T7696/ladder_1p/l2_n-2/d2/network.data \
+           --out out/q_vs_A/dsct_M2.0_T7696/ladder_1p/l2_n-2/d2
+       python3 scripts/slow_amplitude_plot.py --data out/q_vs_A
 */
 
 #include "amplitude.hpp"
@@ -103,7 +106,9 @@ void run (const Case& c, const std::filesystem::path& out, int n_out, double max
     for (const auto& p : PAIRS)
         for (const auto& m : net.modes())
             hdr.push_back(std::string("d_") + FORMS[p[0]].name + "_" + FORMS[p[1]].name + "_" + m.name);
-    csv::Writer w(out / (c.name + ".csv"), hdr);
+    const std::filesystem::path dir = out / c.name;
+    std::filesystem::create_directories(dir);
+    csv::Writer w(dir / "q_vs_A.csv", hdr);
     std::vector<double> d_max(std::size(PAIRS), 0.0);
     for (size_t j : rows) {
         const double t = sol[0].t[j];
@@ -134,11 +139,11 @@ void run (const Case& c, const std::filesystem::path& out, int n_out, double max
         E_fix[tr.b] = E[1];
         E_fix[tr.c] = E[2];
     }
-    csv::Writer wm(out / (c.name + "_modes.csv"), {"mode", "omega", "gamma", "E_fixed_point"});
+    csv::Writer wm(dir / "modes.csv", {"mode", "omega", "gamma", "E_fixed_point"});
     for (int i=0 ; i<n ; i++) wm.row(net.modes()[i].name, net.modes()[i].omega, net.modes()[i].gamma, E_fix[i]);
 
-    csv::Writer wr(out / (c.name + "_runs.csv"), {"run", "slow", "rtol", "t_end", "t_last", "stop", "rows_compared",
-                                                 "seconds", "steps", "rhs_calls", "failed_steps"});
+    csv::Writer wr(dir / "runs.csv", {"run", "slow", "rtol", "t_end", "t_last", "stop", "rows_compared",
+                                      "seconds", "steps", "rhs_calls", "failed_steps"});
     for (int k=0 ; k<4 ; k++) {
         const amp::Solution& s = sol[k];
         const std::string stop = s.failed ? "failed" : s.out_of_time ? "wall"
@@ -146,7 +151,7 @@ void run (const Case& c, const std::filesystem::path& out, int n_out, double max
         wr.row(std::string(FORMS[k].name), FORMS[k].slow, FORMS[k].rtol, c.t_end, s.t.back(), stop,
                long(rows.size()), secs[k], s.steps, s.rhs_calls, s.failed_steps);
     }
-    csv::Writer wp(out / (c.name + "_pairs.csv"), {"x", "y", "d_max"});
+    csv::Writer wp(dir / "pairs.csv", {"x", "y", "d_max"});
     for (size_t p=0 ; p<std::size(PAIRS) ; p++) {
         const char *x = FORMS[PAIRS[p][0]].name, *y = FORMS[PAIRS[p][1]].name;
         wp.row(std::string(x), std::string(y), d_max[p]);
@@ -158,23 +163,24 @@ void run (const Case& c, const std::filesystem::path& out, int n_out, double max
 
 int main (int argc, char** argv) {
     CLI::App app{"dq_dt against dA_dt"};
-    std::string out = "out/slow_amplitude";
-    std::vector<std::string> nets;
-    double t_end = 1e12, max_s = 10800.0;
+    std::string out = "out/slow_amplitude", net_file;
+    double t_end = 1e12, max_s = 18000.0;
     int n_out = 4000;
     app.add_option("--out", out, "default out/slow_amplitude");
-    app.add_option("--net", nets, "network files instead of the toys");
-    app.add_option("--t-end", t_end, "network files [s], default 1e12");
+    app.add_option("--net", net_file, "a network file instead of the toys");
+    app.add_option("--t-end", t_end, "network [s], default 1e12");
     app.add_option("--n-out", n_out, "default 4000");
-    app.add_option("--max-seconds", max_s, "wall-time cap per run, default 10800; 0 = none");
+    app.add_option("--max-seconds", max_s, "wall-time cap per run, default 18000; 0 = none");
     CLI11_PARSE(app, argc, argv);
 
     std::filesystem::create_directories(out);
     std::vector<Case> cs;
-    if (nets.empty()) cs = toys();
-    for (const auto& f : nets) {
-        const Network net = amp::read_network(f);
-        cs.push_back({std::filesystem::path(f).stem().string(), net, parent_daughter(net, 1e-6), t_end});
+    if (net_file.empty()) cs = toys();
+    else {
+        const Network net = amp::read_network(net_file);
+        std::filesystem::copy_file(net_file, std::filesystem::path(out) / "network.data",
+                                   std::filesystem::copy_options::overwrite_existing);
+        cs.push_back({"", net, parent_daughter(net, 1e-6), t_end, 1e-2});
     }
     for (const Case& c : cs) run(c, out, n_out, max_s);
     return 0;
