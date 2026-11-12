@@ -1,0 +1,18 @@
+Runs
+
+                               case run  rtol stop   t_last  rows_compared      steps  seconds
+dsct_M2.0_T7696/ladder_1p/l2_n-2/d2 q13 1e-13 wall 3.17e+11           1267 5715354112 1.08e+04
+dsct_M2.0_T7696/ladder_1p/l2_n-2/d2 q12 1e-12 wall 3.67e+11           1267 5928251997 1.08e+04
+dsct_M2.0_T7696/ladder_1p/l2_n-2/d2 A10 1e-10  end    1e+12           1267     471999    0.748
+dsct_M2.0_T7696/ladder_1p/l2_n-2/d2  A8 1e-08  end    1e+12           1267     250817    0.394
+dsct_M2.0_T7696/ladder_1p/l2_n-2/d4 q13 1e-13 wall 2.56e+11           1025 4508386412 1.08e+04
+dsct_M2.0_T7696/ladder_1p/l2_n-2/d4 q12 1e-12 wall 2.97e+11           1025 4651854094 1.08e+04
+dsct_M2.0_T7696/ladder_1p/l2_n-2/d4 A10 1e-10  end    1e+12           1025     818369     1.84
+dsct_M2.0_T7696/ladder_1p/l2_n-2/d4  A8 1e-08  end    1e+12           1025     630432      1.3
+
+Largest |q_x - q_y| / |q_x| over modes and output times
+
+                                     q13 vs A10  q13 vs A8  q12 vs A10  q12 vs q13
+case                                                                              
+dsct_M2.0_T7696/ladder_1p/l2_n-2/d2    9.29e-03   3.68e-02    9.47e-01    9.39e-01
+dsct_M2.0_T7696/ladder_1p/l2_n-2/d4    6.58e-03   6.71e-03    7.20e-01    7.14e-01
