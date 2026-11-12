@@ -8,25 +8,21 @@
 #SBATCH -t 12:00:00
 #SBATCH -a 0-4
 #SBATCH -o logs/network_sweep_%A_%a.log
-# Network growth ladders (Plans/network-growth.md), one array task per model
-# in config.sh's MODELS, all five in parallel.
+# Network ladders (Plans/merged-ladders.md), one array task per model in config.sh's MODELS.
 #
-#   sbatch shell-scripts/network_sweep.sh            # parents: fields 5, 6 of each MODELS entry
-#   PARENTS="6,3 6,4" sbatch --array=2 shell-scripts/network_sweep.sh   # override, MODELS[2] only
-#   PARENTS=" " PARENT_LMAX=4 sbatch shell-scripts/network_sweep.sh     # builder picks, l <= 4
-#   NS1="2 4" NS2="1 2" WALL=60 sbatch shell-scripts/network_sweep.sh   # short ladders, 1 h cap
-#   LIST_DIRECT=1 SETS=" " sbatch shell-scripts/network_sweep.sh   # rank parent pairs x + y -> c only
-#   SETS="2p_direct" BUILD_ONLY=1 ...                          # those sets, build, no runs
-# Sets (SETS, default all but 2p_direct): 1p 1p_noclosure 1p_direct 2p_shared 2p_shared_direct
-# 2p_direct. A *_direct set writes a file only where a direct triplet exists.
-# Mixed networks: shell-scripts/mixed_submit.sh.
+#   SETS=1p sbatch --array=1 shell-scripts/network_sweep.sh     # a ladder per driven l <= 2 mode
+#   SETS=2p sbatch --array=1 shell-scripts/network_sweep.sh     # the NPAIRS best-coupled pairs of parents
+#   PARENTS="2,-2 1,7" SETS=2p sbatch --array=1 ...             # one named pair instead
+#   LIST_DIRECT=1 SETS=" " sbatch ...                           # rank x + y -> c only
+# Sets (SETS, default "1p 1p_eq 2p"): 1p, 1p_eq (only pairs with an E_eq, --only-eeq), 2p.
+# BUILD_ONLY=1: build, no runs. PARENT_LMAX: largest parent l, default 2. NMAX: largest daughter count.
 #
-# Compiles network_build/network_run first (array tasks take turns on a lock;
-# up-to-date objects are skipped), rebuilds every network from scratch (one
-# model load per set), then integrates them in parallel, plotting each run as
-# it finishes. A run is redone when its network file changed.
-# Output: $DATA/<model>/<set>/, $OUT/<model>/<set>/<network>/, LIST_DIRECT:
-# out/direct_candidates_<model>.txt.
+# Compiles network_build/network_run first (array tasks take turns on a lock; up-to-date objects are
+# skipped), rebuilds the sets asked for, then integrates their networks in parallel, plotting each
+# run as it finishes. A finished run is redone only when its network (modes and triplets) changed.
+# Output: $DATA/<model>/<set>/<parents>/d<N>.data, $OUT/<model>/ladder_{1p,2p}/<parents>/d<N>/, and
+# $OUT/<model>/networks.md. A 1p_eq ladder, and a 2p ladder whose parents already have a ladder
+# built by an earlier rule, go to <parents>_ladder2. LIST_DIRECT: out/direct_candidates_<model>.txt.
 
 set -euo pipefail
 source shell-scripts/config.sh
@@ -40,10 +36,9 @@ KAP="out/four_mode_${TAG}.kappa_cache.tsv"
 JOBS=${SLURM_CPUS_PER_TASK:-4}
 OUT=${OUT:-out/networks}
 DATA=${DATA:-data/networks}
-SETS=${SETS:-1p 1p_noclosure 1p_direct 2p_shared 2p_shared_direct}
-NS1=${NS1:-$(seq 2 2 16)}           # 1 parent: exactly 2, 4, ..., 16 daughters
-NS2=${NS2:-$(seq 1 8)}              # 2 parents: 1, ..., 8 shared daughters
-NS2P=${NS2P:-$(seq 2 2 16)}         # 2 parents, own pairs: exactly 2, 4, ..., 16 daughters
+SETS=${SETS:-1p 1p_eq 2p}
+NMAX=${NMAX:-24}
+NPAIRS=${NPAIRS:-4}
 # Cost ~ t_end * max|Delta| * n_triplets / 4e5 s, so the closure cut on
 # far-detuned couplings is the lever (selecting triplets are always kept). t_end
 # 1e13 s: a bounded 8-daughter net has settled by then. WALL [min]: a run
@@ -59,62 +54,60 @@ CLOSURE=${CLOSURE:-0.005}
 RUN_ARGS=${RUN_ARGS:-"--seed 1 --e-max 1e-2 --t-end 1e13 --rtol 1e-8"}
 export OMP_NUM_THREADS=1
 
-# Parents: PARENTS="l,n l,n", else fields 5, 6 of the MODELS entry, else the builder picks the
-# driven l <= PARENT_LMAX (default 2) GYRE modes of lowest E_th (one, then two).
-read -r P1 P2 <<< "${PARENTS:-$(model_field "$TAG" 4 2>/dev/null || true) $(model_field "$TAG" 5 2>/dev/null || true)}"
-ONE=${P1:+--parent $P1}; ONE=${ONE:---n-parents 1}
-TWO=${P2:+--parent $P1 --parent $P2}; TWO=${TWO:---n-parents 2}
-
 if [[ ${LIST_DIRECT:-0} == 1 ]]; then
     ./build/network_build --model "$MODEL" --kappa-cache "$KAP" -j "$JOBS" --list-direct \
         ${PARENT_LMAX:+--parent-l-max $PARENT_LMAX} | tee "out/direct_candidates_${TAG}.txt"
 fi
 [[ -z ${SETS// } ]] && exit 0
-rm -rf "$DATA/$TAG"                 # stale files from older builds would be run too
-build() {   # out-dir, build args...
+build() {   # set, build args...
     local d=$1; shift
-    ./build/network_build --model "$MODEL" --kappa-cache "$KAP" -j "$JOBS" \
-        --out "$DATA/$TAG/$d" ${CLOSURE:+--closure-cut $CLOSURE} \
-        ${PARENT_LMAX:+--parent-l-max $PARENT_LMAX} "$@" || echo "BUILD FAILED $d"
+    rm -rf "${DATA:?}/$TAG/$d"         # stale files from older builds would be run too
+    # the lock: two jobs appending new kappa to one cache file would interleave lines
+    flock "$KAP.lock" ./build/network_build --model "$MODEL" --kappa-cache "$KAP" -j "$JOBS" --out "$DATA/$TAG/$d" \
+        ${CLOSURE:+--closure-cut $CLOSURE} ${PARENT_LMAX:+--parent-l-max $PARENT_LMAX} --n-max "$NMAX" "$@" \
+        || echo "BUILD FAILED $d"
 }
 want() { [[ " $SETS " == *" $1 "* ]]; }
-# 1 parent, one pair per step; closure on and off; + its best direct triplet a + a -> c
-want 1p && build ladder_1p $ONE -N $NS1
-want 1p_noclosure && build ladder_1p $ONE -N $NS1 --no-closure
-want 1p_direct && build ladder_1p_direct $ONE -N $NS1 --direct 1
-# 2 parents, one shared daughter (with its two pairs) per step; + the best direct triplet per pair of parents
-want 2p_shared && build ladder_2p_shared $TWO --shared -N $NS2
-want 2p_shared_direct && build ladder_2p_shared_direct $TWO --shared -N $NS2 --direct 1
-# 2 parents, each its own pairs (best first, in turn) + the best direct triplet: MW25's mixed network
-want 2p_direct && build ladder_2p_direct $TWO -N $NS2P --direct 1
+TWO=--pairs\ $NPAIRS
+[[ -n ${PARENTS:-} ]] && TWO=$(printf -- '--parent %s ' $PARENTS)
+want 1p && build ladder_1p --each-parent
+want 1p_eq && build ladder_1p_eq --each-parent --only-eeq
+want 2p && build ladder_2p $TWO
+# a 2p ladder whose parents already have a ladder of an earlier rule (no "in the order they entered" line)
+for p in "$DATA/$TAG"/ladder_2p/*/; do
+    o=$OUT/$TAG/ladder_2p/$(basename "$p")
+    [[ -d $o ]] && ! grep -qs 'in the order they entered' "$o"/*/network.data && mv "$p" "${p%/}_ladder2"
+done
 [[ ${BUILD_ONLY:-0} == 1 ]] && exit 0
 
+body() { grep -v '^#' "$1"; }
 run() {   # network file
-    local f=$1 d grp
-    grp=$(basename "$(dirname "$f")")
-    d=$OUT/$TAG/$grp/$(basename "$f" .data)
-    [[ -f $d/summary.csv ]] && cmp -s "$f" "$d/network.data" && return 0
+    local f=$1 d grp p
+    grp=$(basename "$(dirname "$(dirname "$f")")"); p=$(basename "$(dirname "$f")")
+    case $grp in ladder_1p_eq) d=$OUT/$TAG/ladder_1p/${p}_ladder2 ;; *) d=$OUT/$TAG/$grp/$p ;; esac
+    d=$d/$(basename "$f" .data)
+    [[ -f $d/summary.csv ]] && cmp -s <(body "$f") <(body "$d/network.data") && { echo "KEPT $d (same network)"; return 0; }
     rm -rf "$d"; mkdir -p "$d"; cp "$f" "$d/network.data"
     timeout "${WALL}m" ./build/network_run "$f" --out "$d" $RUN_ARGS \
         --max-seconds $((WALL * 54)) > "$d/log.txt" 2>&1
     case $? in
-        0) python scripts/network_plot.py --data "$d" --title "$TAG $grp $(basename "$d")" \
+        0) python scripts/network_plot.py --data "$d" --title "$TAG ${d#"$OUT/$TAG/"}" \
                >> "$d/log.txt" 2>&1 || echo "PLOT FAILED $d" ;;
         124) echo "TIMEOUT $f (> ${WALL} min)" ;;
         *) echo "FAILED $f (see $d/log.txt)" ;;
     esac
 }
-export -f run
+export -f run body
 export OUT RUN_ARGS WALL TAG
 # costliest first, ~ max|Delta| * n_triplets (Delta = col 5 * |omega_id1|), so no long run
 # finishes alone
 shopt -s nullglob
-for f in "$DATA/$TAG"/*/*.data; do
+for f in "$DATA/$TAG"/*/*/*.data; do
     awk '/^#/ {next} NF==7 {w[$1]=$6} NF==5 {d=$5*w[$1]; if (d<0) d=-d; if (d>m) m=d; n++}
          END {print m*n, FILENAME}' "$f"
 done | sort -gr | cut -d' ' -f2- | xargs -P "$JOBS" -I{} bash -c 'run "$@"' _ {}
 
-for d in "$OUT/$TAG"/ladder_*/; do
-    [[ -d $DATA/$TAG/$(basename "$d") ]] || continue
-    python scripts/network_convergence.py --runs "$d" || echo "CONVERGENCE PLOT FAILED $d"
+for d in "$OUT/$TAG"/ladder_*/*/; do
+    python scripts/network_convergence.py --runs "$d" > /dev/null || echo "CONVERGENCE PLOT FAILED $d"
 done
+python scripts/network_index.py --model "$OUT/$TAG" || echo "INDEX FAILED"

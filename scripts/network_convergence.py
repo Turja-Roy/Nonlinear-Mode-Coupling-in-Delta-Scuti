@@ -5,8 +5,7 @@ cut sweep at fixed N), one line per daughter starting ratio E_d(0)/E_p(0).
     python3 scripts/network_convergence.py --runs out/networks/one_parent
 
 Reads every <runs>/*/summary.csv that network_run wrote, and the
-`# network_build ...` header of the network file each one names, for N,
-cut and closure. Converged means a curve has flattened in N.
+`# network_build ...` header of the run's network.data, for N, cut and closure. Converged means a curve has flattened in N.
 """
 
 from __future__ import annotations
@@ -36,7 +35,7 @@ def load(runs: pathlib.Path) -> pd.DataFrame:
     rows = []
     for p in sorted(runs.glob("*/summary.csv")):
         r = pd.read_csv(p).iloc[0].to_dict()
-        head = next(l for l in open(r["file"]) if l.startswith("# network_build"))
+        head = next(l for l in open(p.parent / "network.data") if l.startswith("# network_build"))
         n, cut, closure = HEADER.search(head).groups()
         r.update(N=int(n), cut=float(cut), closure=closure != "off", run=p.parent.name)
         rows.append(r)

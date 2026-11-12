@@ -22,18 +22,15 @@ REGENERATE_INLISTS="${REGENERATE_INLISTS:-1}"
 # and inspect four-mode candidates first.
 RUN_WIDE_PASS2="${RUN_WIDE_PASS2:-1}"
 
-# The five models: TAG:MASS:LOGG:MW23_TEFF[:PARENT[:PARENT2]]
-# PARENT, PARENT2: (l,n) as "l,n", the network ladders' parents (network_sweep.sh):
-# the driven l <= 2 modes of lowest E_th, as network_build picked them (Oct 14-15
-# builds, gamma_tot). None named: network_build picks them again.
+# The five models: TAG:MASS:LOGG:MW23_TEFF
 # log g is what the model is selected on; Teff is reported, never asserted
 # (Plans/nonlinear-coupling-pipeline.md sec 1.1).
 MODELS=(
-  "dsct_M2.0:2.0:3.900:7696:1,-1:2,-2"
-  "dsct_M2.0_T7696:2.0:3.930:7696:2,-2:2,-3"
-  "dsct_M2.2_T7888:2.2:3.830:7888:1,5:1,3"
-  "dsct_M1.85_T7555:1.85:4.010:7555:2,-4:1,-1"
-  "dsct_M1.7_T7750:1.7:4.230:7750:1,1:2,-3"
+  "dsct_M2.0:2.0:3.900:7696"
+  "dsct_M2.0_T7696:2.0:3.930:7696"
+  "dsct_M2.2_T7888:2.2:3.830:7888"
+  "dsct_M1.85_T7555:1.85:4.010:7555"
+  "dsct_M1.7_T7750:1.7:4.230:7750"
 )
 
 model_field() {  # model_field <tag> <1=mass|2=logg|3=teff>
