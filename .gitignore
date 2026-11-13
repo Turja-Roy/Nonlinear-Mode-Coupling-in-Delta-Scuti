@@ -25,6 +25,7 @@ models/*/gyre/detail_wide/
 out/*.tsv
 out/*.csv
 *.csv
+log.txt
 
 # C++ build
 build/
