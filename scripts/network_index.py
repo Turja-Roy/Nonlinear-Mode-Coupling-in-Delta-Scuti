@@ -17,7 +17,7 @@ import re
 
 import pandas as pd
 
-from network_plot import read_network
+from network_plot import read_network, run_balance
 
 MODE = r"\((-?\d+),([+-]?\d+)\)"
 NOTATION = """\
@@ -25,10 +25,14 @@ Notation. (l,n): degree and radial order of a mode; f: frequency; gamma: linear 
 > 0 damped (daughter). N: number of daughters. Pair p -> b + c: parametric triplet; harmonic x + x -> c and
 sum x + y -> c: direct triplets. Delta: detuning; kappa: coupling coefficient. E_th: parent energy above
 which a pair grows (Weinberg+12 eq. 50); E_eq: parent energy at a triplet's fixed point (MW25 eq. 6), for a
-sum triplet E_x + E_y. Energies in E_star = GM^2/R. Shared daughter: coupled to both parents. Run columns,
-second half of the run: <E_par>, mean summed parent energy; swing, (max - min)/mean of it;
-dissipation/driving, sum 2 gamma_d <E_d> over sum 2|gamma_p| <E_p>; n_active, daughters above 1e-3 of the
-largest. stop: end (t = 1e13 s), runaway (summed energy 1e-2), wall (time limit).
+sum triplet E_x + E_y; for pairs recomputed here from the network file. gamma sum: gamma_p + gamma_b + gamma_c
+of a pair, gamma_x + gamma_y + gamma_c of a direct triplet (y = x for a harmonic); <= 0: a pair's fixed point
+is unstable, a harmonic triplet cannot hold x alone (a sum triplet's fixed point is unstable at any value).
+Energies in E_star = GM^2/R. Shared daughter: coupled to both parents. Run columns,
+second half of the run: <E_par>, mean summed parent energy; swing, (max - min)/mean of it; n_active,
+daughters above 1e-3 of the largest. <D>_T/<P>_T: damping power D = sum 2 gamma_d E_d over driving power
+P = sum 2|gamma_p| E_p, each a moving time average (1/T) * integral over (t - T, t], window T = t_stop/10,
+taken at t = t_stop. stop: end (t = 1e13 s), runaway (summed energy 1e-2), wall (time limit).
 """
 
 
@@ -37,6 +41,10 @@ def lname(l: int, n: int) -> str:
 
 
 def rule(head: str, n_par: int, rc: bool) -> str:
+    if "alternating" in head:
+        r = ("pairs ranked by E_th and direct triplets (harmonic, sum) by E_eq, lowest first, taken one from each in"
+             " turn, a pair first; each parent's first own triplet (a pair it heads, or its harmonic) ahead of the rest")
+        return r + ("; only pairs with gamma sum > 0" if "only_eeq 1" in head else "")
     if "ranking" in head:
         r = "candidate triplets ranked by E_th (pairs) and E_eq (harmonic, sum), lowest first, each parent's lowest first"
         return r + ("; only pairs with an E_eq" if "only_eeq 1" in head else "")
@@ -50,7 +58,8 @@ def rule(head: str, n_par: int, rc: bool) -> str:
     return "pairs ranked by E_th, lowest first; a pair that would bring N past the target skipped" + d
 
 
-def selecting(lines: list[str]) -> list[list[str]]:
+def selecting(lines: list[str], wg: dict) -> list[list[str]]:
+    """wg: (l,n) -> (|omega|, gamma) of the file's modes."""
     rows = []
     for l in lines:
         if len(re.findall(MODE, l)) != 3 or "->" not in l:
@@ -58,11 +67,17 @@ def selecting(lines: list[str]) -> list[list[str]]:
         tok = re.sub(r"^#\s+(pair|harmonic|sum)?\s*", "", l).split()
         trip, nums = " ".join(tok[:5]), tok[5:]
         if tok[1] == "->":
-            rows.append(["pair", trip, nums[0], nums[2], nums[3], nums[4], ""])
+            (_, gp), (wb, gb), (wc, gc) = wg[tok[0]], wg[tok[2]], wg[tok[4]]
+            k, D, g = float(nums[2]), float(nums[0]) * 2 * math.pi / 86400, gp + gb + gc
+            eeq = gb * gc / (4 * k * k * wb * wc) * (1 + D * D / g ** 2)          # MW25 eq. 6
+            if nums[4] != "none" and abs(eeq / float(nums[4]) - 1) > 2e-3:
+                print(f"E_eq of {trip}: file {nums[4]}, recomputed {eeq:.3e}")
+            rows.append(["pair", trip, nums[0], nums[2], nums[3], f"{eeq:.3e}", f"{g:+.2e}", ""])
         else:
             kind = "harmonic" if tok[0] == tok[2] else "sum"
             old = len(nums) == 4                      # files before 2026-11-10 list R_c, not E_eq and mu
-            rows.append([kind, trip, nums[0], nums[2], "", "" if old else nums[3],
+            g = wg[tok[0]][1] + wg[tok[2]][1] + wg[tok[4]][1]
+            rows.append([kind, trip, nums[0], nums[2], "", "" if old else nums[3], f"{g:+.2e}",
                          f"(R_c {nums[3]})" if old else nums[-1]])
     return rows
 
@@ -91,7 +106,7 @@ def run_row(d: pathlib.Path) -> dict:
     t_stop = float(open(e).readlines()[-1].split(",")[0]) if e.exists() else math.nan
     return dict(run=d.name, N=len(modes) - len(par), triplets=len(trip), shared=" ".join(shared),
                 direct="; ".join(direct), stop=s["stop"], t_stop=t_stop, E_par=s["E_parents"], swing=s["swing"],
-                ratio=s["dissipation"] / s["driving"], n_active=s["n_active"])
+                ratio=run_balance(d), n_active=s["n_active"])
 
 
 def same(a: dict, b: dict) -> bool:
@@ -113,14 +128,15 @@ def ladder(lad: pathlib.Path) -> list[str]:
                                     f" gamma {m['g']:+.3e} s^-1" for m in par), ""]
     out += [f"Built by: {rule(head, len(par), any('R_c' in l for l in lines))}.", ""]
     out += ["Selecting triplets of the largest network, in the order of its header:", "",
-            "| kind | triplet | Delta [c/d] | kappa | E_th [E_star] | E_eq [E_star] | mu |",
-            "|---|---|---|---|---|---|---|"]
-    out += ["| " + " | ".join(r) + " |" for r in selecting(lines)]
+            "| kind | triplet | Delta [c/d] | kappa | E_th [E_star] | E_eq [E_star] | gamma sum [1/s] | mu |",
+            "|---|---|---|---|---|---|---|---|"]
+    wg = {lname(m["l"], m["n"]): (m["w"], m["g"]) for m in modes.values()}
+    out += ["| " + " | ".join(r) + " |" for r in selecting(lines, wg)]
     rows = [run_row(d) for d in runs]
     out += ["", "| run | N | triplets | shared daughters | direct triplets | stop | t_stop [s] | <E_par> [E_star]"
-                " | swing | dissipation/driving | n_active |", "|---|---|---|---|---|---|---|---|---|---|---|"]
+                " | swing | <D>_T/<P>_T | n_active |", "|---|---|---|---|---|---|---|---|---|---|---|"]
     out += [f"| {r['run']} | {r['N']} | {r['triplets']} | {r['shared']} | {r['direct']} | {r['stop']} |"
-            f" {r['t_stop']:.3g} | {r['E_par']:.4e} | {r['swing']:.3g} | {r['ratio']:.4f} | {r['n_active']} |"
+            f" {r['t_stop']:.3g} | {r['E_par']:.4e} | {r['swing']:.3g} | {r['ratio']:.4g} | {r['n_active']} |"
             for r in rows]
     k = len(rows) - 1
     while k > 0 and same(rows[k - 1], rows[-1]):

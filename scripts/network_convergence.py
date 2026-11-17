@@ -17,10 +17,12 @@ import re
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from network_plot import run_balance
+
 PALETTE = ["#0072B2", "#CC3311", "#E69F00", "#009E73", "#CC79A7", "#000000"]
 PANELS = [("E_parents", r"$\langle E_{\rm parents}\rangle\ [E_\star]$", True),
           ("swing", "parent energy swing", False),
-          ("balance", "dissipation / driving", False),
+          ("balance", r"$\langle D\rangle_T / \langle P\rangle_T$ at $t_{\rm stop}$", False),
           ("n_active", "active daughters", False)]
 
 plt.rcParams.update({
@@ -40,7 +42,7 @@ def load(runs: pathlib.Path) -> pd.DataFrame:
         r.update(N=int(n), cut=float(cut), closure=closure != "off", run=p.parent.name)
         rows.append(r)
     df = pd.DataFrame(rows)
-    df["balance"] = df["dissipation"] / df["driving"]
+    df["balance"] = [run_balance(runs / r) for r in df["run"]]
     if "daughter_ratio" not in df:               # runs from before --daughter-ratio
         df["daughter_ratio"] = (df["q0_daughter"] / df["q0"]) ** 2
     return df
