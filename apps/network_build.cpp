@@ -9,17 +9,20 @@
      pair       p -> b + c, b and c damped (b == c included), ranked by E_th (Weinberg+12 eq. 50);
      harmonic   x + x -> c, c damped, ranked by E_eq of the triplet (the hold energy E_h);
      sum        x + y -> c (two parents), ranked by E_eq = E_x + E_y at its fixed point.
-   Lowest first, each parent's lowest one ahead of the rest. A ladder takes them in this order; a
-   triplet brings 0, 1 or 2 new daughters, and d<N>.data holds every triplet taken before the one that
-   brings daughter N + 1, for each N up to --n-max. Each network contains the one before.
+   Pairs lowest E_th first, direct triplets lowest E_eq first, taken one from each in turn, a pair first.
+   Ahead of them, each parent's first triplet that involves no other parent (a pair it heads, or its
+   harmonic): a sum triplet holds neither parent, so it never stands in for one. A ladder takes them in
+   this order; a triplet brings 0, 1 or 2 new daughters, and d<N>.data holds every triplet taken before
+   the one that brings daughter N + 1, for each N up to --n-max. Each network contains the one before.
+   <out>/candidates.csv: every candidate of every driven mode, with f, gamma, Delta, kappa, E_th, E_eq.
 
    --parent l,n (one or two): one ladder, into <out>/<parents>/.
    --each-parent: one ladder per driven l <= --parent-l-max mode, into <out>/l<l>_n<n>/.
    --pairs k: the k pairs of parents, each held alone by one of its triplets (a pair with an E_eq,
      or a harmonic triplet with |gamma_x| / gamma_c < 1/2), with the lowest E_th or E_eq of a
      triplet coupling them (a shared daughter: the larger E_th of its two pairs; a sum triplet: E_eq).
-   --only-eeq keeps only pairs with gamma_p + gamma_b + gamma_c > 0 (an E_eq exists); a ladder that
-   it leaves unchanged is not written.
+   --only-eeq keeps only pairs with gamma_p + gamma_b + gamma_c > 0 (the fixed point at E_eq can be
+   stable); a ladder that it leaves unchanged is not written.
    --min-gamma-ratio r keeps a pair only if min(gamma_b, gamma_c) >= r |gamma_p|.
    --self-coupled k puts each parent's k lowest a -> d + d pairs ahead of the rest.
    A difference triplet, c at |omega_x - omega_y|, needs the two parents at opposite signs, which
@@ -101,7 +104,8 @@ bool holds (const ModeMap& efs, const RadialTriplet& t, bool direct) {
     return self_coupled(t) && -efs.at(t.pair[0]).gamma < 0.5 * efs.at(t.sum_mode).gamma;
 }
 
-bool involves (const RadialTriplet& t, Key p) { return t.sum_mode == p || t.pair[0] == p || t.pair[1] == p; }
+// a pair p heads, or p's harmonic triplet: no other parent in it
+bool own (const RadialTriplet& t, Key p) { return t.sum_mode == p || (t.pair[0] == p && t.pair[1] == p); }
 
 struct Step { std::vector<Key> daughters; std::vector<RadialTriplet> chosen; };
 
@@ -128,14 +132,12 @@ std::string triplet_line (const ModeMap& efs, const stab::KappaCache& kap, const
     const double k = kappa_of(kap, t);
     char buf[200];
     if (parents.count(t.sum_mode)) {
-        char eq[16] = "none";
         const Eigenfunction &a = efs.at(t.sum_mode), &b = efs.at(t.pair[0]), &c = efs.at(t.pair[1]);
-        if (has_eeq(efs, t))
-            std::snprintf(eq, sizeof eq, "%.3e", stab::equilibrium_energy(k, b.omega, c.omega, a.gamma,
-                                                                          b.gamma, c.gamma, t.delta));
-        std::snprintf(buf, sizeof buf, "#   pair      (%d,%+d) -> (%d,%+d) + (%d,%+d)   %+.3e  %+.3e  %+.3e  %.3e  %s\n",
+        std::snprintf(buf, sizeof buf, "#   pair      (%d,%+d) -> (%d,%+d) + (%d,%+d)   %+.3e  %+.3e  %+.3e  %.3e  %.3e  %+.3e\n",
                       t.sum_mode.first, t.sum_mode.second, t.pair[0].first, t.pair[0].second,
-                      t.pair[1].first, t.pair[1].second, t.delta / CD, frac_detuning(t), k, e_th(efs, t, k), eq);
+                      t.pair[1].first, t.pair[1].second, t.delta / CD, frac_detuning(t), k, e_th(efs, t, k),
+                      stab::equilibrium_energy(k, b.omega, c.omega, a.gamma, b.gamma, c.gamma, t.delta),
+                      a.gamma + b.gamma + c.gamma);
     } else {
         std::snprintf(buf, sizeof buf, "#   %-9s (%d,%+d) + (%d,%+d) -> (%d,%+d)   %+.3e  %+.3e  %+.3e  %.3e  mu %.3e\n",
                       self_coupled(t) ? "harmonic" : "sum", t.pair[0].first, t.pair[0].second, t.pair[1].first,
@@ -161,7 +163,8 @@ void write_network (const std::filesystem::path& p, const std::string& header, c
     char buf[200];
     f << rule_line << header
       << "# selecting triplets, in the order they entered: Delta [c/d], Delta/omega, kappa, then\n"
-      << "#   pair: E_th/E_star (Weinberg+12 eq. 50), E_eq/E_star (MW25 eq. 6; none: gamma_a + gamma_b + gamma_c <= 0)\n"
+      << "#   pair: E_th/E_star (Weinberg+12 eq. 50), E_eq/E_star (MW25 eq. 6), gamma_p + gamma_b + gamma_c [1/s]\n"
+      << "#     (<= 0: the fixed point at E_eq is unstable)\n"
       << "#   harmonic, sum: E_eq/E_star at the triplet's fixed point, mu (MW23 eq. 9)\n";
     for (const auto& t : s.chosen) f << triplet_line(efs, kap, parents, t);
     f << "# shared daughters:";
@@ -281,6 +284,37 @@ int main (int argc, char** argv) {
     std::printf("%zu modes, %zu driven, %zu pairs, %zu direct triplets at cut %.3g c/d\n",
                 efs.size(), driven.size(), pairs.size(), direct.size(), cut / CD);
 
+    // Every candidate, for E_th and E_eq against f and Delta. A sum triplet x + y -> c lists both parents;
+    // gamma_sum is gamma_x + gamma_y + gamma_c with y = x for a harmonic (> 0: it holds x alone).
+    if (!list_direct) {
+        std::filesystem::create_directories(out);
+        csv::Writer w(std::filesystem::path(out) / "candidates.csv",
+                      {"kind", "parent", "parent2", "daughter", "daughter2", "f_parent", "f_parent2", "f_daughter",
+                       "f_daughter2", "gamma_parent", "gamma_parent2", "gamma_daughter", "gamma_daughter2",
+                       "delta_cd", "delta_over_omega", "kappa", "E_th", "E_eq", "gamma_sum", "mu"});
+        const double nan = std::numeric_limits<double>::quiet_NaN();
+        auto mode = [](Key k) { return "(" + std::to_string(k.first) + "," + (k.second >= 0 ? "+" : "")
+                                       + std::to_string(k.second) + ")"; };
+        for (const auto& t : pairs) {
+            const Eigenfunction &a = efs.at(t.sum_mode), &b = efs.at(t.pair[0]), &c = efs.at(t.pair[1]);
+            const double k = kappa_of(kap, t);
+            w.row(std::string("pair"), mode(t.sum_mode), std::string(), mode(t.pair[0]), mode(t.pair[1]),
+                  a.omega / CD, nan, b.omega / CD, c.omega / CD, a.gamma, nan, b.gamma, c.gamma,
+                  t.delta / CD, frac_detuning(t), k, e_th(efs, t, k),
+                  stab::equilibrium_energy(k, b.omega, c.omega, a.gamma, b.gamma, c.gamma, t.delta),
+                  a.gamma + b.gamma + c.gamma, nan);
+        }
+        for (const auto& t : direct) {
+            const Eigenfunction &x = efs.at(t.pair[0]), &y = efs.at(t.pair[1]), &c = efs.at(t.sum_mode);
+            const bool h = self_coupled(t);
+            const double k = kappa_of(kap, t);
+            w.row(std::string(h ? "harmonic" : "sum"), mode(t.pair[0]), h ? std::string() : mode(t.pair[1]),
+                  mode(t.sum_mode), std::string(), x.omega / CD, h ? nan : y.omega / CD, c.omega / CD, nan,
+                  x.gamma, h ? nan : y.gamma, c.gamma, nan, -t.delta / CD, -frac_detuning(t), k, nan,
+                  e_eq_direct(efs, t, k), x.gamma + y.gamma + c.gamma, mu_direct(efs, t, k));
+        }
+    }
+
     if (list_direct) {
         std::map<Key, std::array<long, 2>> np;          // damped pairs, those with E_eq
         for (const auto& t : pairs) {
@@ -324,16 +358,21 @@ int main (int argc, char** argv) {
     auto energy = [&](const RadialTriplet& t) { return rank_e.at(keys_of({t})[0]); };
 
     auto candidates = [&](const std::set<Key>& ps, bool eq_only) {
-        std::vector<RadialTriplet> ts;
+        std::vector<RadialTriplet> pa, di, ts;
         for (const auto& t : pairs)
-            if (ps.count(t.sum_mode) && (!eq_only || has_eeq(efs, t))) ts.push_back(t);
+            if (ps.count(t.sum_mode) && (!eq_only || has_eeq(efs, t))) pa.push_back(t);
         for (const auto& t : direct)
-            if (ps.count(t.pair[0]) && ps.count(t.pair[1])) ts.push_back(t);
-        std::stable_sort(ts.begin(), ts.end(), [&](const RadialTriplet& a, const RadialTriplet& b) {
-            return energy(a) < energy(b); });
+            if (ps.count(t.pair[0]) && ps.count(t.pair[1])) di.push_back(t);
+        auto lower = [&](const RadialTriplet& a, const RadialTriplet& b) { return energy(a) < energy(b); };
+        std::stable_sort(pa.begin(), pa.end(), lower);
+        std::stable_sort(di.begin(), di.end(), lower);
+        for (size_t i=0 ; i<std::max(pa.size(), di.size()) ; i++) {
+            if (i < pa.size()) ts.push_back(pa[i]);
+            if (i < di.size()) ts.push_back(di[i]);
+        }
         std::vector<size_t> first;
         for (Key p : ps) {
-            for (size_t i=0 ; i<ts.size() ; i++) if (involves(ts[i], p)) { first.push_back(i); break; }
+            for (size_t i=0 ; i<ts.size() ; i++) if (own(ts[i], p)) { first.push_back(i); break; }
             int n = 0;
             for (size_t i=0 ; i<ts.size() && n<n_self ; i++)
                 if (ts[i].sum_mode == p && self_coupled(ts[i])) { first.push_back(i); n++; }
@@ -350,8 +389,9 @@ int main (int argc, char** argv) {
     // Every driven mode: what can hold it.
     std::map<Key, bool> held;
     std::map<Key, std::map<Key, double>> best;   // parent -> daughter -> lowest E_th of its pairs holding it
-    std::printf("\ndriven l <= %d modes: damped pairs, those with E_eq, harmonic triplets with |gamma_x|/gamma_c < 1/2\n"
-                "#  mode      f [c/d]   gamma [1/s]   pairs   E_eq  harmonic   lowest E_th  lowest E_h   held by\n",
+    std::printf("\ndriven l <= %d modes: damped pairs, those with gamma_p + gamma_b + gamma_c > 0, harmonic triplets"
+                " with |gamma_x|/gamma_c < 1/2\n"
+                "#  mode      f [c/d]   gamma [1/s]   pairs  g_sum>0  harmonic   lowest E_th  lowest E_h   held by\n",
                 parent_l_max);
     for (Key k : driven) {
         long n = 0, n_eq = 0, n_h = 0;
@@ -371,7 +411,7 @@ int main (int argc, char** argv) {
         held[k] = n_eq || n_h;
         std::printf("  (%d,%+d)  %8.4f   %+.3e   %5ld  %5ld  %8ld   %.3e   %.3e   %s\n", k.first, k.second,
                     efs.at(k).omega / CD, efs.at(k).gamma, n, n_eq, n_h, eth, eh,
-                    n_eq ? "a pair" : n_h ? "a harmonic triplet" : n ? "none (pairs without E_eq)"
+                    n_eq ? "a pair" : n_h ? "a harmonic triplet" : n ? "none (pairs, all gamma_p + gamma_b + gamma_c <= 0)"
                                                                      : "none (no triplet within the cut)");
     }
 
@@ -449,8 +489,9 @@ int main (int argc, char** argv) {
             char name[32], header[400];
             std::snprintf(name, sizeof name, "d%zu.data", s.daughters.size());
             std::snprintf(header, sizeof header,
-                          "# network_build %s  gamma_%s  daughters %zu  cut %g  closure %s  ranking E_th (pairs),"
-                          " E_eq (direct)  only_eeq %d  min_gamma_ratio %g  self_coupled %d\n",
+                          "# network_build %s  gamma_%s  daughters %zu  cut %g  closure %s  ranking alternating, pairs"
+                          " by E_th, direct by E_eq, each parent's own first  only_eeq %d  min_gamma_ratio %g"
+                          "  self_coupled %d\n",
                           model.c_str(), gamma_mode.c_str(), s.daughters.size(), cut_dimless,
                           closure ? std::to_string(closure_cut / wdyn).c_str() : "off", int(only_eeq),
                           min_gamma_ratio, n_self);

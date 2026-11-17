@@ -21,8 +21,9 @@
 # skipped), rebuilds the sets asked for, then integrates their networks in parallel, plotting each
 # run as it finishes. A finished run is redone only when its network (modes and triplets) changed.
 # Output: $DATA/<model>/<set>/<parents>/d<N>.data, $OUT/<model>/ladder_{1p,2p}/<parents>/d<N>/, and
-# $OUT/<model>/networks.md. A 1p_eq ladder, and a 2p ladder whose parents already have a ladder
-# built by an earlier rule, go to <parents>_ladder2. LIST_DIRECT: out/direct_candidates_<model>.txt.
+# $OUT/<model>/networks.md, $DATA/<model>/<set>/candidates.csv. A ladder goes to its parents' folder,
+# or, if that folder holds different networks from another rule (or --only-eeq), to the first
+# <parents>_ladder<k> (k >= 2) free or of the same rule. LIST_DIRECT: out/direct_candidates_<model>.txt.
 
 set -euo pipefail
 source shell-scripts/config.sh
@@ -73,18 +74,35 @@ TWO=--pairs\ $NPAIRS
 want 1p && build ladder_1p --each-parent
 want 1p_eq && build ladder_1p_eq --each-parent --only-eeq
 want 2p && build ladder_2p $TWO
-# a 2p ladder whose parents already have a ladder of an earlier rule (no "in the order they entered" line)
-for p in "$DATA/$TAG"/ladder_2p/*/; do
-    o=$OUT/$TAG/ladder_2p/$(basename "$p")
-    [[ -d $o ]] && ! grep -qs 'in the order they entered' "$o"/*/network.data && mv "$p" "${p%/}_ladder2"
-done
-[[ ${BUILD_ONLY:-0} == 1 ]] && exit 0
 
 body() { grep -v '^#' "$1"; }
+rule() { grep -m1 '^# network_build' "$1" | sed 's/ daughters [0-9]*//'; }
+same() {   # built ladder, run folder: the same networks
+    local f
+    [[ $(ls "$1" | grep '^d.*\.data$' | sed 's/\.data$//' | sort) == $(ls "$2" | grep '^d[0-9]' | sort) ]] || return 1
+    for f in "$1"/d*.data; do cmp -s <(body "$f") <(body "$2/$(basename "$f" .data)/network.data") || return 1; done
+}
+place() {  # set, run group
+    local p n o k r
+    for p in "$DATA/$TAG/$1"/*/; do
+        p=${p%/}; n=$(basename "$p"); k=1; o=$OUT/$TAG/$2/$n
+        r=$(ls "$p"/d*.data | head -1)
+        while r2=$(ls "$o"/d*/network.data 2>/dev/null | head -1) && [[ -n $r2 ]] \
+              && [[ $(rule "$r") != $(rule "$r2") ]] && ! same "$p" "$o"; do
+            k=$((k + 1)); o=$OUT/$TAG/$2/${n}_ladder$k
+        done
+        if [[ $k -gt 1 ]]; then mv "$p" "$DATA/$TAG/$1/${n}_ladder$k"; echo "PLACED $1/$n -> $2/${n}_ladder$k"; fi
+    done
+}
+want 1p && place ladder_1p ladder_1p
+want 1p_eq && place ladder_1p_eq ladder_1p
+want 2p && place ladder_2p ladder_2p
+[[ ${BUILD_ONLY:-0} == 1 ]] && exit 0
+
 run() {   # network file
     local f=$1 d grp p
     grp=$(basename "$(dirname "$(dirname "$f")")"); p=$(basename "$(dirname "$f")")
-    case $grp in ladder_1p_eq) d=$OUT/$TAG/ladder_1p/${p}_ladder2 ;; *) d=$OUT/$TAG/$grp/$p ;; esac
+    case $grp in ladder_1p_eq) d=$OUT/$TAG/ladder_1p/$p ;; *) d=$OUT/$TAG/$grp/$p ;; esac
     d=$d/$(basename "$f" .data)
     [[ -f $d/summary.csv ]] && cmp -s <(body "$f") <(body "$d/network.data") && { echo "KEPT $d (same network)"; return 0; }
     rm -rf "$d"; mkdir -p "$d"; cp "$f" "$d/network.data"
