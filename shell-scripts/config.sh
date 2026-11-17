@@ -31,6 +31,7 @@ MODELS=(
   "dsct_M2.2_T7888:2.2:3.830:7888"
   "dsct_M1.85_T7555:1.85:4.010:7555"
   "dsct_M1.7_T7750:1.7:4.230:7750"
+  "dsct_M2.0_T7696_new:2.0:3.930:7696"   # dsct_M2.0_T7696 evolved on its own track, to check the old files
 )
 
 model_field() {  # model_field <tag> <1=mass|2=logg|3=teff>

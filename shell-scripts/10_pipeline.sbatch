@@ -15,7 +15,9 @@
 #        -> GYRE wide pass 1 -> pass 2 -> four-mode -> M6 -> figures
 #
 #   sbatch -J dsct_M2.2 shell-scripts/10_pipeline.sbatch dsct_M2.2_T7888
+#   COMPARE_WITH=dsct_M2.0_T7696 sbatch -J dsct_new shell-scripts/10_pipeline.sbatch dsct_M2.0_T7696_new
 #
+# COMPARE_WITH=<tag>: the model is a rebuild of <tag>; after GYRE, compare the two (model_compare.py) and stop.
 # submit_all.sh overrides -J and adds --dependency where needed. Every stage
 # is skipped when its output already exists, so a job killed by walltime can
 # be resubmitted verbatim and continues. Pass --force-all to redo everything.
@@ -172,6 +174,13 @@ if [ "$RUN_WIDE_PASS2" = "1" ]; then
       --ad summary_ad_wide_hi.h5 --nad summary_nad_wide_hi.h5 --detail detail_wide
 else
   step "wide net pass 2 disabled (RUN_WIDE_PASS2=0)"
+fi
+
+if [ -n "${COMPARE_WITH:-}" ]; then
+  step "comparing with $COMPARE_WITH"
+  "$PYTHON" scripts/model_compare.py "models/$COMPARE_WITH" "$MODEL"
+  echo "=== $TAG done $(date)${FAILED_CHECKS:+ WITH FAILURES:$FAILED_CHECKS} ==="
+  exit 0
 fi
 
 # ------------------------------------------------------------- 8. four-mode
