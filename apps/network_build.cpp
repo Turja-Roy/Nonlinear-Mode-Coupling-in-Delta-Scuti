@@ -21,6 +21,8 @@
    --pairs k: the k pairs of parents, each held alone by one of its triplets (a pair with an E_eq,
      or a harmonic triplet with |gamma_x| / gamma_c < 1/2), with the lowest E_th or E_eq of a
      triplet coupling them (a shared daughter: the larger E_th of its two pairs; a sum triplet: E_eq).
+   --sum-partner l,n (repeatable): a ladder of that parent x with y, the held-alone parent of x's
+     lowest-E_eq sum triplet x + y -> c; none if x has no such triplet.
    --only-eeq keeps only pairs with gamma_p + gamma_b + gamma_c > 0 (the fixed point at E_eq can be
    stable); a ladder that it leaves unchanged is not written.
    --min-gamma-ratio r keeps a pair only if min(gamma_b, gamma_c) >= r |gamma_p|.
@@ -198,7 +200,7 @@ int main (int argc, char** argv) {
     std::string inlist = "gyre_ad_wide.in", gamma_mode = "tot";
     std::string out = "data/network", cache = "out/four_mode_dsct_M2.0.kappa_cache.tsv";
     std::vector<std::string> nad = {"summary_nad_wide.h5", "summary_nad_wide_hi.h5"};
-    std::vector<std::string> parent_s;
+    std::vector<std::string> parent_s, partner_s;
     double cut_dimless = DETUNING_CUT_DIMLESS, closure_dimless = -1.0, min_gamma_ratio = 0.0;
     int l_max = 25, jobs = 4, parent_l_max = 2, n_self = 0, n_pairs = 0, n_max = 24;
     bool closure = true, each_parent = false, only_eeq = false, list_direct = false;
@@ -210,6 +212,7 @@ int main (int argc, char** argv) {
     app.add_option("--parent", parent_s, "l,n of a parent; one or two");
     app.add_flag("--each-parent", each_parent, "one ladder per driven l <= --parent-l-max mode");
     app.add_option("--pairs", n_pairs, "ladders for k pairs of parents, each held alone, lowest E_th or E_eq of a triplet coupling them first");
+    app.add_option("--sum-partner", partner_s, "l,n: a ladder of it with the held parent of its lowest-E_eq sum triplet; repeatable");
     app.add_option("--parent-l-max", parent_l_max, "largest l of a parent for --each-parent, --pairs, --list-direct");
     app.add_option("--n-max", n_max, "largest daughter count, default 24");
     app.add_flag("--only-eeq", only_eeq, "only pairs with gamma_p + gamma_b + gamma_c > 0");
@@ -225,8 +228,8 @@ int main (int argc, char** argv) {
     app.add_option("-j,--jobs", jobs);
     app.add_option("--out", out, "directory");
     CLI11_PARSE(app, argc, argv);
-    if (parent_s.size() > 2 || (parent_s.empty() && !each_parent && !n_pairs && !list_direct)) {
-        std::fprintf(stderr, "one or two --parent, or --each-parent, --pairs, --list-direct\n");
+    if (parent_s.size() > 2 || (parent_s.empty() && !each_parent && !n_pairs && !list_direct && partner_s.empty())) {
+        std::fprintf(stderr, "one or two --parent, or --each-parent, --pairs, --sum-partner, --list-direct\n");
         return 1;
     }
 
@@ -441,6 +444,16 @@ int main (int argc, char** argv) {
                         int(i) < n_pairs ? "  <- ladder" : "");
             if (int(i) < n_pairs) sets.push_back({a, b});
         }
+    }
+    for (const auto& s : partner_s) {
+        const Key x = parse_key(s);
+        const RadialTriplet* b = nullptr;
+        for (const auto& t : direct) {
+            const Key y = t.pair[0] == x ? t.pair[1] : t.pair[0];
+            if ((t.pair[0] == x || t.pair[1] == x) && y != x && held[y] && (!b || energy(t) < energy(*b))) b = &t;
+        }
+        if (!b) { std::printf("  (%d,%+d): no sum triplet with a held parent, no ladder\n", x.first, x.second); continue; }
+        sets.push_back({x, b->pair[0] == x ? b->pair[1] : b->pair[0]});
     }
 
     for (auto ps_v : sets) {

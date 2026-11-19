@@ -14,7 +14,7 @@ std::string fmt (double v);                      // NaN -> "", inf -> "inf"
 std::string fmt (bool v);                        // "True" / "False"
 inline std::string fmt (int v)  { return std::to_string(v); }
 inline std::string fmt (long v) { return std::to_string(v); }
-inline std::string fmt (const std::string& v) { return v; }
+inline std::string fmt (const std::string& v) { return v.find(',') == v.npos ? v : '"' + v + '"'; }   // "(0,+1)"
 inline std::string fmt (const char* v) { return v; }
 
 class Writer {
