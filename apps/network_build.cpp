@@ -296,8 +296,8 @@ int main (int argc, char** argv) {
                        "f_daughter2", "gamma_parent", "gamma_parent2", "gamma_daughter", "gamma_daughter2",
                        "delta_cd", "delta_over_omega", "kappa", "E_th", "E_eq", "gamma_sum", "mu"});
         const double nan = std::numeric_limits<double>::quiet_NaN();
-        auto mode = [](Key k) { return "(" + std::to_string(k.first) + "," + (k.second >= 0 ? "+" : "")
-                                       + std::to_string(k.second) + ")"; };
+        auto mode = [](Key k) { return "\"(" + std::to_string(k.first) + "," + (k.second >= 0 ? "+" : "")
+                                       + std::to_string(k.second) + ")\""; };   // quoted: the label holds a comma
         for (const auto& t : pairs) {
             const Eigenfunction &a = efs.at(t.sum_mode), &b = efs.at(t.pair[0]), &c = efs.at(t.pair[1]);
             const double k = kappa_of(kap, t);

@@ -105,24 +105,26 @@ want 2p && place ladder_2p ladder_2p
 want 2p_sum && place ladder_2p_sum ladder_2p
 [[ ${BUILD_ONLY:-0} == 1 ]] && exit 0
 
+plot() { python scripts/network_plot.py --data "$1" --title "$TAG ${1#"$OUT/$TAG/"}" >> "$1/log.txt" 2>&1 || echo "PLOT FAILED $1"; }
 run() {   # network file
     local f=$1 d grp p
     grp=$(basename "$(dirname "$(dirname "$f")")"); p=$(basename "$(dirname "$f")")
     case $grp in ladder_1p_eq) grp=ladder_1p ;; ladder_2p_sum) grp=ladder_2p ;; esac
     d=$OUT/$TAG/$grp/$p
     d=$d/$(basename "$f" .data)
-    [[ -f $d/summary.csv ]] && cmp -s <(body "$f") <(body "$d/network.data") && { echo "KEPT $d (same network)"; return 0; }
+    if [[ -f $d/summary.csv ]] && cmp -s <(body "$f") <(body "$d/network.data"); then
+        echo "KEPT $d (same network)"; [[ -f $d/network_run.png ]] || plot "$d"; return 0
+    fi
     rm -rf "$d"; mkdir -p "$d"; cp "$f" "$d/network.data"
     timeout "${WALL}m" ./build/network_run "$f" --out "$d" $RUN_ARGS \
         --max-seconds $((WALL * 54)) > "$d/log.txt" 2>&1
     case $? in
-        0) python scripts/network_plot.py --data "$d" --title "$TAG ${d#"$OUT/$TAG/"}" \
-               >> "$d/log.txt" 2>&1 || echo "PLOT FAILED $d" ;;
+        0) plot "$d" ;;
         124) echo "TIMEOUT $f (> ${WALL} min)" ;;
         *) echo "FAILED $f (see $d/log.txt)" ;;
     esac
 }
-export -f run body
+export -f run body plot
 export OUT RUN_ARGS WALL TAG
 # costliest first, ~ max|Delta| * n_triplets (Delta = col 5 * |omega_id1|), so no long run
 # finishes alone
