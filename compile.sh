@@ -105,7 +105,7 @@ for p in hdf5 hdf5-serial; do
 done
 if [[ $HDF5_FOUND -eq 0 ]]; then
     if [[ -n ${HDF5_DIR:-} && -d $HDF5_DIR/include ]]; then
-        HDF5_C="-I$HDF5_DIR/include"; HDF5_L="-L$HDF5_DIR/lib -lhdf5"
+        HDF5_C="-I$HDF5_DIR/include"; HDF5_L="-L$HDF5_DIR/lib -Wl,-rpath,$HDF5_DIR/lib -lhdf5"
         say "  HDF5:     \$HDF5_DIR=$HDF5_DIR"
     elif [[ -f /usr/include/hdf5.h ]]; then
         say "  HDF5:     /usr/include (no pkg-config)"

@@ -3,7 +3,7 @@
 #SBATCH -p normal
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -c 16
+#SBATCH -c 8               # cluster admin, 2026-11: at most 8 cores a node
 #SBATCH --mem=30000      # node has 31868 MB; the default per-CPU memory x 16 asks for more
 #SBATCH -t 24:00:00
 #SBATCH -a 0-4
